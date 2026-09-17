@@ -175,6 +175,24 @@ const T = {
     proj_pdf_empty: 'Sin carpeta configurada',
     proj_pdf_browse: 'Seleccionar carpeta',
     pdf_download: 'Descargar PDF',
+    semantic_layer: 'Semantic Layer',
+    semantic_started: 'Generando capa semántica… puede tardar unos minutos',
+    semantic_done: 'Capa semántica generada',
+    semantic_error: 'Error al generar la capa semántica',
+    semantic_no_transcript: 'No hay transcripción para esta reunión',
+    semantic_no_skill: 'Skill ontoforge-meetings no encontrada (~/.claude/skills)',
+    semantic_no_claude: 'Claude CLI no encontrado en el PATH',
+    tab_semantic: 'Semantic Layer',
+    semantic_tab_empty: 'Aún no se ha generado la capa semántica para esta reunión.',
+    semantic_tab_generate: 'Generar capa semántica',
+    semantic_tab_regen: 'Regenerar',
+    semantic_generated_at: 'Generado el',
+    semantic_reveal: 'Mostrar en carpeta',
+    semantic_open: 'Abrir',
+    semantic_copy: 'Copiar ruta',
+    semantic_copied: 'Ruta copiada',
+    semantic_copy_fail: 'No se pudo copiar',
+    semantic_open_inputs: 'Abrir carpeta de inputs',
     account_settings_title: 'Cuenta',
     project_settings_title: 'Configuración de proyectos',
     no_projects: 'Sin proyectos',
@@ -382,6 +400,24 @@ const T = {
     proj_pdf_empty: 'No folder configured',
     proj_pdf_browse: 'Select folder',
     pdf_download: 'Download PDF',
+    semantic_layer: 'Semantic Layer',
+    semantic_started: 'Generating semantic layer… this can take a few minutes',
+    semantic_done: 'Semantic layer generated',
+    semantic_error: 'Failed to generate the semantic layer',
+    semantic_no_transcript: 'No transcript available for this meeting',
+    semantic_no_skill: 'ontoforge-meetings skill not found (~/.claude/skills)',
+    semantic_no_claude: 'Claude CLI not found in PATH',
+    tab_semantic: 'Semantic Layer',
+    semantic_tab_empty: 'No semantic layer has been generated for this meeting yet.',
+    semantic_tab_generate: 'Generate semantic layer',
+    semantic_tab_regen: 'Regenerate',
+    semantic_generated_at: 'Generated on',
+    semantic_reveal: 'Reveal in folder',
+    semantic_open: 'Open',
+    semantic_copy: 'Copy path',
+    semantic_copied: 'Path copied',
+    semantic_copy_fail: 'Could not copy',
+    semantic_open_inputs: 'Open inputs folder',
     account_settings_title: 'Account',
     project_settings_title: 'Project settings',
     no_projects: 'No projects yet',
@@ -588,6 +624,24 @@ const T = {
     proj_pdf_empty: 'Sense carpeta configurada',
     proj_pdf_browse: 'Seleccionar carpeta',
     pdf_download: 'Descarregar PDF',
+    semantic_layer: 'Semantic Layer',
+    semantic_started: 'Generant la capa semàntica… pot trigar uns minuts',
+    semantic_done: 'Capa semàntica generada',
+    semantic_error: 'Error en generar la capa semàntica',
+    semantic_no_transcript: 'No hi ha transcripció per a aquesta reunió',
+    semantic_no_skill: 'Skill ontoforge-meetings no trobada (~/.claude/skills)',
+    semantic_no_claude: 'Claude CLI no trobat al PATH',
+    tab_semantic: 'Semantic Layer',
+    semantic_tab_empty: 'Encara no s\'ha generat la capa semàntica per a aquesta reunió.',
+    semantic_tab_generate: 'Generar capa semàntica',
+    semantic_tab_regen: 'Regenerar',
+    semantic_generated_at: 'Generat el',
+    semantic_reveal: 'Mostrar a la carpeta',
+    semantic_open: 'Obrir',
+    semantic_copy: 'Copiar ruta',
+    semantic_copied: 'Ruta copiada',
+    semantic_copy_fail: 'No s\'ha pogut copiar',
+    semantic_open_inputs: 'Obrir carpeta d\'inputs',
     account_settings_title: 'Compte',
     project_settings_title: 'Configuració de projectes',
     no_projects: 'Sense projectes',
@@ -1177,11 +1231,13 @@ async function openMeeting(path) {
   const panel = document.getElementById('main-panel');
   panel.innerHTML = `<div class="loading">${t('loading')}</div>`;
 
-  const [minutesHtml, actions, transcriptText] = await Promise.all([
+  const [minutesHtml, actions, transcriptText, semanticInfo] = await Promise.all([
     pywebview.api.get_minutes_html(path),
     pywebview.api.get_actions(path),
     pywebview.api.get_transcript_text(path).catch(() => null),
+    pywebview.api.get_semantic_info(path).catch(() => ({})),
   ]);
+  const hasSemantic = !!(semanticInfo && semanticInfo.generated_at);
 
   const meeting = allMeetings.find(m => m.path === path) || {};
   const pendingCount = actions ? actions.filter(a => !a.executed).length : 0;
@@ -1223,6 +1279,7 @@ async function openMeeting(path) {
               <button class="action-menu-item" id="btn-regenerate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74"/><path d="M3 3v4h4"/></svg><span>${t('btn_regenerate')}</span></button>
               <button class="action-menu-item" id="btn-html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span>HTML</span></button>
               <button class="action-menu-item" id="btn-pdf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg><span>${t('pdf_download')}</span></button>
+              <button class="action-menu-item" id="btn-semantic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span>${t('semantic_layer')}</span></button>
             </div>
           </div>
         </div>
@@ -1240,6 +1297,7 @@ async function openMeeting(path) {
           ${t('tab_actions')} ${pendingCount > 0 ? `<span class="tab-badge">${pendingCount}</span>` : ''}
         </button>
         <button class="detail-tab" id="tab-transcript" data-tab="transcript">${t('tab_transcript')}</button>
+        ${hasSemantic ? `<button class="detail-tab" id="tab-semantic" data-tab="semantic">${t('tab_semantic')}</button>` : ''}
       </div>
       <div class="minutes-section" id="section-notes">
         <div class="minutes-content">${minutesHtml ? sanitizeHtml(minutesHtml) : `<em>${t('no_minutes')}</em>`}</div>
@@ -1256,11 +1314,13 @@ async function openMeeting(path) {
       <div class="transcript-section hidden" id="section-transcript">
         <div class="transcript-content">${transcriptText ? escHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
       </div>
+      ${hasSemantic ? `<div class="semantic-section hidden" id="section-semantic" data-path="${escHtml(path)}"></div>` : ''}
       <div id="sticky-layer" class="sticky-layer"></div>
     </div>`;
 
   document.getElementById('btn-html').addEventListener('click', () => openHtml(path));
   document.getElementById('btn-pdf').addEventListener('click', () => { document.getElementById('action-menu').classList.add('hidden'); window.print(); });
+  document.getElementById('btn-semantic').addEventListener('click', () => { document.getElementById('action-menu').classList.add('hidden'); runSemanticLayer(path, meeting.title || ''); });
   document.getElementById('btn-export-transcript').addEventListener('click', () => exportTranscript(path));
   document.getElementById('btn-claude').addEventListener('click', () => openMinutesInClaude(path));
   document.getElementById('btn-regenerate').addEventListener('click', () => { document.getElementById('action-menu').classList.add('hidden'); toggleRegenBar(); });
@@ -1323,6 +1383,8 @@ async function openMeeting(path) {
       document.getElementById('section-notes').classList.toggle('hidden', which !== 'notes');
       document.getElementById('section-actions').classList.toggle('hidden', which !== 'actions');
       document.getElementById('section-transcript').classList.toggle('hidden', which !== 'transcript');
+      document.getElementById('section-semantic')?.classList.toggle('hidden', which !== 'semantic');
+      if (which === 'semantic') renderSemanticTab(path);
       _updateActionBar(which);
       panel.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -3711,6 +3773,114 @@ async function openHtml(path) {
   await pywebview.api.open_html(path);
 }
 
+// ── Semantic Layer (skill externa ontoforge-meetings, vía claude -p) ────────────
+
+async function runSemanticLayer(path, title) {
+  let result;
+  try {
+    result = await pywebview.api.run_semantic_layer(path, title || '');
+  } catch (e) {
+    showToast(t('semantic_error'));
+    return;
+  }
+  if (!result || !result.ok) {
+    const err = result && result.error;
+    if (err === 'no_transcript')   showToast(t('semantic_no_transcript'));
+    else if (err === 'no_skill')   showToast(t('semantic_no_skill'));
+    else if (err === 'no_claude')  showToast(t('semantic_no_claude'));
+    else                           showToast(t('semantic_error'));
+    return;
+  }
+
+  showToast(t('semantic_started'));
+
+  const runId = result.run_id;
+  const poll = setInterval(async () => {
+    let st;
+    try { st = await pywebview.api.get_semantic_status(runId); } catch (_) { return; }
+    if (!st || !st.done) return;
+
+    clearInterval(poll);
+    if (st.error) { showToast(t('semantic_error')); return; }
+
+    showToast(t('semantic_done'));
+    // La pestaña Semantic Layer solo se renderiza si existe el sidecar. Tras generar,
+    // si la reunión sigue abierta, re-renderiza el detalle (para que aparezca la pestaña)
+    // y salta a ella.
+    if (typeof currentPath !== 'undefined' && currentPath === path) {
+      await openMeeting(path);
+      document.getElementById('tab-semantic')?.click();
+    }
+  }, 3000);
+}
+
+async function renderSemanticTab(path) {
+  const sec = document.getElementById('section-semantic');
+  if (!sec || sec.dataset.path !== path) return;
+
+  const L = currentLang === 'en';
+  let info = {};
+  try { info = (await pywebview.api.get_semantic_info(path)) || {}; } catch (_) {}
+
+  // Aún no generado → estado vacío + botón generar
+  if (!info || !info.generated_at) {
+    sec.innerHTML = `
+      <div style="text-align:center;padding:44px 20px;color:var(--muted)">
+        <div style="font-size:13px;margin-bottom:16px;line-height:1.5">${t('semantic_tab_empty')}</div>
+        <button class="btn btn-primary btn-sm" id="btn-semantic-generate">${t('semantic_tab_generate')}</button>
+      </div>`;
+    document.getElementById('btn-semantic-generate')?.addEventListener('click', () => {
+      const m = allMeetings.find(x => x.path === path);
+      runSemanticLayer(path, (m && m.title) || '');
+    });
+    return;
+  }
+
+  const fileRow = (label, fpath, exists, badge) => {
+    if (!fpath) return '';
+    const name = fpath.split(/[\\/]/).pop();
+    return `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(name)}${badge ? `<span style="font-size:10px;background:#8b5cf6;color:#fff;padding:1px 7px;border-radius:10px;flex:none">${escHtml(badge)}</span>` : ''}</div>
+          <div style="font-size:11px;color:var(--muted)">${escHtml(label)}${exists ? '' : ' — ' + (L ? 'file missing' : 'no encontrado')}</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" data-sem-reveal="${escHtml(fpath)}" ${exists ? '' : 'disabled'}>${t('semantic_reveal')}</button>
+        <button class="btn btn-ghost btn-sm" data-sem-open="${escHtml(fpath)}" ${exists ? '' : 'disabled'}>${t('semantic_open')}</button>
+        <button class="btn btn-ghost btn-sm" data-sem-copy="${escHtml(fpath)}">${t('semantic_copy')}</button>
+      </div>`;
+  };
+
+  const csvPath   = info.csv_local || info.csv_source || '';
+  const csvExists = info.csv_local_exists || info.csv_source_exists;
+  const genDate   = escHtml((info.generated_at || '').replace('T', ' '));
+
+  sec.innerHTML = `
+    <div style="padding:4px 2px 14px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${t('semantic_generated_at')} ${genDate}</div>
+      ${fileRow(L ? 'Upload this file to OntoForge' : 'Sube este archivo a OntoForge', csvPath, csvExists, 'OntoForge')}
+      ${fileRow(L ? 'Readable record' : 'Registro legible', info.record_local, info.record_local_exists, '')}
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        ${info.inputs_dir ? `<button class="btn btn-ghost btn-sm" data-sem-reveal="${escHtml(info.inputs_dir)}" ${info.inputs_dir_exists ? '' : 'disabled'}>${t('semantic_open_inputs')}</button>` : ''}
+        <button class="btn btn-primary btn-sm" id="btn-semantic-regen">${t('semantic_tab_regen')}</button>
+      </div>
+    </div>`;
+
+  sec.querySelectorAll('[data-sem-reveal]').forEach(b =>
+    b.addEventListener('click', () => pywebview.api.reveal_file(b.dataset.semReveal)));
+  sec.querySelectorAll('[data-sem-open]').forEach(b =>
+    b.addEventListener('click', () => pywebview.api.open_file(b.dataset.semOpen)));
+  sec.querySelectorAll('[data-sem-copy]').forEach(b =>
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.semCopy); showToast(t('semantic_copied')); }
+      catch (_) { showToast(t('semantic_copy_fail')); }
+    }));
+  document.getElementById('btn-semantic-regen')?.addEventListener('click', () => {
+    const m = allMeetings.find(x => x.path === path);
+    runSemanticLayer(path, (m && m.title) || '');
+  });
+}
+
 // ── Badge ─────────────────────────────────────────────────────────────────────
 
 async function refreshPendingBadge() {
@@ -4293,14 +4463,21 @@ async function updatePipelineFooter() {
       elapsedHtml = '';
     }
 
+    const isSemantic = j.kind === 'semantic';
+    const mainLine = isSemantic ? (L ? 'Export to Semantic Layer' : 'Exportar a Semantic Layer') : titleText;
+    const subLine = (isSemantic && j.subtitle)
+      ? `<div class="pipeline-job-subtitle" style="font-size:11px;color:var(--muted);margin:1px 0 0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(j.subtitle)}</div>`
+      : '';
+
     return `
       <div class="pipeline-job-card ${dotClass}">
         <div class="pipeline-job-header">
           <span class="pipeline-job-dot ${dotClass}"></span>
-          <span class="pipeline-job-label">${escHtml(titleText)}</span>
+          <span class="pipeline-job-label">${escHtml(mainLine)}</span>
           ${timeText}
           ${elapsedHtml}
         </div>
+        ${subLine}
         ${stepsHtml}
         ${progHtml}
       </div>`;

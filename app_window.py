@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from config import MINUTES_DIR, PROJECT_DIR, RECORDINGS_DIR, CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env_panel
+from exporters import semantic_layer as semantic
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +34,9 @@ _regen_runs: dict = {}
 
 # Estado de importaciones de transcript: run_id -> {pct, stage, done, error, path}
 _import_runs: dict = {}
+
+# La integración Semantic Layer (estado, helpers y lógica) vive en
+# exporters/semantic_layer/. AppAPI solo delega en el módulo `semantic`.
 
 # Watchers para acciones completadas desde terminal externo
 _terminal_watchers: dict = {}       # (path, index) -> True
@@ -908,6 +912,8 @@ class AppAPI:
             label = _stage_labels.get(stage, 'Importando transcript...')
             jobs.append({'stage': 'processing', 'label': label, 'pct': pct})
 
+        jobs.extend(semantic.pipeline_jobs())
+
         return {'jobs': jobs}
 
     def get_navigate_request(self) -> str:
@@ -1450,6 +1456,28 @@ class AppAPI:
     def get_import_status(self, run_id: str) -> dict:
         """Devuelve el progreso de una importación en curso: {pct, stage, done, error, path}."""
         return _import_runs.get(run_id, {'pct': 0, 'stage': '', 'done': False, 'error': '', 'path': ''})
+
+    def run_semantic_layer(self, path: str, title: str = '') -> dict:
+        """Genera la capa semántica (OntoForge) de una reunión. Delega en el módulo
+        exporters.semantic_layer; aquí solo se resuelve el transcript."""
+        transcript_text = self.get_transcript_text(path)
+        return semantic.start_run(path, transcript_text, title)
+
+    def get_semantic_status(self, run_id: str) -> dict:
+        """Progreso de una ejecución de Semantic Layer (delegado)."""
+        return semantic.get_status(run_id)
+
+    def get_semantic_info(self, path: str) -> dict:
+        """Info de la capa semántica generada para una reunión (delegado)."""
+        return semantic.get_info(path)
+
+    def reveal_file(self, file_path: str) -> bool:
+        """Abre el Explorador con el fichero seleccionado (delegado)."""
+        return semantic.reveal_file(file_path)
+
+    def open_file(self, file_path: str) -> bool:
+        """Abre un fichero con su app por defecto (delegado)."""
+        return semantic.open_file(file_path)
 
     def get_transcript_text(self, path: str) -> str:
         try:
