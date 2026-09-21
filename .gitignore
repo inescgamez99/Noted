@@ -10,6 +10,7 @@ tasks.json
 buckets.json
 pins.json
 project_docs/
+user_minutes.json
 
 # ── Runtime ───────────────────────────────────────────────────────────────────
 .lock

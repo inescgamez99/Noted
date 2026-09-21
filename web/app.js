@@ -156,6 +156,31 @@ const T = {
     chat_notice_enabled_label: 'Enviar aviso al iniciar la grabación',
     chat_notice_desc: 'Personaliza el mensaje que se envía al chat de la reunión cuando empieza la grabación.',
     chat_notice_ph: '🔴 This meeting is being recorded for documentation purposes...',
+    umin_title: 'Minutas personalizadas',
+    umin_card_desc: 'Ajusta la estructura de secciones que Claude usará al generar tus minutas.',
+    umin_personalize_btn: 'Personalizar estructura',
+    umin_view_btn: 'Ver estructura',
+    umin_personalize_title: 'Personalizar estructura',
+    umin_view_title: 'Estructura actual',
+    umin_close: 'Cerrar',
+    umin_edit: 'Editar',
+    umin_view_empty: 'Aún no has definido una estructura personalizada. Pulsa "Personalizar estructura" para crearla.',
+    umin_actions_locked_name: 'Acciones Pendientes (fija)',
+    umin_actions_locked_desc: 'Esta sección se añade siempre al final automáticamente. Contiene la tabla de todas las acciones y los bloques técnicos para las que Claude puede ejecutar. No es editable.',
+    umin_prompt_help: 'Escribe en lenguaje natural qué secciones quieres, tono, terminología, qué evitar… Pulsa Enter y Claude generará una plantilla que podrás editar debajo.',
+    umin_prompt_ph: 'Ejemplo: minutas cortas orientadas a decisiones y próximas acciones. Prefiero bullets a párrafos. Añade una sección de riesgos al final.',
+    umin_generate_btn: 'Generar con Claude',
+    umin_generating: 'Generando…',
+    umin_generate_error: 'No se pudo generar la plantilla. Revisa el prompt y asegúrate de que el CLI de Claude está instalado.',
+    umin_sections_label: 'Secciones',
+    umin_sections_help: 'Puedes editar el nombre y la descripción, añadir o eliminar secciones. La sección de "Acciones Pendientes" se añade siempre al final automáticamente.',
+    umin_add_section: '+ Añadir sección',
+    umin_delete_section: 'Eliminar',
+    umin_section_name_ph: 'Nombre de la sección',
+    umin_section_desc_ph: 'Qué debe contener y cómo redactarla',
+    umin_extra_rules_label: 'Reglas globales adicionales',
+    umin_extra_rules_help: 'Reglas que se aplican a toda la minuta: tono, longitud, terminología, cosas a evitar…',
+    umin_saved: 'Preferencias de minutas guardadas',
     whisper_desc: 'Modelo Whisper para transcribir el audio. Más grande = más preciso pero más lento. Se aplica al reiniciar.',
     open_folder_btn: 'Abrir',
     proj_dir_ph: 'Carpeta del proyecto (opcional)',
@@ -363,6 +388,31 @@ const T = {
     chat_notice_enabled_label: 'Send notice when recording starts',
     chat_notice_desc: 'Customize the message sent to the meeting chat when recording starts.',
     chat_notice_ph: '🔴 This meeting is being recorded for documentation purposes...',
+    umin_title: 'Personalized minutes',
+    umin_card_desc: 'Tune the section structure Claude will use when generating your minutes.',
+    umin_personalize_btn: 'Personalize structure',
+    umin_view_btn: 'View structure',
+    umin_personalize_title: 'Personalize structure',
+    umin_view_title: 'Current structure',
+    umin_close: 'Close',
+    umin_edit: 'Edit',
+    umin_view_empty: 'No personalized structure yet. Click "Personalize structure" to create one.',
+    umin_actions_locked_name: 'Pending Actions (fixed)',
+    umin_actions_locked_desc: 'This section is always appended at the end automatically. It contains the table of all actions and the technical blocks for the ones Claude can execute. Not editable.',
+    umin_prompt_help: 'Explain in plain language which sections you want, tone, terminology, what to avoid… Press Enter and Claude will generate a template you can edit below.',
+    umin_prompt_ph: 'Example: short minutes focused on decisions and next actions. Prefer bullets over paragraphs. Add a risks section at the end.',
+    umin_generate_btn: 'Generate with Claude',
+    umin_generating: 'Generating…',
+    umin_generate_error: 'Could not generate the template. Check your prompt and make sure the Claude CLI is installed.',
+    umin_sections_label: 'Sections',
+    umin_sections_help: 'You can freely edit the name and description of each section, add new ones, or delete them. The "Pending Actions" section is always appended at the end automatically.',
+    umin_add_section: '+ Add section',
+    umin_delete_section: 'Delete',
+    umin_section_name_ph: 'Section name',
+    umin_section_desc_ph: 'What it should contain and how to write it',
+    umin_extra_rules_label: 'Additional global rules',
+    umin_extra_rules_help: 'Rules applied to the whole document: tone, length, terminology, things to avoid…',
+    umin_saved: 'Minutes preferences saved',
     whisper_desc: 'Whisper model for audio transcription. Larger = more accurate but slower. Takes effect after restart.',
     open_folder_btn: 'Open',
     proj_dir_ph: 'Project folder (optional)',
@@ -569,6 +619,31 @@ const T = {
     chat_notice_enabled_label: 'Enviar avís en iniciar la gravació',
     chat_notice_desc: 'Personalitza el missatge que s\'envia al xat de la reunió quan comença la gravació.',
     chat_notice_ph: '🔴 This meeting is being recorded for documentation purposes...',
+    umin_title: 'Actes personalitzades',
+    umin_card_desc: 'Ajusta l\'estructura de seccions que Claude farà servir per generar les teves actes.',
+    umin_personalize_btn: 'Personalitzar estructura',
+    umin_view_btn: 'Veure estructura',
+    umin_personalize_title: 'Personalitzar estructura',
+    umin_view_title: 'Estructura actual',
+    umin_close: 'Tancar',
+    umin_edit: 'Editar',
+    umin_view_empty: 'Encara no has definit una estructura personalitzada. Prem "Personalitzar estructura" per crear-la.',
+    umin_actions_locked_name: 'Accions Pendents (fixa)',
+    umin_actions_locked_desc: 'Aquesta secció s\'afegeix sempre al final automàticament. Conté la taula de totes les accions i els blocs tècnics per a les que Claude pot executar. No editable.',
+    umin_prompt_help: 'Escriu en llenguatge natural quines seccions vols, to, terminologia, què evitar… Prem Enter i Claude generarà una plantilla que podràs editar a sota.',
+    umin_prompt_ph: 'Exemple: actes curtes centrades en decisions i properes accions. Prefereixo bullets als paràgrafs. Afegeix una secció de riscos al final.',
+    umin_generate_btn: 'Generar amb Claude',
+    umin_generating: 'Generant…',
+    umin_generate_error: 'No s\'ha pogut generar la plantilla. Revisa el prompt i assegura\'t que el CLI de Claude està instal·lat.',
+    umin_sections_label: 'Seccions',
+    umin_sections_help: 'Pots editar el nom i la descripció, afegir o eliminar seccions. La secció d\'"Accions Pendents" s\'afegeix sempre al final automàticament.',
+    umin_add_section: '+ Afegir secció',
+    umin_delete_section: 'Eliminar',
+    umin_section_name_ph: 'Nom de la secció',
+    umin_section_desc_ph: 'Què ha de contenir i com redactar-la',
+    umin_extra_rules_label: 'Regles globals addicionals',
+    umin_extra_rules_help: 'Regles aplicades a tota l\'acta: to, longitud, terminologia, coses a evitar…',
+    umin_saved: 'Preferències d\'actes desades',
     whisper_desc: 'Model Whisper per transcriure l\'àudio. Més gran = més precís però més lent. S\'aplica en reiniciar.',
     open_folder_btn: 'Obrir',
     proj_dir_ph: 'Carpeta del projecte (opcional)',
@@ -786,7 +861,7 @@ function showView(view) {
   if (view === 'actions') loadTaskBoard();
   if (view === 'projects') loadProjectsSettings();
   if (view === 'trash') loadTrash();
-  if (view === 'settings') loadRecordingSettings();
+  if (view === 'settings') { loadRecordingSettings(); loadUserMinutesSettings(); }
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -2994,6 +3069,193 @@ async function saveChatNoticeSettings() {
 async function saveWhisperModel(model) {
   await pywebview.api.save_settings({ whisper_model: model });
   showToast(t('toast_model_saved'));
+}
+
+// ── Personalizacion de estructura de minutas ────────────────────────────────
+
+let _userMinutesConfig = null;
+
+async function loadUserMinutesSettings() {
+  try {
+    const cfg = await pywebview.api.get_user_minutes_config();
+    _userMinutesConfig = cfg || {};
+  } catch (e) {
+    _userMinutesConfig = { enabled: false, source_prompt: '', template: { sections: [], extra_rules: '' } };
+  }
+  const cb = document.getElementById('umin-enabled');
+  if (cb) cb.checked = !!_userMinutesConfig.enabled;
+}
+
+async function onUserMinutesToggle(enabled) {
+  // El toggle persiste inmediatamente sin necesidad de abrir modal.
+  const cfg = _userMinutesConfig || { enabled: false, source_prompt: '', template: { sections: [], extra_rules: '' } };
+  cfg.enabled = !!enabled;
+  const ok = await pywebview.api.save_user_minutes_config(cfg);
+  if (ok) _userMinutesConfig = cfg;
+}
+
+// ── Modal: personalize (prompt + generated editor) ────────────────────────
+
+function openUserMinutesPersonalize() {
+  const cfg = _userMinutesConfig || {};
+  const tpl = cfg.template || { sections: [], extra_rules: '' };
+  const promptEl = document.getElementById('umin-prompt');
+  const extraEl = document.getElementById('umin-extra-rules');
+  const editor = document.getElementById('umin-editor');
+  if (promptEl) promptEl.value = cfg.source_prompt || '';
+  if (extraEl)  extraEl.value = tpl.extra_rules || '';
+  renderUserMinutesSections(tpl.sections || []);
+  if (editor) editor.style.display = (tpl.sections && tpl.sections.length) ? '' : 'none';
+  document.getElementById('umin-personalize-modal')?.classList.remove('hidden');
+  setTimeout(() => promptEl?.focus(), 30);
+}
+
+function closeUserMinutesPersonalize() {
+  document.getElementById('umin-personalize-modal')?.classList.add('hidden');
+}
+
+function handleUserMinutesPromptKey(ev) {
+  // Enter genera; Shift+Enter inserta salto de linea.
+  if (ev.key === 'Enter' && !ev.shiftKey) {
+    ev.preventDefault();
+    generateUserMinutesTemplate();
+  }
+}
+
+function renderUserMinutesSections(sections) {
+  const wrap = document.getElementById('umin-sections-list');
+  if (!wrap) return;
+  wrap.innerHTML = (sections || []).map((s, idx) => `
+    <div class="umin-section-row" data-idx="${idx}">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" class="settings-text-input umin-section-name" style="flex:1;margin:0" value="${escapeAttr(s.name || '')}" placeholder="${t('umin_section_name_ph')}">
+        <button class="btn btn-ghost btn-sm" onclick="deleteUserMinutesSection(${idx})">${t('umin_delete_section')}</button>
+      </div>
+      <textarea class="settings-text-input settings-textarea umin-section-desc" rows="2" style="margin-top:6px" placeholder="${t('umin_section_desc_ph')}">${escapeHtml(s.description || '')}</textarea>
+    </div>
+  `).join('');
+}
+
+function readSectionsFromDom() {
+  const rows = document.querySelectorAll('#umin-sections-list .umin-section-row');
+  const out = [];
+  rows.forEach(r => {
+    const name = r.querySelector('.umin-section-name')?.value?.trim() || '';
+    const desc = r.querySelector('.umin-section-desc')?.value?.trim() || '';
+    if (name) out.push({ name, description: desc });
+  });
+  return out;
+}
+
+function addUserMinutesSection() {
+  const current = readSectionsFromDom();
+  current.push({ name: '', description: '' });
+  renderUserMinutesSections(current);
+  const editor = document.getElementById('umin-editor');
+  if (editor) editor.style.display = '';
+}
+
+function deleteUserMinutesSection(idx) {
+  const current = readSectionsFromDom();
+  current.splice(idx, 1);
+  renderUserMinutesSections(current);
+}
+
+async function generateUserMinutesTemplate() {
+  const prompt = document.getElementById('umin-prompt')?.value?.trim() || '';
+  if (!prompt) { showToast(t('umin_generate_error')); return; }
+  const btn = document.getElementById('umin-generate-btn');
+  const originalLabel = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = `<span>${t('umin_generating')}</span>`; }
+  try {
+    const res = await pywebview.api.generate_user_minutes_template(prompt);
+    if (!res || !res.ok || !res.template) {
+      showToast(t('umin_generate_error'));
+      return;
+    }
+    renderUserMinutesSections(res.template.sections || []);
+    const extra = document.getElementById('umin-extra-rules');
+    if (extra) extra.value = res.template.extra_rules || '';
+    const editor = document.getElementById('umin-editor');
+    if (editor) editor.style.display = '';
+  } catch (e) {
+    showToast(t('umin_generate_error'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalLabel; }
+  }
+}
+
+async function saveUserMinutesConfig(closeAfter) {
+  const prompt = document.getElementById('umin-prompt');
+  const extra = document.getElementById('umin-extra-rules');
+  const sections = readSectionsFromDom();
+  const cfg = {
+    enabled: !!(_userMinutesConfig && _userMinutesConfig.enabled),
+    source_prompt: prompt?.value || '',
+    template: {
+      language: (_userMinutesConfig?.template?.language) || 'auto',
+      sections,
+      extra_rules: extra?.value || '',
+    },
+  };
+  const ok = await pywebview.api.save_user_minutes_config(cfg);
+  if (ok) {
+    _userMinutesConfig = cfg;
+    showToast(t('umin_saved'));
+    if (closeAfter) closeUserMinutesPersonalize();
+  } else {
+    showToast(t('umin_generate_error'));
+  }
+}
+
+// ── Modal: view current structure (read-only) ─────────────────────────────
+
+function openUserMinutesView() {
+  const body = document.getElementById('umin-view-body');
+  const cfg = _userMinutesConfig || {};
+  const tpl = cfg.template || { sections: [], extra_rules: '' };
+  const sections = tpl.sections || [];
+  const lockedName = t('umin_actions_locked_name');
+  const lockedDesc = t('umin_actions_locked_desc');
+  let html = '';
+  if (!sections.length) {
+    html += `<div class="umin-view-empty">${escapeHtml(t('umin_view_empty'))}</div>`;
+  } else {
+    html += sections.map(s => `
+      <div class="umin-view-section">
+        <div class="umin-view-section-name">${escapeHtml(s.name || '')}</div>
+        ${s.description ? `<div class="umin-view-section-desc">${escapeHtml(s.description)}</div>` : ''}
+      </div>
+    `).join('');
+  }
+  html += `
+    <div class="umin-view-section locked">
+      <div class="umin-view-section-name">${escapeHtml(lockedName)}</div>
+      <div class="umin-view-section-desc">${escapeHtml(lockedDesc)}</div>
+    </div>
+  `;
+  const rules = (tpl.extra_rules || '').trim();
+  if (rules) {
+    html += `<div class="umin-view-rules">${escapeHtml(rules)}</div>`;
+  }
+  if (body) body.innerHTML = html;
+  document.getElementById('umin-view-modal')?.classList.remove('hidden');
+}
+
+function closeUserMinutesView() {
+  document.getElementById('umin-view-modal')?.classList.add('hidden');
+}
+
+function editFromUserMinutesView() {
+  closeUserMinutesView();
+  openUserMinutesPersonalize();
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // ── Per-project field save ────────────────────────────────────────────────────

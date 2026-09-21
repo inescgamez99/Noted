@@ -1781,3 +1781,30 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
   .main-panel { box-shadow: none; }
   a { color: inherit; text-decoration: none; }
 }
+
+/* ── Personalized minutes: pill switch, header row, modal ── */
+.settings-card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-card--compact { align-self: start; padding: 20px 24px; }
+
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; margin: 0; }
+.switch-slider { position: absolute; cursor: pointer; inset: 0; background-color: var(--border); border-radius: 22px; transition: background-color .18s ease; }
+.switch-slider::before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform .18s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+.switch input:checked + .switch-slider { background-color: var(--accent); }
+.switch input:checked + .switch-slider::before { transform: translateX(18px); }
+.switch input:disabled + .switch-slider { opacity: 0.5; cursor: not-allowed; }
+
+.umin-modal { max-width: 640px; width: 92vw; max-height: 82vh; overflow-y: auto; overflow-x: hidden; }
+.umin-modal .modal-field { margin-bottom: 8px; }
+.umin-modal #umin-editor { margin-top: 6px; }
+.umin-editor-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.02em; }
+.umin-section-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 8px; background: var(--surface); }
+
+.umin-view-body { overflow-y: auto; max-height: 60vh; padding-right: 4px; }
+.umin-view-body .umin-view-section { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; background: var(--surface); }
+.umin-view-body .umin-view-section-name { font-weight: 600; font-size: 13px; color: var(--text); margin-bottom: 4px; }
+.umin-view-body .umin-view-section-desc { font-size: 12px; color: var(--subtext); line-height: 1.5; white-space: pre-wrap; }
+.umin-view-body .umin-view-section.locked { border-color: var(--accent-tint2); background: var(--accent-tint); }
+.umin-view-body .umin-view-section.locked .umin-view-section-name::after { content: " 🔒"; opacity: 0.6; font-size: 11px; }
+.umin-view-body .umin-view-empty { color: var(--subtext); font-size: 13px; padding: 12px 0; }
+.umin-view-body .umin-view-rules { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--surface2); border-radius: 4px; font-size: 12px; color: var(--text); white-space: pre-wrap; line-height: 1.5; margin-top: 12px; }

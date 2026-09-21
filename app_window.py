@@ -988,6 +988,30 @@ class AppAPI:
             log.error(f"save_settings: {e}")
             return False
 
+    # ── Personalizacion de estructura de minutas (per-usuario, gitignored) ────
+
+    def get_user_minutes_config(self) -> dict:
+        from user_minutes_template import load_config
+        return load_config()
+
+    def save_user_minutes_config(self, config: dict) -> bool:
+        from user_minutes_template import save_config
+        return save_config(config or {})
+
+    def generate_user_minutes_template(self, user_prompt: str) -> dict:
+        """Devuelve {ok: bool, template?: {sections, extra_rules}, error?: str}."""
+        from user_minutes_template import generate_template_from_prompt
+        if not user_prompt or not user_prompt.strip():
+            return {'ok': False, 'error': 'empty_prompt'}
+        try:
+            tpl = generate_template_from_prompt(user_prompt)
+        except Exception as e:
+            log.error(f"generate_user_minutes_template: {e}")
+            return {'ok': False, 'error': 'exception'}
+        if not tpl:
+            return {'ok': False, 'error': 'no_template'}
+        return {'ok': True, 'template': tpl}
+
     def open_minutes_in_claude(self, path: str, lang: str = 'es') -> bool:
         """Abre Claude en modo interactivo con las minutas como contexto.
         Claude arranca la conversación solo con un mensaje de bienvenida."""

@@ -6,6 +6,11 @@ import threading
 from pathlib import Path
 
 from config import PROJECT_DIR, CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env
+from user_minutes_template import (
+    get_active_template,
+    actions_section_label,
+    actions_section_description,
+)
 
 log = logging.getLogger(__name__)
 
@@ -142,7 +147,26 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
         duracion = f"{last_m}m {last_s}s"
 
     lang = language if language in _LANG_SECTIONS else 'en'
-    sections = _LANG_SECTIONS[lang]
+
+    user_tpl = get_active_template()
+    if user_tpl:
+        log.info(f"user_minutes: plantilla personalizada activa ({len(user_tpl.get('sections') or [])} secciones)")
+        # Secciones del usuario + seccion de acciones bloqueada al final.
+        # Se envian como bullets "Nombre — descripcion" para dar contexto al modelo.
+        user_sections = list(user_tpl.get('sections') or [])
+        actions_entry = {
+            'name': actions_section_label(lang),
+            'description': actions_section_description(lang),
+        }
+        sections_data = user_sections + [actions_entry]
+        sections = [
+            (f"{s['name']} — {s['description']}" if s.get('description') else s['name'])
+            for s in sections_data
+        ]
+    else:
+        sections_data = None
+        sections = _LANG_SECTIONS[lang]
+
     if lang == 'en':
         section_label = "Required minutes structure"
         date_label = f"Date: {fecha}  Start time: {hora}  Estimated duration: {duracion}"
@@ -182,6 +206,37 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
         "",
         "(Then a blank line, then the sections in this order:)",
     ] + [f"- {s}" for s in sections]
+
+    if user_tpl:
+        preamble = {
+            'en': (
+                "\n## User-personalized structure\n"
+                "The sections above were defined by this user. Follow their names, order, and "
+                "per-section descriptions strictly. Keep the locked rules from the system prompt "
+                "(TITULO line, metadata header, and the Pending Actions section with its ~~~ blocks)."
+            ),
+            'ca': (
+                "\n## Estructura personalitzada per l'usuari\n"
+                "Les seccions anteriors les ha definit aquest usuari. Segueix els seus noms, ordre "
+                "i descripcions estrictament. Mante les regles bloquejades del system prompt "
+                "(linia TITULO, capçalera de metadades, i la seccio Accions Pendents amb els blocs ~~~)."
+            ),
+            'es': (
+                "\n## Estructura personalizada por el usuario\n"
+                "Las secciones anteriores las ha definido este usuario. Sigue estrictamente sus "
+                "nombres, orden y descripciones. Mantén las reglas bloqueadas del system prompt "
+                "(línea TITULO, cabecera de metadatos, y la sección Acciones Pendientes con sus bloques ~~~)."
+            ),
+        }.get(lang, "")
+        parts.append(preamble)
+        extra_rules = (user_tpl.get('extra_rules') or '').strip()
+        if extra_rules:
+            rules_header = {
+                'en': "\n## User's additional rules\n",
+                'ca': "\n## Regles addicionals de l'usuari\n",
+                'es': "\n## Reglas adicionales del usuario\n",
+            }.get(lang, "\n## User's additional rules\n")
+            parts.append(rules_header + extra_rules)
 
     if extra_context:
         parts.insert(3, f"{ctx_label}\n{extra_context}\n")

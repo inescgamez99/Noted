@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy this file to user_minutes.json (gitignored) to activate a personalized minutes structure. Prefer editing it through the TeamsRecorder app → Settings → 'Personalizar minutas'. The section 'Acciones Pendientes' / 'Pending Actions' is always appended automatically; do NOT include it here or the downstream action parser will break.",
+  "enabled": false,
+  "source_prompt": "Example: I want short minutes focused on decisions and open questions. Skip small talk. Prefer bullet lists over prose.",
+  "template": {
+    "language": "en",
+    "sections": [
+      {
+        "name": "TL;DR",
+        "description": "Two or three bullets max, capturing the single most important outcome and the next decision to make. No preamble."
+      },
+      {
+        "name": "Decisions",
+        "description": "Bulleted list of every decision taken. Each bullet: <decision> — <owner> — <rationale in <=15 words>."
+      },
+      {
+        "name": "Open Questions",
+        "description": "Bulleted list of unresolved questions raised during the meeting, each with who raised it. If none, write 'None'."
+      }
+    ],
+    "extra_rules": "Prefer bullets over paragraphs. Never include small talk. Keep the whole document under 400 words if possible."
+  }
+}
