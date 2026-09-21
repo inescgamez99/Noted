@@ -193,6 +193,7 @@ const T = {
     semantic_copied: 'Ruta copiada',
     semantic_copy_fail: 'No se pudo copiar',
     semantic_open_inputs: 'Abrir carpeta de inputs',
+    semantic_open_ontoforge: 'Abrir OntoForge',
     account_settings_title: 'Cuenta',
     project_settings_title: 'Configuración de proyectos',
     no_projects: 'Sin proyectos',
@@ -418,6 +419,7 @@ const T = {
     semantic_copied: 'Path copied',
     semantic_copy_fail: 'Could not copy',
     semantic_open_inputs: 'Open inputs folder',
+    semantic_open_ontoforge: 'Open OntoForge',
     account_settings_title: 'Account',
     project_settings_title: 'Project settings',
     no_projects: 'No projects yet',
@@ -642,6 +644,7 @@ const T = {
     semantic_copied: 'Ruta copiada',
     semantic_copy_fail: 'No s\'ha pogut copiar',
     semantic_open_inputs: 'Obrir carpeta d\'inputs',
+    semantic_open_ontoforge: 'Obrir OntoForge',
     account_settings_title: 'Compte',
     project_settings_title: 'Configuració de projectes',
     no_projects: 'Sense projectes',
@@ -3863,6 +3866,7 @@ async function renderSemanticTab(path) {
       <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
         ${info.inputs_dir ? `<button class="btn btn-ghost btn-sm" data-sem-reveal="${escHtml(info.inputs_dir)}" ${info.inputs_dir_exists ? '' : 'disabled'}>${t('semantic_open_inputs')}</button>` : ''}
         <button class="btn btn-primary btn-sm" id="btn-semantic-regen">${t('semantic_tab_regen')}</button>
+        <button class="btn btn-ghost btn-sm" id="btn-semantic-ontoforge">${t('semantic_open_ontoforge')}</button>
       </div>
     </div>`;
 
@@ -3879,6 +3883,8 @@ async function renderSemanticTab(path) {
     const m = allMeetings.find(x => x.path === path);
     runSemanticLayer(path, (m && m.title) || '');
   });
+  document.getElementById('btn-semantic-ontoforge')?.addEventListener('click', () =>
+    pywebview.api.open_url('https://knowledge-staging.accenture.com/ontoforge/ontology'));
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────

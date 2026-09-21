@@ -1479,6 +1479,20 @@ class AppAPI:
         """Abre un fichero con su app por defecto (delegado)."""
         return semantic.open_file(file_path)
 
+    def open_url(self, url: str) -> bool:
+        """Abre una URL http/https en el navegador por defecto."""
+        import webbrowser
+        u = (url or '').strip()
+        if not (u.startswith('http://') or u.startswith('https://')):
+            log.warning(f"open_url: URL no válida: {u[:80]}")
+            return False
+        try:
+            webbrowser.open(u)
+            return True
+        except Exception as e:
+            log.error(f"open_url: {e}")
+            return False
+
     def get_transcript_text(self, path: str) -> str:
         try:
             md_path = Path(path)
