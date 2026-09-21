@@ -26,6 +26,17 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
     <span data-i18n="nav_projects">Proyectos</span>
   </button>
+  <button class="nav-btn" id="btn-brain" onclick="showView('brain')" title="Cerebro">
+    <svg width="24" height="24" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <path d="M88,136a40,40,0,1,1-40,40v-6.73"/>
+      <path d="M168,136a40,40,0,1,0,40,40v-6.73"/>
+      <path d="M72,172H64A48,48,0,0,1,48,78.73V72a40,40,0,0,1,80,0V176"/>
+      <path d="M184,172h8a48,48,0,0,0,16-93.27V72a40,40,0,0,0-80,0"/>
+      <path d="M200,112h-4a28,28,0,0,1-28-28V80"/>
+      <path d="M56,112h4A28,28,0,0,0,88,84V80"/>
+    </svg>
+    <span data-i18n="nav_brain">Cerebro</span>
+  </button>
   <div class="nav-spacer"></div>
   <button class="nav-btn" id="btn-trash" onclick="showView('trash')" title="Recently Deleted">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -321,6 +332,106 @@
   </div>
 </div>
 
+<div class="view hidden" id="view-brain">
+  <aside class="brain-sidebar">
+    <div class="brain-sidebar-header">
+      <span class="brain-sidebar-label" data-i18n="nav_brain">Cerebro</span>
+      <button class="brain-gen-all-btn" onclick="initializeAllBrainWikis()" data-i18n="brain_gen_all">Generar todo</button>
+    </div>
+    <div id="brain-pending-banner" class="brain-pending-banner hidden">
+      <div class="brain-pending-title" data-i18n="brain_pending_title">Nueva serie detectada</div>
+      <div class="brain-pending-name" id="brain-pending-name"></div>
+      <div class="brain-pending-actions">
+        <button class="btn btn-primary btn-sm" onclick="confirmBrainSeries()" data-i18n="brain_pending_confirm">Crear</button>
+        <button class="btn btn-ghost btn-sm" onclick="dismissBrainSeries()" data-i18n="brain_pending_dismiss">Ignorar</button>
+      </div>
+    </div>
+    <div id="brain-series-list" class="brain-series-list">
+      <div class="loading" data-i18n="loading">Cargando...</div>
+    </div>
+    <button class="btn btn-ghost btn-sm brain-new-series-btn" onclick="showBrainNewSeriesForm()" data-i18n="brain_new_series">+ Nuevo proyecto</button>
+    <div id="brain-new-series-form" class="brain-new-series-form hidden">
+      <input type="text" id="brain-new-series-name" class="settings-text-input" placeholder="Nombre del proyecto" style="margin-bottom:6px">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" onclick="saveBrainNewSeries()" data-i18n="save_btn">Guardar</button>
+        <button class="btn btn-ghost btn-sm" onclick="hideBrainNewSeriesForm()" data-i18n="regen_cancel">Cancelar</button>
+      </div>
+    </div>
+  </aside>
+  <main class="brain-main">
+    <div class="brain-empty-state" id="brain-empty-state">
+      <div class="empty-title" data-i18n="brain_empty_title">Selecciona una serie</div>
+      <div class="empty-sub" data-i18n="brain_empty_sub">Elige una serie de la lista para ver el wiki del proyecto</div>
+    </div>
+    <div id="brain-content" class="brain-content" style="display:none">
+      <div class="brain-content-header">
+        <div class="brain-header-row1">
+          <h2 id="brain-series-name" class="brain-series-title"></h2>
+          <button id="brain-note-btn" class="btn btn-ghost btn-sm" onclick="toggleBrainNote(true)" style="display:none" data-i18n="brain_note_btn">+ Note</button>
+        </div>
+        <div class="brain-header-row2">
+          <div class="brain-tabs">
+            <button class="brain-tab active" id="brain-tab-chat" onclick="showBrainTab('chat')" data-i18n="brain_tab_chat">Chat</button>
+            <button class="brain-tab" id="brain-tab-wiki" onclick="showBrainTab('wiki')" data-i18n="brain_tab_wiki">Wiki</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress bar (visible while generating wiki) -->
+      <div id="brain-progress-bar" class="brain-progress-bar" style="display:none">
+        <div id="brain-progress-fill" class="brain-progress-fill"></div>
+        <span id="brain-progress-label" class="brain-progress-label">Generando wiki...</span>
+      </div>
+
+      <!-- Chat panel (default) -->
+      <div id="brain-chat-pane" class="brain-chat-pane">
+        <div id="brain-chat-messages" class="brain-chat-messages"></div>
+        <div id="brain-suggestions" class="brain-suggestions">
+          <p class="brain-suggestions-label" data-i18n="brain_suggestions_label">Pregunta sobre el proyecto</p>
+          <div class="brain-chips">
+            <button class="brain-chip" onclick="sendBrainSuggestion(this)" data-i18n="brain_chip_1">¿En qué punto está el proyecto ahora mismo?</button>
+            <button class="brain-chip" onclick="sendBrainSuggestion(this)" data-i18n="brain_chip_2">¿Qué acciones están pendientes?</button>
+            <button class="brain-chip" onclick="sendBrainSuggestion(this)" data-i18n="brain_chip_3">¿Qué preparo para la próxima reunión?</button>
+            <button class="brain-chip" onclick="sendBrainSuggestion(this)" data-i18n="brain_chip_4">¿Qué se decidió en la última reunión?</button>
+          </div>
+        </div>
+        <div class="brain-chat-input-row">
+          <textarea id="brain-chat-input" class="brain-chat-textarea" rows="2" data-i18n-ph="brain_chat_ph" placeholder="Pregunta sobre este proyecto..."></textarea>
+          <button class="btn btn-primary btn-sm" id="brain-send-btn" onclick="sendBrainMessage()">
+            <span data-i18n="brain_send">Enviar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Wiki panel -->
+      <div id="brain-wiki-pane" class="brain-wiki-pane" style="display:none">
+        <!-- Toolbar: timestamp + refresh -->
+        <div class="brain-wiki-toolbar">
+          <span id="brain-wiki-updated" class="brain-wiki-updated-ts"></span>
+          <button class="brain-wiki-regen-btn" onclick="initializeBrainWiki(_brainCurrentSeriesId, true)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74"/><path d="M3 3v4h4"/></svg>
+            Regenerar wiki
+          </button>
+        </div>
+        <!-- Scrollable area: note panel + snapshot card + wiki content -->
+        <div class="brain-wiki-scroll">
+          <!-- Note input (inside wiki pane) -->
+          <div id="brain-note-panel" class="brain-note-panel hidden">
+            <textarea id="brain-note-input" class="brain-note-input" placeholder="Escribe una corrección o actualización para la wiki..." rows="3"></textarea>
+            <div class="brain-note-actions">
+              <button class="brain-note-cancel" onclick="toggleBrainNote(false)" data-i18n="cancel">Cancel</button>
+              <button class="brain-note-submit" id="brain-note-submit-btn" onclick="submitBrainNote()" data-i18n="brain_note_submit">Update wiki</button>
+            </div>
+          </div>
+          <div id="brain-snapshot-panel" class="brain-snapshot-panel hidden">
+            <div id="brain-snapshot-content" class="brain-snapshot-content"></div>
+          </div>
+          <div id="brain-wiki-html" class="brain-wiki-content"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
 
 <div class="view hidden" id="view-trash">
   <div class="settings-view">

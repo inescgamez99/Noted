@@ -30,13 +30,6 @@ inspect_gsk_structure.py
 insert_exec_summary.py
 PRESENTACION_LEADERS.md
 
-# ── Brain (módulo local, no se comparte) ──────────────────────────────────────
-brain/
-brain_synthesizer.py
-email_brain_updater.py
-series.json
-series_matcher.py
-
 # ── Test ─────────────────────────────────────────────────────────────────────
 .pytest_cache/
 .pytest_tmp/

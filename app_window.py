@@ -1996,6 +1996,443 @@ class AppAPI:
         return result
 
 
+    # ── Brain (Cerebro) ──────────────────────────────────────────────────────
+
+    def get_brain_series(self) -> list:
+        """Returns projects list annotated with whether a brain wiki exists."""
+        p = PROJECT_DIR / 'projects.json'
+        projects = []
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding='utf-8'))
+                projects = data.get('projects', [])
+            except Exception:
+                pass
+        for proj in projects:
+            wiki_path = PROJECT_DIR / 'brain' / proj['id'] / 'wiki.md'
+            proj['has_wiki'] = wiki_path.exists()
+            if wiki_path.exists():
+                try:
+                    import re as _re
+                    head = '\n'.join(wiki_path.read_text(encoding='utf-8').splitlines()[:4])
+                    m = _re.search(
+                        r'\*\*(?:Última actualización|Last updated):\*\*\s*(.+?)(?:\n|$)',
+                        head)
+                    proj['wiki_updated'] = m.group(1).strip() if m else ''
+                except Exception:
+                    proj['wiki_updated'] = ''
+            else:
+                proj['wiki_updated'] = ''
+        return projects
+
+    def save_brain_series(self, series: dict) -> dict:
+        """Create a new project from the Brain sidebar. Returns the saved project dict."""
+        return self.save_project(series)
+
+    def delete_brain_series(self, series_id: str) -> bool:
+        """Delete a project by id (from Brain view)."""
+        return self.delete_project(series_id)
+
+    def get_brain_wiki(self, series_id: str) -> str:
+        """Returns the raw markdown content of the wiki for a project."""
+        wiki_path = PROJECT_DIR / 'brain' / series_id / 'wiki.md'
+        if not wiki_path.exists():
+            return ''
+        try:
+            return wiki_path.read_text(encoding='utf-8')
+        except Exception as e:
+            log.error(f"get_brain_wiki: {e}")
+            return ''
+
+    def get_brain_pending(self) -> dict:
+        """Returns empty dict — pending confirmation flow removed (now project-centric)."""
+        return {}
+
+    def confirm_brain_series(self, proposed_name: str, outlook_info_json: str = '{}') -> dict:
+        """No-op kept for API compatibility."""
+        return {}
+
+    def dismiss_brain_pending(self) -> bool:
+        """No-op kept for API compatibility."""
+        return True
+
+    def initialize_brain_wiki(self, project_id: str) -> bool:
+        """
+        Generates the initial wiki from ALL existing minutes + project docs in a single Claude call.
+        Runs in a background thread. Returns True immediately.
+        """
+        def _run():
+            try:
+                from brain_synthesizer import bulk_initialize_brain_wiki, extract_key_sections
+                from project_context import project_docs_dir
+                from config import get_ui_language
+
+                # Resolve project name
+                project_name = project_id
+                p = PROJECT_DIR / 'projects.json'
+                try:
+                    pdata = json.loads(p.read_text(encoding='utf-8'))
+                    proj = next((pr for pr in pdata.get('projects', [])
+                                 if pr['id'] == project_id), None)
+                    if proj:
+                        project_name = proj.get('name', project_id)
+                except Exception:
+                    pass
+
+                # ── Collect meetings (oldest first) ────────────────────────────
+                meetings = []
+                seen_stems = set()
+                for actions_json in sorted(MINUTES_DIR.glob('*_actions.json')):
+                    try:
+                        data = json.loads(actions_json.read_text(encoding='utf-8'))
+                        if data.get('project_id') != project_id:
+                            continue
+                        stem = actions_json.stem.replace('_actions', '')
+                        if stem in seen_stems:
+                            continue
+                        seen_stems.add(stem)
+
+                        # Try the path stored in actions.json first, then by stem
+                        minutes_path = Path(data.get('minutes', ''))
+                        if not minutes_path.exists():
+                            minutes_path = MINUTES_DIR / f"{stem}.md"
+                        if not minutes_path.exists():
+                            continue
+
+                        md_text = minutes_path.read_text(encoding='utf-8')
+
+                        # Extract date and title from the stem (YYYYMMDD_HHMM_Title...)
+                        parts = stem.split('_', 2)
+                        mtg_date = f"{parts[0][:4]}-{parts[0][4:6]}-{parts[0][6:]}" if len(parts[0]) == 8 else parts[0]
+                        title_raw = parts[2] if len(parts) > 2 else stem
+                        title = title_raw.replace('_', ' ')
+
+                        meetings.append({
+                            'date': mtg_date,
+                            'title': title,
+                            'text': extract_key_sections(md_text),
+                        })
+                    except Exception as ex:
+                        log.warning(f"initialize_brain_wiki read {actions_json.stem}: {ex}")
+
+                # Also pick up meeting summaries from project_docs/meetings (if any missed)
+                summaries_dir = project_docs_dir(project_id) / 'meetings'
+                if summaries_dir.exists():
+                    for txt in sorted(summaries_dir.glob('*.txt')):
+                        stem = txt.stem
+                        if stem in seen_stems:
+                            continue
+                        seen_stems.add(stem)
+                        try:
+                            text = txt.read_text(encoding='utf-8')
+                            parts = stem.split('_', 2)
+                            mtg_date = f"{parts[0][:4]}-{parts[0][4:6]}-{parts[0][6:]}" if len(parts[0]) == 8 else parts[0]
+                            title = parts[2].replace('_', ' ') if len(parts) > 2 else stem
+                            meetings.append({'date': mtg_date, 'title': title, 'text': text[:1200]})
+                        except Exception:
+                            pass
+
+                if not meetings:
+                    log.info(f"initialize_brain_wiki: sin reuniones para {project_id}")
+                    return
+
+                meetings.sort(key=lambda m: m['date'])
+
+                # ── Sync + collect project docs (SharePoint / memory) ──────────
+                docs = []
+                if proj and proj.get('context_dirs'):
+                    try:
+                        from project_context import sync_project_docs
+                        log.info(f"initialize_brain_wiki: sincronizando docs de '{project_name}'...")
+                        sync_project_docs(proj)
+                    except Exception as ex:
+                        log.warning(f"initialize_brain_wiki sync_docs: {ex}")
+
+                docs_dir = project_docs_dir(project_id) / 'docs'
+                if docs_dir.exists():
+                    for txt in sorted(docs_dir.glob('*.txt')):
+                        try:
+                            text = txt.read_text(encoding='utf-8')
+                            if text.strip():
+                                docs.append({'name': txt.name, 'text': text})
+                        except Exception:
+                            pass
+                log.info(f"initialize_brain_wiki: {len(docs)} docs de proyecto encontrados")
+
+                lang = get_ui_language()
+                log.info(f"initialize_brain_wiki: '{project_name}' — {len(meetings)} reuniones, {len(docs)} docs")
+                bulk_initialize_brain_wiki(project_id, project_name, meetings, docs, lang)
+            except Exception as e:
+                log.error(f"initialize_brain_wiki: {e}")
+
+        threading.Thread(target=_run, daemon=True, name=f'BrainInit-{project_id}').start()
+        return True
+
+    def chat_with_brain(self, series_id: str, message: str, history: list = None) -> str:
+        """
+        Sends a message to Claude with the series wiki as context.
+        Returns a run_id for polling via get_action_run_status (reuses existing pattern).
+        Streams stdout line-by-line so the JS poller can show partial responses.
+        """
+        if not _CLAUDE_BIN:
+            return ''
+
+        wiki_path = PROJECT_DIR / 'brain' / series_id / 'wiki.md'
+        wiki_text = ''
+        if wiki_path.exists():
+            try:
+                wiki_text = wiki_path.read_text(encoding='utf-8')
+            except Exception:
+                pass
+
+        # Use only the wiki sections relevant to the question (reduces tokens + latency)
+        context_wiki = _select_wiki_sections(wiki_text, message) if wiki_text else ''
+
+        # Build conversation context
+        history_text = ''
+        if history:
+            for turn in (history or [])[-8:]:
+                role = 'Usuario' if turn.get('role') == 'user' else 'Asistente'
+                history_text += f"\n{role}: {turn.get('content', '')}\n"
+
+        system_block = (
+            f"Eres el asistente del proyecto. Tienes acceso al wiki actualizado del proyecto, "
+            f"que se genera automáticamente a partir de todas las reuniones grabadas.\n\n"
+            f"WIKI DEL PROYECTO:\n{context_wiki}\n\n"
+            f"Instrucciones:\n"
+            f"- Responde de forma concisa y directa.\n"
+            f"- Cuando cites una decisión, acción o hecho concreto, menciona de qué reunión viene (usa la fecha si aparece en el wiki).\n"
+            f"- No reproduzcas el wiki completo. Solo responde lo que se pregunta.\n"
+            f"- Si algo no está en el wiki, dilo claramente."
+        ) if context_wiki else (
+            "El wiki de este proyecto todavía no existe. Sugiere al usuario que use el botón 'Inicializar wiki' "
+            "para generarlo a partir de las reuniones grabadas."
+        )
+
+        if history_text:
+            prompt = f"{system_block}\n\nConversación previa:{history_text}\nUsuario: {message}"
+        else:
+            prompt = f"{system_block}\n\nPregunta: {message}"
+
+        run_id = uuid.uuid4().hex[:8]
+        _prune_runs(_action_runs)
+        _action_runs[run_id] = {
+            'output': '',
+            'done': False,
+            'error': '',
+            'title': f'Brain: {series_id}',
+            'prompt': prompt,
+            'proj_path': str(PROJECT_DIR),
+            'path': '',
+            'index': -1,
+        }
+
+        def _run():
+            import time
+            try:
+                env = _clean_env_panel()
+                proc = subprocess.Popen(
+                    [_CLAUDE_BIN, '-p'],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    cwd=str(PROJECT_DIR),
+                    env=env,
+                    creationflags=0x08000000 if os.name == 'nt' else 0,
+                )
+                proc.stdin.write(prompt)
+                proc.stdin.close()
+
+                # Stream stdout line by line — JS polls at 300ms and shows partial output
+                deadline = time.monotonic() + 120
+                lines = []
+                while True:
+                    if time.monotonic() > deadline:
+                        proc.kill()
+                        _action_runs[run_id]['error'] = 'timeout'
+                        break
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    lines.append(line)
+                    _action_runs[run_id]['output'] = ''.join(lines)
+
+                proc.wait(timeout=5)
+                _action_runs[run_id]['done'] = True
+            except Exception as e:
+                _action_runs[run_id]['output'] = f'[ERROR: {e}]'
+                _action_runs[run_id]['done'] = True
+                _action_runs[run_id]['error'] = str(e)
+
+        threading.Thread(target=_run, daemon=True, name=f'BrainChat-{run_id}').start()
+        return run_id
+
+    def get_brain_snapshot(self, project_id: str) -> str:
+        """Returns the current snapshot.md for a project, or '' if none."""
+        snapshot_path = PROJECT_DIR / 'brain' / project_id / 'snapshot.md'
+        if not snapshot_path.exists():
+            return ''
+        try:
+            return snapshot_path.read_text(encoding='utf-8')
+        except Exception:
+            return ''
+
+    def add_brain_note(self, project_id: str, note: str) -> str:
+        """
+        Incorporates a manual note into the wiki and regenerates the snapshot.
+        Returns a run_id for polling via get_action_run_status.
+        """
+        if not note or not note.strip():
+            return ''
+
+        run_id = uuid.uuid4().hex[:8]
+        _prune_runs(_action_runs)
+        _action_runs[run_id] = {
+            'output': '', 'done': False, 'error': '',
+            'title': f'Brain note: {project_id}',
+            'prompt': note, 'proj_path': str(PROJECT_DIR),
+            'path': '', 'index': -1,
+        }
+
+        def _run():
+            try:
+                from brain_synthesizer import update_brain_wiki_from_note
+                import json as _json
+                projects_file = PROJECT_DIR / 'projects.json'
+                project_name = project_id
+                if projects_file.exists():
+                    data = _json.loads(projects_file.read_text(encoding='utf-8'))
+                    for p in data.get('projects', []):
+                        if p.get('id') == project_id:
+                            project_name = p.get('name', project_id)
+                            break
+                lang = get_ui_language()
+                ok = update_brain_wiki_from_note(project_id, project_name, note.strip(), lang)
+                _action_runs[run_id]['output'] = 'ok' if ok else 'error'
+                _action_runs[run_id]['done'] = True
+            except Exception as e:
+                _action_runs[run_id]['output'] = f'[ERROR: {e}]'
+                _action_runs[run_id]['done'] = True
+                _action_runs[run_id]['error'] = str(e)
+
+        threading.Thread(target=_run, daemon=True, name=f'BrainNote-{run_id}').start()
+        return run_id
+
+    def refresh_brain_snapshot(self, project_id: str) -> bool:
+        """Regenerates snapshot.md from the current wiki."""
+        try:
+            from brain_synthesizer import generate_snapshot
+            import json as _json
+            projects_file = PROJECT_DIR / 'projects.json'
+            project_name = project_id
+            if projects_file.exists():
+                data = _json.loads(projects_file.read_text(encoding='utf-8'))
+                for p in data.get('projects', []):
+                    if p.get('id') == project_id:
+                        project_name = p.get('name', project_id)
+                        break
+            wiki_path = PROJECT_DIR / 'brain' / project_id / 'wiki.md'
+            if not wiki_path.exists():
+                return False
+            wiki_text = wiki_path.read_text(encoding='utf-8')
+            lang = get_ui_language()
+            return generate_snapshot(project_id, project_name, wiki_text, lang)
+        except Exception as e:
+            log.warning(f"refresh_brain_snapshot: {e}")
+            return False
+
+
+def _select_wiki_sections(wiki_text: str, question: str, max_sections: int = 4) -> str:
+    """
+    Returns only the wiki sections most relevant to the question.
+    Reduces token count (and API latency) by skipping unrelated sections.
+    Section 1 (current state) is always included as baseline context.
+    Falls back to the full wiki for broad/unclear questions.
+    """
+    if not wiki_text:
+        return wiki_text
+
+    q = question.lower()
+
+    # keyword → section number
+    _KW = {
+        'cambio': 2, 'cambió': 2, 'nuevo': 2, 'nueva': 2, 'changed': 2, 'new': 2,
+        'reciente': 2, 'recent': 2, 'cerrado': 2, 'closed': 2, 'modificado': 2,
+        'workstream': 3, 'equipo': 3, 'team': 3, 'stream': 3,
+        'decisión': 4, 'decisiones': 4, 'decision': 4, 'decisions': 4,
+        'decidió': 4, 'decided': 4, 'acuerdo': 4, 'agreement': 4,
+        'riesgo': 5, 'riesgos': 5, 'risk': 5, 'risks': 5,
+        'bloqueador': 5, 'blocker': 5, 'problema': 5, 'issue': 5,
+        'acción': 6, 'acciones': 6, 'action': 6, 'actions': 6,
+        'tarea': 6, 'task': 6, 'pendiente': 6, 'pending': 6,
+        'vencida': 6, 'overdue': 6,
+        'quién': 7, 'who': 7, 'persona': 7, 'person': 7, 'people': 7,
+        'responsable': 7, 'owner': 7, 'ownership': 7, 'dueño': 7,
+        'próximo': 8, 'próxima': 8, 'next': 8, 'siguiente': 8, 'upcoming': 8,
+        'reunión': 8, 'meeting': 8, 'preparar': 8, 'prepare': 8,
+        'mañana': 8, 'tomorrow': 8,
+        'documento': 9, 'document': 9, 'deck': 9, 'artefacto': 9,
+        'artifact': 9, 'presentación': 9, 'presentation': 9,
+        'contexto': 10, 'context': 10, 'objetivo': 10, 'cliente': 10,
+        'client': 10, 'alcance': 10, 'scope': 10,
+        'historia': 11, 'history': 11, 'pasado': 11, 'past': 11,
+        'antes': 11, 'before': 11, 'hito': 11, 'milestone': 11,
+    }
+
+    scores: dict[int, int] = {}
+    for word in re.split(r'\W+', q):
+        sec = _KW.get(word)
+        if sec:
+            scores[sec] = scores.get(sec, 0) + 1
+
+    selected = {1}  # always include state
+    for sec, _ in sorted(scores.items(), key=lambda x: -x[1]):
+        selected.add(sec)
+        if len(selected) >= max_sections:
+            break
+
+    # Broad/unclear question → include main operational sections
+    if len(selected) <= 1:
+        selected = {1, 2, 4, 5, 6, 8}
+
+    # Split wiki into per-section chunks
+    section_pat = re.compile(r'^## (\d+)\.')
+    sections: dict[int, list[str]] = {}
+    header_lines: list[str] = []
+    current_sec: int | None = None
+    buf: list[str] = []
+
+    for line in wiki_text.splitlines():
+        m = section_pat.match(line)
+        if m:
+            if current_sec is None:
+                header_lines = buf[:]
+            else:
+                sections[current_sec] = buf[:]
+            current_sec = int(m.group(1))
+            buf = [line]
+        else:
+            buf.append(line)
+    if current_sec is not None:
+        sections[current_sec] = buf
+
+    parts = ['\n'.join(header_lines).strip()]
+    for sec_num in sorted(selected):
+        if sec_num in sections:
+            parts.append('\n'.join(sections[sec_num]))
+
+    result = '\n\n'.join(p for p in parts if p.strip())
+
+    # If we'd keep > 80% of the wiki anyway, return it all (no benefit in truncating)
+    if len(result) >= 0.8 * len(wiki_text):
+        return wiki_text
+
+    tag = ', '.join(f'§{s}' for s in sorted(selected))
+    return f"[Secciones relevantes: {tag}]\n\n{result}"
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _detect_notes_language(md_path: Path) -> str:

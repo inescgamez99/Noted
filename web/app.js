@@ -39,6 +39,15 @@ let searchTimeout        = null;
 // Panel de Claude
 let _regenVisible        = false;
 
+// Brain (Cerebro)
+let _brainCurrentSeriesId = null;
+let _brainChatHistory = [];
+let _brainPendingData = null;
+let _brainChatRunId = null;
+let _brainChatPollInterval = null;
+// Per-project initialization state: Set of project IDs currently being initialized
+let _brainInitializing = new Set();
+
 // Sticky notes
 let _stickies = [];
 const _PIN_SVG = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1z"/></svg>`;
@@ -266,7 +275,38 @@ const T = {
     add_action_deadline_ph: 'Fecha límite (opcional, YYYY-MM-DD)',
     add_action_save: 'Guardar',
     add_action_cancel: 'Cancelar',
+    nav_brain: 'Cerebro',
+    brain_empty_title: 'Selecciona un proyecto',
+    brain_empty_sub: 'Elige un proyecto de la lista para ver su wiki',
+    brain_wiki_label: 'Wiki actual',
+    brain_chat_label: 'Chat',
+    brain_chat_ph: 'Escribe tu pregunta sobre este proyecto...',
+    brain_send: 'Enviar',
+    brain_new_series: '+ Nuevo proyecto',
+    brain_pending_title: 'Nueva serie detectada',
+    brain_pending_confirm: 'Crear',
+    brain_pending_dismiss: 'Ignorar',
+    brain_no_wiki: 'El wiki todavía no tiene contenido. Procesa una reunión de este proyecto para generarlo, o usa el botón de inicializar.',
+    brain_chat_thinking: 'Pensando...',
+    brain_wiki_ready: 'Wiki activo',
+    brain_no_wiki_badge: 'Sin wiki',
+    brain_tab_chat: 'Chat',
+    brain_tab_wiki: 'Wiki',
+    brain_suggestions_label: 'Pregunta sobre el proyecto',
+    brain_chip_1: '¿En qué punto está el proyecto ahora mismo?',
+    brain_chip_2: '¿Qué acciones están pendientes?',
+    brain_chip_3: '¿Qué preparo para la próxima reunión?',
+    brain_chip_4: '¿Qué se decidió en la última reunión?',
+    brain_init_btn: 'Inicializar wiki',
+    brain_refresh_btn: 'Regenerar wiki',
+    brain_init_running: 'Generando...',
+    brain_init_started: 'Generando wiki en segundo plano...',
+    brain_gen_all: 'Generar todo',
     delete_project_btn: 'Eliminar proyecto',
+    brain_note_btn: '+ Nota',
+    brain_note_submit: 'Actualizar wiki',
+    brain_note_updating: 'Actualizando...',
+    brain_note_done: 'Wiki actualizada',
   },
   en: {
     nav_notes: 'Notes', nav_action_panel: 'Action Panel', nav_projects: 'Projects', nav_trash: 'Recently Deleted', settings_nav: 'Settings',
@@ -485,7 +525,38 @@ const T = {
     add_action_deadline_ph: 'Deadline (optional, YYYY-MM-DD)',
     add_action_save: 'Save',
     add_action_cancel: 'Cancel',
+    nav_brain: 'Brain',
+    brain_empty_title: 'Select a project',
+    brain_empty_sub: 'Choose a project from the list to view its wiki',
+    brain_wiki_label: 'Current wiki',
+    brain_chat_label: 'Chat',
+    brain_chat_ph: 'Ask a question about this project...',
+    brain_send: 'Send',
+    brain_new_series: '+ New project',
+    brain_pending_title: 'New series detected',
+    brain_pending_confirm: 'Create',
+    brain_pending_dismiss: 'Ignore',
+    brain_no_wiki: 'The wiki has no content yet. Process a meeting for this project to generate it, or use the initialize button.',
+    brain_chat_thinking: 'Thinking...',
+    brain_wiki_ready: 'Wiki ready',
+    brain_no_wiki_badge: 'No wiki',
+    brain_tab_chat: 'Chat',
+    brain_tab_wiki: 'Wiki',
+    brain_suggestions_label: 'Ask about the project',
+    brain_chip_1: 'Where does the project stand right now?',
+    brain_chip_2: 'What actions are pending?',
+    brain_chip_3: 'What should I prepare for the next meeting?',
+    brain_chip_4: 'What was decided in the last meeting?',
+    brain_init_btn: 'Initialize wiki',
+    brain_refresh_btn: 'Regenerate wiki',
+    brain_init_running: 'Generating...',
+    brain_init_started: 'Generating wiki in background...',
+    brain_gen_all: 'Generate all',
     delete_project_btn: 'Delete project',
+    brain_note_btn: '+ Note',
+    brain_note_submit: 'Update wiki',
+    brain_note_updating: 'Updating...',
+    brain_note_done: 'Wiki updated',
   },
   ca: {
     nav_notes: 'Notes', nav_action_panel: 'Panell d\'accions', nav_projects: 'Projectes', nav_trash: 'Eliminats recentment', settings_nav: 'Configuració',
@@ -818,15 +889,18 @@ function showView(view) {
   document.getElementById('view-projects').classList.toggle('hidden', view !== 'projects');
   document.getElementById('view-trash').classList.toggle('hidden', view !== 'trash');
   document.getElementById('view-settings').classList.toggle('hidden', view !== 'settings');
+  document.getElementById('view-brain').classList.toggle('hidden', view !== 'brain');
   document.getElementById('btn-meetings').classList.toggle('active', view === 'meetings');
   document.getElementById('btn-actions').classList.toggle('active', view === 'actions');
   document.getElementById('btn-projects').classList.toggle('active', view === 'projects');
   document.getElementById('btn-trash').classList.toggle('active', view === 'trash');
   document.getElementById('btn-settings').classList.toggle('active', view === 'settings');
+  document.getElementById('btn-brain').classList.toggle('active', view === 'brain');
   if (view === 'actions') loadTaskBoard();
   if (view === 'projects') loadProjectsSettings();
   if (view === 'trash') loadTrash();
   if (view === 'settings') loadRecordingSettings();
+  if (view === 'brain') loadBrainView();
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -4921,3 +4995,576 @@ function _saveStickies() {
   }, 400);
 }
 
+// ── Brain (Cerebro) ───────────────────────────────────────────────────────────
+
+async function loadBrainView() {
+  await loadBrainSeriesList();
+}
+
+async function loadBrainSeriesList() {
+  const container = document.getElementById('brain-series-list');
+  if (!container) return;
+  try {
+    const projects = await pywebview.api.get_brain_series();
+    if (!projects || projects.length === 0) {
+      container.innerHTML = `<div style="padding:12px;font-size:12px;color:var(--muted)">${t('brain_empty_sub')}</div>`;
+      return;
+    }
+    container.innerHTML = projects.map(p => {
+      const isInit = _brainInitializing.has(p.id);
+      const badge = isInit
+        ? `<span class="brain-wiki-badge" style="background:var(--accent-tint);color:var(--accent)">Generando…</span>`
+        : p.has_wiki
+          ? `<span class="brain-wiki-badge">${t('brain_wiki_ready')}</span>`
+          : `<span class="brain-wiki-badge brain-wiki-badge-empty">${t('brain_no_wiki_badge')}</span>`;
+      const actionBtn = isInit
+        ? `<button class="brain-series-item-btn" disabled>…</button>`
+        : p.has_wiki
+          ? `<button class="brain-series-item-btn" onclick="event.stopPropagation();initializeBrainWiki('${escHtml(p.id)}',true)" title="Regenerar wiki">↺</button>`
+          : `<button class="brain-series-item-btn" onclick="event.stopPropagation();initializeBrainWiki('${escHtml(p.id)}',false)">Generar</button>`;
+      return `
+        <div class="brain-series-item${_brainCurrentSeriesId === p.id ? ' active' : ''}"
+             data-sid="${escHtml(p.id)}" onclick="selectBrainSeries('${escHtml(p.id)}')">
+          <div class="brain-series-item-name">${escHtml(p.name)}</div>
+          <div class="brain-series-item-meta">
+            ${badge}
+            <span class="brain-series-item-actions">${actionBtn}</span>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = `<div style="padding:12px;font-size:12px;color:var(--red)">Error: ${e}</div>`;
+  }
+}
+
+async function selectBrainSeries(projectId) {
+  _brainCurrentSeriesId = projectId;
+  _brainChatHistory = [];
+  stopBrainChatPoll();
+
+  document.querySelectorAll('.brain-series-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.sid === projectId);
+  });
+
+  document.getElementById('brain-empty-state').style.display = 'none';
+  document.getElementById('brain-content').style.display = 'flex';
+
+  // Reset to chat tab, clear messages, show suggestions
+  showBrainTab('chat');
+  document.getElementById('brain-chat-messages').innerHTML = '';
+  const input = document.getElementById('brain-chat-input');
+  if (input) input.value = '';
+  const sugg = document.getElementById('brain-suggestions');
+  if (sugg) sugg.style.display = '';
+
+  // note button shown only on wiki tab (showBrainTab handles it)
+  const noteBtn = document.getElementById('brain-note-btn');
+  if (noteBtn) noteBtn.style.display = 'none';
+
+  try {
+    const allProjects = await pywebview.api.get_brain_series();
+    const p = (allProjects || []).find(x => x.id === projectId);
+    if (p) {
+      document.getElementById('brain-series-name').textContent = p.name;
+    }
+  } catch (e) {}
+}
+
+async function loadBrainSnapshot(seriesId) {
+  const panel = document.getElementById('brain-snapshot-panel');
+  const content = document.getElementById('brain-snapshot-content');
+  if (!panel || !content) return;
+  try {
+    const snap = await pywebview.api.get_brain_snapshot(seriesId);
+    if (snap && snap.trim()) {
+      content.innerHTML = sanitizeHtml(_renderSnapshot(snap));
+      panel.classList.remove('hidden');
+    } else {
+      panel.classList.add('hidden');
+    }
+  } catch (e) {
+    panel.classList.add('hidden');
+  }
+}
+
+function _renderSnapshot(text) {
+  // Health color indicators keyed by field label (lowercase, trimmed)
+  const HEALTH_FIELDS = new Set(['estado', 'status', 'salud', 'health']);
+  const URGENT_FIELDS = new Set(['bloqueador', 'blocker', 'acción urgente', 'urgent action']);
+  const NEXT_FIELDS   = new Set(['próximo', 'next', 'próxima', 'upcoming']);
+  const FOCUS_FIELDS  = new Set(['foco', 'focus']);
+
+  function healthDot(value) {
+    if (/amber|ámbar/i.test(value)) return '<span class="snap-dot snap-dot-amber"></span>';
+    if (/red|rojo/i.test(value))    return '<span class="snap-dot snap-dot-red"></span>';
+    if (/green|verde/i.test(value)) return '<span class="snap-dot snap-dot-green"></span>';
+    return '';
+  }
+
+  const lines = text.split('\n').filter(l => l.trim());
+  let html = '<div class="snap-grid">';
+  for (const line of lines) {
+    const m = line.match(/^\*\*(.+?):\*\*\s*(.*)$/);
+    if (!m) continue;
+    if (/^(?:Última actualización|Last updated)$/i.test(m[1].trim())) continue;
+    const label = m[1].trim();
+    const value = m[2].trim();
+    const key   = label.toLowerCase();
+
+    let rowClass = 'snap-row';
+    let dot = '';
+    if (HEALTH_FIELDS.has(key)) { dot = healthDot(value); rowClass += ' snap-row-status'; }
+    else if (URGENT_FIELDS.has(key) && !/ninguno|none/i.test(value)) rowClass += ' snap-row-urgent';
+    else if (NEXT_FIELDS.has(key))  rowClass += ' snap-row-next';
+    else if (FOCUS_FIELDS.has(key)) rowClass += ' snap-row-focus';
+
+    html += `<div class="${rowClass}">
+      <span class="snap-label">${escHtml(label)}</span>
+      <span class="snap-value">${dot}${sanitizeHtml(_chatInline(value))}</span>
+    </div>`;
+  }
+  return html + '</div>';
+}
+
+function toggleBrainNote(show) {
+  const panel = document.getElementById('brain-note-panel');
+  if (!panel) return;
+  if (show) {
+    panel.classList.remove('hidden');
+    const inp = document.getElementById('brain-note-input');
+    if (inp) { inp.value = ''; inp.focus(); }
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+async function submitBrainNote() {
+  if (!_brainCurrentSeriesId) return;
+  const inp = document.getElementById('brain-note-input');
+  const note = (inp ? inp.value : '').trim();
+  if (!note) return;
+
+  const btn = document.getElementById('brain-note-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = t('brain_note_updating'); }
+
+  try {
+    const runId = await pywebview.api.add_brain_note(_brainCurrentSeriesId, note);
+    if (!runId) { if (btn) { btn.disabled = false; btn.textContent = t('brain_note_submit'); } return; }
+    const poll = setInterval(async () => {
+      try {
+        const s = await pywebview.api.get_action_run_status(runId);
+        if (s.done) {
+          clearInterval(poll);
+          toggleBrainNote(false);
+          if (btn) { btn.disabled = false; btn.textContent = t('brain_note_submit'); }
+          await loadBrainSnapshot(_brainCurrentSeriesId);
+          await loadBrainWiki(_brainCurrentSeriesId);
+          // Brief confirmation in toolbar
+          const tsEl = document.getElementById('brain-wiki-updated');
+          if (tsEl) { const prev = tsEl.textContent; tsEl.textContent = t('brain_note_done'); setTimeout(() => { loadBrainWiki(_brainCurrentSeriesId); }, 2000); }
+        }
+      } catch (e) {
+        clearInterval(poll);
+        if (btn) { btn.disabled = false; btn.textContent = t('brain_note_submit'); }
+      }
+    }, 500);
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = t('brain_note_submit'); }
+  }
+}
+
+function showBrainTab(tab) {
+  const chatPane = document.getElementById('brain-chat-pane');
+  const wikiPane = document.getElementById('brain-wiki-pane');
+  const tabChat  = document.getElementById('brain-tab-chat');
+  const tabWiki  = document.getElementById('brain-tab-wiki');
+  const noteBtn  = document.getElementById('brain-note-btn');
+  if (tab === 'wiki') {
+    if (chatPane) chatPane.style.display = 'none';
+    if (wikiPane) wikiPane.style.display = 'flex';
+    if (tabChat) tabChat.classList.remove('active');
+    if (tabWiki) tabWiki.classList.add('active');
+    if (noteBtn) noteBtn.style.display = '';
+    loadBrainWiki(_brainCurrentSeriesId);
+    loadBrainSnapshot(_brainCurrentSeriesId);
+  } else {
+    if (wikiPane) wikiPane.style.display = 'none';
+    if (chatPane) chatPane.style.display = 'flex';
+    if (tabWiki) tabWiki.classList.remove('active');
+    if (tabChat) tabChat.classList.add('active');
+    if (noteBtn) noteBtn.style.display = 'none';
+    toggleBrainNote(false);
+  }
+}
+
+function sendBrainSuggestion(btn) {
+  const input = document.getElementById('brain-chat-input');
+  if (input) input.value = btn.textContent.trim();
+  sendBrainMessage();
+}
+
+async function loadBrainWiki(seriesId) {
+  const wikiEl = document.getElementById('brain-wiki-html');
+  if (!wikiEl) return;
+  try {
+    const wiki = await pywebview.api.get_brain_wiki(seriesId);
+    if (!wiki || !wiki.trim()) {
+      wikiEl.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:16px 0">${t('brain_no_wiki')}</div>`;
+      return;
+    }
+    // Extract and display the "Última actualización" timestamp in the toolbar
+    const tsEl = document.getElementById('brain-wiki-updated');
+    if (tsEl) {
+      const m = wiki.match(/\*\*(?:Última actualización|Last updated):\*\*\s*(.+)/);
+      let ts = m ? m[1].trim() : '';
+      // Strip Windows timezone names e.g. "Romance Daylight Time", "Central European Summer Time"
+      ts = ts.replace(/\s+[\w][\w ]*(?:Standard|Daylight|Summer) Time\s*$/, '').trim();
+      ts = ts.replace(/\s+[A-Z]{2,5}\s*$/, '').trim();
+      tsEl.textContent = ts;
+    }
+    wikiEl.innerHTML = sanitizeHtml(brainMarkdownToHtml(wiki));
+  } catch (e) {
+    wikiEl.innerHTML = `<div style="color:var(--red);font-size:12px">${e}</div>`;
+  }
+}
+
+function _wikiInline(raw) {
+  // Apply inline formatting after HTML-escaping
+  let s = escHtml(raw);
+  s = s.replace(/~~(.+?)~~/g, '<s>$1</s>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/`(.+?)`/g, '<code>$1</code>');
+  return s;
+}
+
+function brainMarkdownToHtml(md) {
+  // Normalise line endings
+  const lines = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const out = [];
+  let inTable = false;
+  let tableHeader = false;
+  let inList = false;
+
+  const closeTable = () => { if (inTable) { out.push('</tbody></table>'); inTable = false; tableHeader = false; } };
+  const closeList  = () => { if (inList)  { out.push('</ul>'); inList = false; } };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Headings
+    if (line.startsWith('# '))  { closeTable(); closeList(); out.push(`<h1 class="brain-wiki-h1">${_wikiInline(line.slice(2))}</h1>`); continue; }
+    if (line.startsWith('## ')) {
+      closeTable(); closeList();
+      const secText = line.slice(3).trim();
+      const secNum = secText.match(/^(\d+)\./);
+      const label = secNum ? secNum[1] : '';
+      out.push(`<h2 class="brain-wiki-h2"${label ? ` data-sec="${label}"` : ''}>${_wikiInline(secText.replace(/^\d+\.\s*/, ''))}</h2>`);
+      continue;
+    }
+    if (line.startsWith('### ')){ closeTable(); closeList(); out.push(`<h3 class="brain-wiki-h3">${_wikiInline(line.slice(4))}</h3>`); continue; }
+
+    // Horizontal rule
+    if (/^---+$/.test(trimmed)) { closeTable(); closeList(); out.push('<hr class="brain-wiki-hr">'); continue; }
+
+    // Metadata lines (**key:** value) — skip the timestamp line (shown in toolbar)
+    if (/^\*\*[^*]+\*\*/.test(trimmed) && !trimmed.includes('|')) {
+      if (/^\*\*(?:Última actualización|Last updated):/i.test(trimmed)) continue;
+      closeTable(); closeList();
+      out.push(`<div class="brain-wiki-meta">${_wikiInline(trimmed)}</div>`);
+      continue;
+    }
+
+    // Tables
+    if (trimmed.includes('|') && trimmed.startsWith('|')) {
+      closeList();
+      const isRule = /^\|[\s\-|:]+\|$/.test(trimmed);
+      if (!inTable) { out.push('<table class="brain-wiki-table"><tbody>'); inTable = true; tableHeader = true; }
+      if (!isRule) {
+        const cells = trimmed.split('|').slice(1, -1);
+        const tag = tableHeader ? 'th' : 'td';
+        out.push(`<tr>${cells.map(c => `<${tag}>${_wikiInline(c.trim())}</${tag}>`).join('')}</tr>`);
+        tableHeader = false;
+      }
+      continue;
+    }
+    closeTable();
+
+    // Unordered list
+    if (/^[-*] /.test(line) || /^  [-*] /.test(line)) {
+      if (!inList) { out.push('<ul class="brain-wiki-ul">'); inList = true; }
+      out.push(`<li>${_wikiInline(line.replace(/^\s*[-*] /, ''))}</li>`);
+      continue;
+    }
+    closeList();
+
+    // Blank line
+    if (trimmed === '') { out.push('<div class="brain-wiki-spacer"></div>'); continue; }
+
+    // Paragraph
+    out.push(`<p class="brain-wiki-p">${_wikiInline(line)}</p>`);
+  }
+  closeTable();
+  closeList();
+  return out.join('\n');
+}
+
+async function sendBrainMessage() {
+  if (!_brainCurrentSeriesId) return;
+  const input = document.getElementById('brain-chat-input');
+  const msg = (input ? input.value : '').trim();
+  if (!msg) return;
+
+  // Hide suggestions once first message is sent
+  const sugg = document.getElementById('brain-suggestions');
+  if (sugg) sugg.style.display = 'none';
+
+  input.value = '';
+  appendBrainMessage('user', msg);
+  _brainChatHistory.push({ role: 'user', content: msg });
+
+  const thinkingId = appendBrainMessage('assistant', t('brain_chat_thinking'), true);
+  document.getElementById('brain-send-btn').disabled = true;
+
+  try {
+    const runId = await pywebview.api.chat_with_brain(_brainCurrentSeriesId, msg, _brainChatHistory);
+    if (!runId) {
+      updateBrainMessage(thinkingId, '[Error: Claude no disponible]');
+      document.getElementById('brain-send-btn').disabled = false;
+      return;
+    }
+    _brainChatRunId = runId;
+    _brainChatPollInterval = setInterval(async () => {
+      try {
+        const s = await pywebview.api.get_action_run_status(runId);
+        // Show partial output as it streams in
+        if (s.output && !s.done) {
+          updateBrainMessage(thinkingId, s.output);
+        }
+        if (s.done) {
+          stopBrainChatPoll();
+          const answer = s.output || s.error || '[Sin respuesta]';
+          updateBrainMessage(thinkingId, answer);
+          _brainChatHistory.push({ role: 'assistant', content: answer });
+          document.getElementById('brain-send-btn').disabled = false;
+        }
+      } catch (e) {
+        stopBrainChatPoll();
+        updateBrainMessage(thinkingId, `[Error: ${e}]`);
+        document.getElementById('brain-send-btn').disabled = false;
+      }
+    }, 300);
+  } catch (e) {
+    updateBrainMessage(thinkingId, `[Error: ${e}]`);
+    document.getElementById('brain-send-btn').disabled = false;
+  }
+}
+
+function stopBrainChatPoll() {
+  if (_brainChatPollInterval) { clearInterval(_brainChatPollInterval); _brainChatPollInterval = null; }
+}
+
+let _brainMsgCounter = 0;
+function appendBrainMessage(role, content, isTemp = false) {
+  const id = 'brain-msg-' + (++_brainMsgCounter);
+  const messages = document.getElementById('brain-chat-messages');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = `brain-chat-msg brain-chat-msg-${role}${isTemp ? ' thinking' : ''}`;
+  div.innerHTML = `<div class="brain-msg-content">${escHtml(content)}</div>`;
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+  return id;
+}
+
+function _chatMarkdown(text) {
+  // Lightweight markdown for chat bubbles — no headings, compact spacing
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const out = [];
+  let inList = false;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) { if (inList) { out.push('</ul>'); inList = false; } out.push('<br>'); continue; }
+    if (/^[-*] /.test(line)) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push(`<li>${_chatInline(line.replace(/^[-*] /, ''))}</li>`);
+      continue;
+    }
+    if (inList) { out.push('</ul>'); inList = false; }
+    if (/^\*\*[^*]+\*\*:/.test(t)) {
+      // Bold label at start of line → section header in bubble
+      out.push(`<p class="chat-section">${_chatInline(t)}</p>`);
+    } else {
+      out.push(`<p>${_chatInline(t)}</p>`);
+    }
+  }
+  if (inList) out.push('</ul>');
+  return out.join('');
+}
+
+function _chatInline(raw) {
+  let s = escHtml(raw);
+  s = s.replace(/~~(.+?)~~/g, '<s>$1</s>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  return s;
+}
+
+function updateBrainMessage(id, content) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('thinking');
+  el.querySelector('.brain-msg-content').innerHTML = sanitizeHtml(_chatMarkdown(content));
+  const msgs = document.getElementById('brain-chat-messages');
+  if (msgs) msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function checkBrainPending() {
+  const banner = document.getElementById('brain-pending-banner');
+  if (banner) banner.classList.add('hidden');
+}
+
+async function confirmBrainSeries() {}
+async function dismissBrainSeries() {}
+
+let _brainProgressTimer = null;
+
+function _startBrainProgress(estimatedSeconds = 240) {
+  const bar  = document.getElementById('brain-progress-bar');
+  const fill = document.getElementById('brain-progress-fill');
+  const lbl  = document.getElementById('brain-progress-label');
+  if (!bar) return;
+  bar.style.display = 'flex';
+  fill.style.width = '0%';
+  fill.style.transition = 'none';
+  let pct = 0;
+  const step = 90 / (estimatedSeconds / 2); // reach 90% by estimatedSeconds
+  _brainProgressTimer = setInterval(() => {
+    pct = Math.min(pct + step, 90);
+    fill.style.transition = 'width 1.8s ease';
+    fill.style.width = pct.toFixed(1) + '%';
+    const elapsed = Math.round(pct / step * 2);
+    const remaining = Math.max(0, Math.round((estimatedSeconds - elapsed)));
+    lbl.textContent = `Generando wiki · ${Math.round(pct)}% · ~${remaining}s restantes`;
+  }, 2000);
+}
+
+function _stopBrainProgress(success = true) {
+  clearInterval(_brainProgressTimer);
+  _brainProgressTimer = null;
+  const bar  = document.getElementById('brain-progress-bar');
+  const fill = document.getElementById('brain-progress-fill');
+  const lbl  = document.getElementById('brain-progress-label');
+  if (!bar) return;
+  if (success) {
+    fill.style.transition = 'width 0.4s ease';
+    fill.style.width = '100%';
+    lbl.textContent = 'Wiki generado';
+    setTimeout(() => { bar.style.display = 'none'; fill.style.width = '0%'; }, 1200);
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+async function initializeBrainWiki(projectId, isRefresh = false) {
+  // projectId can be passed explicitly (from list button) or fall back to selected project
+  const pid = projectId || _brainCurrentSeriesId;
+  if (!pid) return;
+  if (_brainInitializing.has(pid)) return; // already running
+
+  _brainInitializing.add(pid);
+  await loadBrainSeriesList(); // update badge to "Generando…"
+
+  // Show progress bar only if this is the currently selected project
+  const isSelected = pid === _brainCurrentSeriesId;
+  if (isSelected) _startBrainProgress(300);
+
+  let prevWiki = '';
+  if (isRefresh) {
+    try { prevWiki = await pywebview.api.get_brain_wiki(pid); } catch (_) {}
+  }
+
+  try {
+    await pywebview.api.initialize_brain_wiki(pid);
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      try {
+        const wiki = await pywebview.api.get_brain_wiki(pid);
+        const changed = wiki && wiki.trim() && wiki !== prevWiki;
+        if (changed || attempts >= 120) {
+          clearInterval(poll);
+          _brainInitializing.delete(pid);
+          if (isSelected) _stopBrainProgress(changed);
+          await loadBrainSeriesList();
+          if (isSelected && changed) {
+            await loadBrainWiki(pid);
+            await loadBrainSnapshot(pid);
+          }
+        }
+      } catch (_) {}
+    }, 5000);
+  } catch (e) {
+    _brainInitializing.delete(pid);
+    if (isSelected) _stopBrainProgress(false);
+    showToast('Error: ' + e);
+    await loadBrainSeriesList();
+  }
+}
+
+async function initializeAllBrainWikis() {
+  try {
+    const projects = await pywebview.api.get_brain_series();
+    if (!projects || projects.length === 0) return;
+    // Queue all projects (with or without wiki — regenerate all)
+    const toInit = projects.filter(p => !_brainInitializing.has(p.id));
+    if (toInit.length === 0) { showToast('Todas las wikis ya se están generando'); return; }
+    showToast(`Iniciando wiki para ${toInit.length} proyecto(s)…`);
+    for (const p of toInit) {
+      await initializeBrainWiki(p.id, p.has_wiki);
+      // small stagger to avoid hammering Claude simultaneously
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch (e) {
+    showToast('Error: ' + e);
+  }
+}
+
+function showBrainNewSeriesForm() {
+  document.getElementById('brain-new-series-form').classList.remove('hidden');
+  document.getElementById('brain-new-series-name').focus();
+}
+
+function hideBrainNewSeriesForm() {
+  document.getElementById('brain-new-series-form').classList.add('hidden');
+  document.getElementById('brain-new-series-name').value = '';
+}
+
+async function saveBrainNewSeries() {
+  const name = (document.getElementById('brain-new-series-name').value || '').trim();
+  if (!name) return;
+  try {
+    const proj = await pywebview.api.save_brain_series({ name });
+    hideBrainNewSeriesForm();
+    await loadBrainSeriesList();
+    if (proj && proj.id) selectBrainSeries(proj.id);
+  } catch (e) {
+    showToast('Error: ' + e);
+  }
+}
+
+// Brain chat: Enter sends, Shift+Enter newline
+document.addEventListener('DOMContentLoaded', function() {
+  const brainInput = document.getElementById('brain-chat-input');
+  if (brainInput) {
+    brainInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendBrainMessage();
+      }
+    });
+  }
+});
