@@ -67,12 +67,13 @@ def read_config(sdir: Path) -> dict:
     return cfg
 
 
-def start_run(path: str, transcript_text: str, title: str = '') -> dict:
+def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None) -> dict:
     """Lanza la generación de la capa semántica en segundo plano.
 
-    `transcript_text` lo resuelve el llamador (AppAPI.get_transcript_text). Devuelve
-    {ok, run_id} para hacer polling con get_status, o {ok: False, error} si no se
-    puede empezar."""
+    `transcript_text` lo resuelve el llamador (AppAPI.get_transcript_text).
+    `extra_docs` es una lista opcional de rutas a documentos adicionales que el usuario
+    quiere incluir en la captura (además de la transcripción). Devuelve {ok, run_id}
+    para hacer polling con get_status, o {ok: False, error} si no se puede empezar."""
     if not CLAUDE_BIN:
         return {'ok': False, 'error': 'no_claude'}
 
@@ -109,6 +110,16 @@ def start_run(path: str, transcript_text: str, title: str = '') -> dict:
         if c.exists():
             audio_file = c
             break
+
+    # 2b) Documentos extra aportados por el usuario (fuentes primarias adicionales)
+    extra_files = []
+    for d in (extra_docs or []):
+        try:
+            p = Path(d)
+            if p.exists() and p.is_file() and p not in extra_files:
+                extra_files.append(p)
+        except Exception as e:
+            log.warning(f"semantic_layer: documento extra inválido ({d!r}): {e}")
 
     meeting_name = (title or '').strip()
     if not meeting_name:
@@ -158,6 +169,10 @@ def start_run(path: str, transcript_text: str, title: str = '') -> dict:
                 inputs_lines.append(f"- Transcript (cleaned, primary source): {transcript_file}")
             if audio_file:
                 inputs_lines.append(f"- Audio recording (additional source): {audio_file}")
+            for ef in extra_files:
+                inputs_lines.append(
+                    "- Additional document provided by the user (primary source — read it "
+                    f"and fold its entities/relationships into the CSV): {ef}")
             if context_dir:
                 inputs_lines.append(
                     "- Project memory folder (linked documents in `docs/`, previous meeting "
@@ -183,7 +198,7 @@ def start_run(path: str, transcript_text: str, title: str = '') -> dict:
             )
 
             add_dirs = {str(sdir)}
-            for p in (transcript_file, audio_file):
+            for p in (transcript_file, audio_file, *extra_files):
                 if p:
                     add_dirs.add(str(p.parent))
             if context_dir:

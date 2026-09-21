@@ -265,6 +265,24 @@ class AppAPI:
             log.warning(f"pick_file: {e}")
         return ''
 
+    def pick_files(self, file_types: list = None) -> list:
+        """Abre el selector de archivos nativo con multi-selección.
+        Devuelve una lista de rutas (o [] si se cancela)."""
+        try:
+            import webview
+            wins = webview.windows
+            if not wins:
+                return []
+            kwargs = {'allow_multiple': True}
+            if file_types:
+                kwargs['file_types'] = file_types
+            result = wins[0].create_file_dialog(webview.OPEN_DIALOG, **kwargs)
+            if result:
+                return list(result)
+        except Exception as e:
+            log.warning(f"pick_files: {e}")
+        return []
+
     def get_action_working_dir(self, path: str, index: int) -> str:
         """Devuelve el directorio de trabajo sugerido para una acción."""
         from actions_enricher import load_enriched
@@ -1457,11 +1475,12 @@ class AppAPI:
         """Devuelve el progreso de una importación en curso: {pct, stage, done, error, path}."""
         return _import_runs.get(run_id, {'pct': 0, 'stage': '', 'done': False, 'error': '', 'path': ''})
 
-    def run_semantic_layer(self, path: str, title: str = '') -> dict:
+    def run_semantic_layer(self, path: str, title: str = '', extra_docs: list = None) -> dict:
         """Genera la capa semántica (OntoForge) de una reunión. Delega en el módulo
-        exporters.semantic_layer; aquí solo se resuelve el transcript."""
+        exporters.semantic_layer; aquí solo se resuelve el transcript. `extra_docs` son
+        documentos adicionales elegidos por el usuario para enriquecer la captura."""
         transcript_text = self.get_transcript_text(path)
-        return semantic.start_run(path, transcript_text, title)
+        return semantic.start_run(path, transcript_text, title, extra_docs)
 
     def get_semantic_status(self, run_id: str) -> dict:
         """Progreso de una ejecución de Semantic Layer (delegado)."""
