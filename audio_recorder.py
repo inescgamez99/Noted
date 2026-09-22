@@ -89,6 +89,7 @@ class AudioRecorder:
 
         self.on_recording_stopped = None     # callable(wav_path)
         self.on_loopback_unavailable = None  # callable(reason) — grabando solo micrófono
+        self.on_write_error = None           # callable(reason) — error al escribir a disco
 
     @property
     def is_recording(self) -> bool:
@@ -218,6 +219,13 @@ class AudioRecorder:
                     # necesita on_chunk) y deja el audio en disco si el proceso
                     # muere a mitad de la reunión.
                     f.flush()
+        except OSError as e:
+            log.error(f"Writer {label} error de disco: {e}", exc_info=True)
+            if self.on_write_error:
+                threading.Thread(
+                    target=self.on_write_error, args=(str(e),),
+                    daemon=True, name='WriteErrorWarning',
+                ).start()
         except Exception as e:
             log.error(f"Writer {label} falló: {e}", exc_info=True)
 

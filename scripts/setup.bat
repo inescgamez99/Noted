@@ -1,13 +1,41 @@
 @echo off
+setlocal
+
+rem -- Usar el .venv del repo si existe, crearlo si no --
+if exist ".venv\Scripts\python.exe" (
+    set "PYTHON=.venv\Scripts\python.exe"
+    echo Usando entorno virtual existente (.venv)
+) else (
+    echo Creando entorno virtual (.venv)...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo ERROR: no se pudo crear el entorno virtual.
+        echo Comprueba que Python esta instalado y en PATH.
+        pause
+        exit /b 1
+    )
+    set "PYTHON=.venv\Scripts\python.exe"
+    echo Entorno virtual creado.
+)
+
+echo.
 echo Instalando dependencias de Noted...
-pip install -r requirements.txt
+%PYTHON% -m pip install --upgrade pip --quiet
+%PYTHON% -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo ERROR instalando dependencias. Revisa el mensaje anterior.
+    pause
+    exit /b 1
+)
+
 if not exist .env (copy .env.example .env && echo Creado .env desde plantilla)
+
 echo.
 echo Verificando imports clave...
-python -c "import sounddevice; print('sounddevice OK')"
-python -c "import faster_whisper; print('faster-whisper OK')"
-python -c "import pystray; print('pystray OK')"
-python -c "import pyaudiowpatch; print('pyaudiowpatch OK')"
+%PYTHON% -c "import sounddevice; print('sounddevice OK')"
+%PYTHON% -c "import faster_whisper; print('faster-whisper OK')"
+%PYTHON% -c "import pystray; print('pystray OK')"
+%PYTHON% -c "import pyaudiowpatch; print('pyaudiowpatch OK')"
 echo.
 echo Verificando claude CLI...
 claude --version

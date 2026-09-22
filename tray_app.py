@@ -57,6 +57,8 @@ _STR = {
         transcription_failed='No se pudo transcribir la grabación. Revisa el log para más detalles.',
         minutes_failed='No se pudieron generar las minutas. Revisa el log para más detalles.',
         mic_only='Grabando SOLO tu microfono: no se captura el audio de los demas. Si usas auriculares, sus voces no quedaran en la grabacion.',
+        mic_unavailable='No se pudo acceder al micrófono. Comprueba que no lo usa otra app.',
+        disk_full='Disco lleno: la grabación se ha interrumpido. Libera espacio.',
         cancel_job='Descartar esta reunion (papelera)',
         job_cancelled='Reunion descartada: el audio y lo generado se han movido a la papelera.',
     ),
@@ -73,6 +75,8 @@ _STR = {
         transcription_failed='Transcription failed. Check the log for details.',
         minutes_failed='Minutes generation failed. Check the log for details.',
         mic_only='Recording your microphone ONLY — system audio is not being captured. If you are on a headset, the others will not be in the recording.',
+        mic_unavailable='Could not access the microphone. Check that no other app is using it.',
+        disk_full='Disk full: the recording has stopped. Free up some space.',
         cancel_job='Discard this meeting (bin)',
         job_cancelled='Meeting discarded: the audio and generated files were moved to the bin.',
     ),
@@ -933,6 +937,16 @@ class TrayApp:
         log.error(f"Grabando sin audio del sistema: {reason}")
         s = _STR.get(get_ui_language(), _STR['en'])
         self._notify('Noted', s['mic_only'])
+
+    def warn_mic_unavailable(self, reason: str = ''):
+        log.error(f"Micrófono no disponible: {reason}")
+        s = _STR.get(get_ui_language(), _STR['en'])
+        self._notify('Noted ⚠', s['mic_unavailable'])
+
+    def warn_disk_full(self, reason: str = ''):
+        log.error(f"Disco lleno durante grabación: {reason}")
+        s = _STR.get(get_ui_language(), _STR['en'])
+        self._notify('Noted ⚠', s['disk_full'])
 
     def _notify(self, title: str, msg: str):
         try:

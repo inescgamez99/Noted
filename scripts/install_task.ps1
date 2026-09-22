@@ -1,7 +1,7 @@
 ﻿param([string]$WatchdogPath = "")
 
 if (-not $WatchdogPath) {
-    $WatchdogPath = Join-Path $PSScriptRoot "watchdog.ps1"
+    $WatchdogPath = Join-Path (Split-Path $PSScriptRoot -Parent) "watchdog.ps1"
 }
 $WatchdogPath = (Resolve-Path $WatchdogPath).Path
 

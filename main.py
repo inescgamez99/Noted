@@ -122,7 +122,7 @@ def main():
 
     try:
         _bs("importing storage…")
-        from storage import ensure_directories, cleanup_old_recordings
+        from storage import ensure_directories, cleanup_old_recordings, cleanup_old_minutes
         _bs("importing AudioRecorder…")
         from audio_recorder import AudioRecorder
         _bs("importing TeamsCallDetector…")
@@ -136,6 +136,7 @@ def main():
 
         ensure_directories()
         cleanup_old_recordings()
+        cleanup_old_minutes()
 
         _bs("creating AudioRecorder…")
         recorder  = AudioRecorder()
@@ -146,6 +147,7 @@ def main():
         _bs("TrayApp created")
 
         recorder.on_loopback_unavailable = tray.warn_loopback_unavailable
+        recorder.on_write_error = tray.warn_disk_full
 
         _popup_active      = [False]   # guard para evitar popups múltiples
         _active_generation = [None]    # generación capturada en el último on_call_started
@@ -182,7 +184,12 @@ def main():
                     if continuing:
                         tray.request_continuation()
                     path = get_recording_path(meeting)
-                    recorder.start(path)
+                    try:
+                        recorder.start(path)
+                    except Exception as e:
+                        log.error(f"No se pudo iniciar la grabación: {e}")
+                        tray.warn_mic_unavailable(str(e))
+                        return
                     tray.set_recording(True, path)
                     log.info(f"{'Continuando (reconexión)' if continuing else 'Grabación iniciada'}: {path.name}")
                     def _send_notice():

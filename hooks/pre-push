@@ -1,5 +1,5 @@
 #!/bin/sh
-# TeamsRecorder — pre-push hook (solo para el owner del repo)
+# Noted — pre-push hook (solo para el owner del repo)
 # Escribe los commits en .pending_notification.txt para que el daemon
 # los procese con Claude y mande el email al equipo.
 REPO=$(git rev-parse --show-toplevel)

@@ -9,6 +9,8 @@ from config import PROJECT_DIR, CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_e
 
 log = logging.getLogger(__name__)
 
+_MAX_TRANSCRIPT_CHARS = 150_000
+
 _SYSTEM_PROMPT_BASE = """Eres un asistente especializado en generar minutas profesionales de reuniones de trabajo tecnologico.
 
 Tu output es siempre markdown estructurado, limpio y listo para usar directamente.
@@ -210,6 +212,15 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
                 f"\nLa persona que grabó esta reunión es **{me_name}**. "
                 f"En el transcript, [{me_name}] se refiere a ella. Usa su nombre real en toda la minuta."
             )
+
+    if len(transcript) > _MAX_TRANSCRIPT_CHARS:
+        log.warning(
+            f"Transcript truncado: {len(transcript)} → {_MAX_TRANSCRIPT_CHARS} chars"
+        )
+        transcript = (
+            transcript[:_MAX_TRANSCRIPT_CHARS]
+            + f"\n\n[TRANSCRIPCIÓN TRUNCADA: primeros {_MAX_TRANSCRIPT_CHARS} de {len(transcript)} chars]"
+        )
 
     parts = [
         f"## Context / Contexto",

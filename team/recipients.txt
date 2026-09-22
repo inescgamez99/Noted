@@ -1,4 +1,4 @@
-# Lista de distribución — actualizaciones de TeamsRecorder
+# Lista de distribución — actualizaciones de Noted
 # Un email por línea. Líneas con # son comentarios.
 ines.campos@accenture.com
 felipe.antunez@accenture.com

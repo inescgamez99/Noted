@@ -214,7 +214,8 @@ class AppAPI:
 
     """API Python expuesta a JavaScript via pywebview."""
 
-
+    def __init__(self):
+        self._meetings_cache: dict[tuple, dict] = {}
 
     def _pins_path(self) -> Path:
 
@@ -382,7 +383,26 @@ class AppAPI:
 
         meetings = []
 
+        if not hasattr(self, '_meetings_cache'):
+            self._meetings_cache = {}
+
+        seen_keys: set[tuple] = set()
+
         for md in sorted(MINUTES_DIR.glob('*.md'), key=lambda p: p.stat().st_mtime, reverse=True):
+
+            cache_key = (str(md), md.stat().st_mtime)
+
+            seen_keys.add(cache_key)
+
+            if cache_key in self._meetings_cache:
+
+                entry = dict(self._meetings_cache[cache_key])
+
+                entry['pinned'] = _pin_key(md.stem) in pins
+
+                meetings.append(entry)
+
+                continue
 
             meta = _parse_stem(md.stem)
 
@@ -414,7 +434,7 @@ class AppAPI:
 
                     pass
 
-            meetings.append({
+            entry = {
 
                 'path':          str(md),
 
@@ -432,7 +452,16 @@ class AppAPI:
 
                 'pinned':        _pin_key(md.stem) in pins,
 
-            })
+            }
+
+            self._meetings_cache[cache_key] = entry
+
+            meetings.append(entry)
+
+        # Evict stale entries (deleted files)
+        for key in list(self._meetings_cache):
+            if key not in seen_keys:
+                del self._meetings_cache[key]
 
         return meetings
 
@@ -4292,7 +4321,25 @@ def _run_window(initial_path: str = None):
                 pass
 
     win.events.loaded += on_ready
-    webview.start(icon=str(_icon) if _icon.exists() else None, debug=False)
+    try:
+        webview.start(icon=str(_icon) if _icon.exists() else None, debug=False)
+    except Exception as _wv_err:
+        log.error(f"webview.start falló: {_wv_err}", exc_info=True)
+        _msg = str(_wv_err).lower()
+        if 'webview2' in _msg or 'edgechromium' in _msg:
+            try:
+                import tkinter.messagebox as _mb
+                _mb.showerror(
+                    'Noted — Componente requerido no encontrado',
+                    'La aplicación requiere Microsoft WebView2 Runtime.\n\n'
+                    'Descárgalo desde:\n'
+                    'https://developer.microsoft.com/microsoft-edge/webview2/\n\n'
+                    '(Instalador "Evergreen Bootstrapper")',
+                )
+            except Exception:
+                pass
+        import sys
+        sys.exit(1)
 
 
 

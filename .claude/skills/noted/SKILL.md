@@ -121,7 +121,7 @@ Espera a que el usuario confirme que `claude login` ha ido bien antes de continu
 Start-Process -FilePath (Join-Path $TR "scripts\install_autostart.bat") -Wait -WorkingDirectory $TR
 ```
 
-Esto crea un lanzador en la carpeta de Inicio de Windows (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`) que arranca el watchdog al iniciar sesión.
+Esto registra una tarea en el **Programador de tareas de Windows** (Task Scheduler) con el nombre "Noted" que arranca el watchdog 60 segundos después de iniciar sesión. Si había un lanzador VBS antiguo en la carpeta de Inicio, lo elimina automáticamente.
 
 ### 4b. Instalar el hook de actualización
 

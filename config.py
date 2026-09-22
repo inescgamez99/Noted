@@ -63,6 +63,8 @@ CLAUDE_BIN: str | None = _find_claude_bin()
 
 TEAMS_CHAT_MESSAGE = _settings.get('teams_chat_message', '')
 
+MINUTES_RETENTION_DAYS = int(_settings.get('minutes_retention_days') or os.getenv('MINUTES_RETENTION_DAYS', 90))
+
 TEAMS_POLL_INTERVAL          = 3.0
 TEAMS_REQUIRED_CONFIRMATIONS = 2
 

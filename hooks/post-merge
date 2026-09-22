@@ -1,5 +1,5 @@
 #!/bin/sh
-# TeamsRecorder — post-merge hook
+# Noted — post-merge hook
 #
 # Se ejecuta automaticamente tras cada git pull y reinicia la app.
 # Toda la logica vive en restart_after_update.ps1: aqui solo se localiza el

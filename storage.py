@@ -3,7 +3,7 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from config import RECORDINGS_DIR, MINUTES_DIR, INBOX_DIR
+from config import RECORDINGS_DIR, MINUTES_DIR, INBOX_DIR, MINUTES_RETENTION_DAYS
 
 
 def ensure_directories():
@@ -69,3 +69,15 @@ def cleanup_old_recordings(days: int = 15):
                         f.unlink()
                     except OSError:
                         pass
+
+
+def cleanup_old_minutes():
+    cutoff = datetime.now() - timedelta(days=MINUTES_RETENTION_DAYS)
+    for pattern in ('*.md', '*.html', '*_actions.json', '*_transcript.txt'):
+        for f in MINUTES_DIR.glob(pattern):
+            if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+

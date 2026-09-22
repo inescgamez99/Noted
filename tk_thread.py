@@ -9,7 +9,15 @@ import tkinter as tk
 
 _root: tk.Tk | None = None
 _ready = threading.Event()
+_alive = threading.Event()
 _lock  = threading.Lock()
+
+
+def _heartbeat():
+    global _root
+    _alive.set()
+    if _root is not None:
+        _root.after(1000, _heartbeat)
 
 
 def _tk_main():
@@ -17,12 +25,18 @@ def _tk_main():
     _root = tk.Tk()
     _root.withdraw()
     _ready.set()
-    _root.mainloop()
+    _root.after(1000, _heartbeat)
+    try:
+        _root.mainloop()
+    finally:
+        _alive.clear()
+        _ready.clear()
+        _root = None
 
 
 def _ensure_running():
     with _lock:
-        if _root is None or not _ready.is_set():
+        if _root is None or not _ready.is_set() or not _alive.is_set():
             t = threading.Thread(target=_tk_main, daemon=True, name='TkThread')
             t.start()
             _ready.wait(timeout=5)
