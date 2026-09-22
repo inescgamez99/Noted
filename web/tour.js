@@ -192,17 +192,24 @@ function buildSteps() {
         description: 'En los próximos pasos te enseñamos todo lo que puedes hacer. Hemos cargado una reunión de demo para que puedas verlo con datos reales.',
       },
     },
-    // 2 — Nav Notas
+    // 2 — Bandeja del sistema (centrado, no se puede apuntar a icono de Windows)
+    {
+      popover: {
+        title: 'Noted vive en tu bandeja',
+        description: 'El icono aparece en la bandeja del sistema (esquina inferior derecha, puede estar oculto bajo la flecha ˄). Desde ahí puedes lanzar una grabación manual, darle contexto antes de grabar, ver el estado actual o cancelar una grabación en curso.',
+      },
+    },
+    // 3 — Nav Notas
     {
       element: '#btn-meetings',
       popover: {
-        title: 'La app vive aquí',
-        description: 'Desde el icono en la bandeja del sistema puedes lanzar Noted manualmente, darle contexto antes de grabar o cancelar una grabación en curso.',
+        title: 'Tus notas, siempre aquí',
+        description: 'La sección principal donde viven todas tus minutas. Puedes acceder a ellas también haciendo clic en el icono de la bandeja.',
         side: 'right',
       },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('meetings'); },
     },
-    // 3 — Buscador
+    // 4 — Buscador
     {
       element: '#search-input',
       popover: {
@@ -211,7 +218,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 4 — Toggle Días/Proyectos
+    // 5 — Toggle Días/Proyectos
     {
       element: '.sidebar-mode-toggle',
       popover: {
@@ -220,7 +227,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 5 — Reunión en sidebar
+    // 6 — Reunión en sidebar
     {
       element: '#tour-demo-item',
       popover: {
@@ -229,7 +236,7 @@ function buildSteps() {
         side: 'right',
       },
     },
-    // 6 — Import (+)
+    // 7 — Import (+)
     {
       element: '.btn-import-transcript',
       popover: {
@@ -238,7 +245,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 7 — Título editable
+    // 8 — Título editable
     {
       element: '#detail-title-text',
       popover: {
@@ -247,7 +254,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 8 — Tab proyecto
+    // 9 — Tab proyecto
     {
       element: '#meeting-project-select',
       popover: {
@@ -256,43 +263,52 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 9 — Cuerpo de minutas
+    // 10 — Cuerpo de minutas
     {
       element: '#section-notes',
       popover: {
         title: 'Minutas generadas por Claude',
-        description: 'El cuerpo de las minutas incluye un resumen de lo hablado, las decisiones tomadas y las tareas detectadas y asignadas automáticamente.',
+        description: 'El cuerpo incluye un resumen de lo hablado, las decisiones tomadas y las tareas detectadas y asignadas automáticamente.',
         side: 'top',
       },
     },
-    // 10 — Regenerar
+    // 11 — Regenerar (barra de acciones, top-right → side left)
     {
       element: '#btn-regenerate',
       popover: {
         title: 'Regenerar minutas',
         description: 'Si el resultado no te convence, puedes darle contexto adicional — qué corregir, qué tono usar, qué añadir — y Claude regenera las minutas ajustadas a lo que necesitas.',
-        side: 'bottom',
+        side: 'left',
       },
     },
-    // 11 — Post-it
+    // 12 — Post-it (barra de acciones, top-right → side left)
     {
       element: '#btn-sticky-bar',
       popover: {
         title: 'Nota adhesiva',
         description: 'Crea un post-it flotante sobre las minutas. Puedes arrastrarlo, minimizarlo o eliminarlo — es tu espacio para anotar lo que quieras sin tocar el contenido generado.',
-        side: 'bottom',
+        side: 'left',
       },
     },
-    // 12 — Exportar
+    // 13 — Hablar con Claude (barra de acciones, top-right → side left)
     {
-      element: '#tour-detail-actions-bar',
+      element: '#btn-claude',
+      popover: {
+        title: 'Hablar con Claude',
+        description: 'Abre las minutas directamente en Claude para hacer preguntas, profundizar en un tema o redactar un follow-up email personalizado.',
+        side: 'left',
+      },
+    },
+    // 14 — Exportar (barra de acciones, top-right → side left)
+    {
+      element: '#btn-email',
       popover: {
         title: 'Compartir y exportar',
-        description: 'Comparte las minutas como PDF, HTML, o por email a los asistentes. También puedes abrirlas en Claude Code o en la app de Claude para analizarlas y hacer preguntas.',
-        side: 'bottom',
+        description: 'Envía las minutas por email a los asistentes, copia el contenido al portapapeles, expórtalas como PDF o HTML. Todo en una barra de acciones rápidas.',
+        side: 'left',
       },
     },
-    // 13 — Mover al panel (tab acciones)
+    // 15 — Mover al panel (tab acciones)
     {
       element: '#tour-move-panel-btn',
       popover: {
@@ -304,7 +320,7 @@ function buildSteps() {
         document.getElementById('tab-actions')?.click();
       },
     },
-    // 14 — Nav Acciones
+    // 16 — Nav Acciones
     {
       element: '#btn-actions',
       popover: {
@@ -317,7 +333,7 @@ function buildSteps() {
         injectDemoTasks();
       },
     },
-    // 15 — Kanban/Rows
+    // 17 — Kanban/Rows
     {
       element: '.task-view-toggle',
       popover: {
@@ -326,7 +342,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 16 — Filtros
+    // 18 — Filtros
     {
       element: '#task-filter-bar',
       popover: {
@@ -335,7 +351,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 17 — Tarea individual
+    // 19 — Tarea individual
     {
       element: '#tour-task-1',
       popover: {
@@ -344,17 +360,17 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 18 — Nav Proyectos
+    // 20 — Nav Proyectos
     {
       element: '#btn-projects',
       popover: {
         title: 'Proyectos',
-        description: 'Define tus proyectos para clasificar tus notas y acciones. Por cada proyecto puedes configurar nombre, descripción, stakeholders para email, carpeta de trabajo, color y carpetas de contexto que Claude usará al generar las minutas.',
+        description: 'Define tus proyectos para clasificar tus notas y acciones. Por cada proyecto puedes configurar nombre, descripción, stakeholders para email, carpeta de trabajo y color.',
         side: 'right',
       },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('projects'); },
     },
-    // 19 — Nav Trash
+    // 21 — Nav Trash
     {
       element: '#btn-trash',
       popover: {
@@ -364,7 +380,7 @@ function buildSteps() {
       },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('trash'); },
     },
-    // 20 — Nombre (settings)
+    // 22 — Nombre (settings)
     {
       element: '#user-name-input',
       popover: {
@@ -374,7 +390,7 @@ function buildSteps() {
       },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('settings'); },
     },
-    // 21 — Idioma y tema
+    // 23 — Idioma y tema
     {
       element: '#lang-toggle',
       popover: {
@@ -383,7 +399,7 @@ function buildSteps() {
         side: 'bottom',
       },
     },
-    // 22 — Whisper
+    // 24 — Whisper
     {
       element: '#whisper-model-select',
       popover: {
@@ -392,25 +408,25 @@ function buildSteps() {
         side: 'top',
       },
     },
-    // 23 — Career Level
+    // 25 — Career Level (apunta al label visible, no al input oculto)
     {
-      element: '#coaching-enabled',
+      element: '#toggle-coaching',
       popover: {
         title: 'Career Level Snapshot',
         description: 'Después de cada llamada, la IA analiza tu intervención y te da un snapshot del nivel de consulting al que estás operando.',
-        side: 'top',
+        side: 'left',
       },
     },
-    // 24 — Chat notice
+    // 26 — Chat notice (apunta al label visible, no al input oculto)
     {
-      element: '#chat-notice-enabled',
+      element: '#toggle-chat-notice',
       popover: {
         title: 'Aviso al chat de Teams',
         description: 'Configura el mensaje que Noted envía automáticamente al chat de Teams cuando empieza a grabar, para avisar a los participantes.',
-        side: 'top',
+        side: 'left',
       },
     },
-    // 25 — Final
+    // 27 — Final
     {
       popover: {
         title: '🎉 ¡Ya lo sabes todo!',
