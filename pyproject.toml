@@ -35,12 +35,11 @@ omit = [
     ".venv/*",
     "tests/*",
     # Scripts de diagnostico manual, no forman parte de la app.
-    "check_*.py",
-    "diagnostico.py",
+    # Ruta actualizada tras 647ac36, que los movio a tools/.
+    "tools/*",
     # GUI pura: un test aqui probaria tkinter, no la app.
     "popup.py",
     "tk_thread.py",
-    "actions_window.py",
 ]
 
 [tool.coverage.report]

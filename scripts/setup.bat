@@ -1,4 +1,7 @@
 @echo off
+rem Trabajar desde la raiz del repo: este .bat vive en scripts/, pero
+rem requirements.txt y .env.example estan un nivel mas arriba.
+pushd "%~dp0.."
 setlocal
 
 rem -- Usar el .venv del repo si existe, crearlo si no --
@@ -48,4 +51,5 @@ if errorlevel 1 (
 )
 echo.
 echo Setup completado.
+popd
 pause

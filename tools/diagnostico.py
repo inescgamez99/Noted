@@ -6,9 +6,11 @@ Copia el resultado completo y mándalo a Ines.
 import sys
 import os
 import json
+import shutil
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# La raiz del repo: este script vive en tools/, config.py en la raiz.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 print("=" * 60)
 print("Noted — diagnóstico")
@@ -17,7 +19,7 @@ print("=" * 60)
 # 1. Config
 try:
     import config
-    print(f"\n[OK] config.py cargado")
+    print("\n[OK] config.py cargado")
     print(f"     PROJECT_DIR  : {config.PROJECT_DIR}")
     print(f"     MINUTES_DIR  : {config.MINUTES_DIR}")
     print(f"     RECORDINGS_DIR: {config.RECORDINGS_DIR}")
@@ -27,7 +29,7 @@ try:
         s = json.loads(settings_path.read_text(encoding='utf-8'))
         print(f"     settings.json output_dir: {s.get('output_dir', '(no definida)')}")
     else:
-        print(f"     settings.json: NO EXISTE")
+        print("     settings.json: NO EXISTE")
 except Exception as e:
     print(f"\n[ERROR] config.py: {e}")
 
@@ -46,7 +48,7 @@ for label, d in [("MINUTES_DIR", config.MINUTES_DIR),
     if exists:
         print(f"     .md   : {n_md}   .wav: {n_wav}   .txt: {n_txt}   .json: {n_json}")
     else:
-        print(f"     *** La carpeta NO EXISTE ***")
+        print("     *** La carpeta NO EXISTE ***")
 
 # 3. Últimos .md
 print()
@@ -71,7 +73,6 @@ else:
 
 # 5. claude CLI
 print()
-import shutil
 claude = shutil.which("claude")
 print(f"[{'OK' if claude else 'FALTA'}] claude CLI en PATH: {claude or 'NO ENCONTRADO'}")
 

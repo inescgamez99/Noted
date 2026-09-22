@@ -1,4 +1,4 @@
-# migrate_to_noted.ps1 — ejecutar UNA VEZ desde la carpeta TeamsRecorder
+﻿# migrate_to_noted.ps1 — ejecutar UNA VEZ desde la carpeta TeamsRecorder
 # Actualiza la URL del remote y renombra la carpeta local a Noted
 
 $ErrorActionPreference = 'Stop'
