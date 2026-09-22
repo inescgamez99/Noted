@@ -93,7 +93,7 @@ function injectDemoMeeting() {
           <ul>
             <li>📌 <strong>Ines</strong> — Distribuir Noted al resto del equipo antes del viernes</li>
             <li>📌 <strong>Felipe</strong> — Revisar y cerrar los PRs pendientes esta semana</li>
-            <li>📌 <strong>Ana</strong> — Preparar demo de nuevas funcionalidades para el cliente</li>
+            <li>📌 <strong>Ana y Maria</strong> — Preparar demo de nuevas funcionalidades para el cliente</li>
             <li>📌 <strong>Todo el equipo</strong> — Completar la formación de onboarding antes del 30 de septiembre</li>
           </ul>
         </div>
@@ -133,7 +133,7 @@ function injectDemoMeeting() {
             <div class="action-card-row">
               <div class="action-card-main">
                 <span class="action-title">Preparar demo para el cliente</span>
-                <div class="action-meta"><span class="action-assignee">Ana</span></div>
+                <div class="action-meta"><span class="action-assignee">Ana</span> · <span class="action-assignee">Maria</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
