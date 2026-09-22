@@ -450,21 +450,35 @@ class AudioRecorder:
                 if dev['max_input_channels'] > 0 and any(k in name for k in keywords):
                     self._loop_sr = SAMPLE_RATE
                     self._loop_ch = 1
-                    self._open_loop_writer()
+
                     def cb(indata, frames, time_info, status):
                         q = self._loop_q
                         if q is not None:
                             q.put(indata.copy().reshape(-1))
+
+                    # El fichero se abre DESPUES de construir el InputStream, no
+                    # antes. "Invalid device" salta en el constructor, y abrir el
+                    # .part primero dejaba un temporal huerfano cada vez que este
+                    # equipo (sin Stereo Mix) pasaba por aqui. Si ademas la
+                    # grabacion ya termino, el reintento escribia un .part nuevo
+                    # despues de que la limpieza hubiera corrido: 824 KB de ceros
+                    # el 22/09/2026.
                     self._stereo_stream = sd.InputStream(
                         device=i, samplerate=SAMPLE_RATE, channels=1,
                         dtype='float32', blocksize=int(SAMPLE_RATE * 0.1), callback=cb,
                     )
+                    if not self._recording:
+                        self._stereo_stream.close()
+                        self._stereo_stream = None
+                        return False
+                    self._open_loop_writer()
                     self._stereo_stream.start()
                     log.info(f"Stereo Mix loopback: {dev['name']}")
                     return True
         except Exception as e:
             self._loopback_error = f"Stereo Mix: {e}"
             log.warning(f"Stereo Mix failed: {e}")
+            self._abortar_loop_writer()
             return False
         if not self._loopback_error:
             self._loopback_error = 'no hay dispositivo Stereo Mix ni loopback WASAPI'
@@ -528,6 +542,21 @@ class AudioRecorder:
             q.put(None)
         if th is not None:
             th.join(timeout=5)
+
+    def _abortar_loop_writer(self):
+        """Cierra el writer del loopback y borra su temporal.
+
+        Se llama cuando un intento falla despues de haber abierto el fichero.
+        _close_stale_loop_writer solo cierra el hilo; si nadie borra el .part
+        se queda en recordings/ para siempre, porque _discard_temp corre en el
+        finally de la parada y el reintento puede llegar despues.
+        """
+        self._close_stale_loop_writer()
+        try:
+            if self._tmp_loop and self._tmp_loop.exists():
+                self._tmp_loop.unlink()
+        except OSError as e:
+            log.warning(f"No se pudo borrar el temporal del loopback: {e}")
 
     def _discard_temp(self):
         for p in (self._tmp_mic, self._tmp_loop):
@@ -685,4 +714,3 @@ class AudioRecorder:
         ) as out:
             for block in cls._blocks(src_path, limit=frames):
                 out.write((block * gain).astype(np.float32))
-

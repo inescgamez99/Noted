@@ -305,7 +305,17 @@ class TeamsCallDetector:
                         seen = set(title_candidates)
                         for known in list(self._idle_title_counts):
                             if known not in seen:
-                                del self._idle_title_counts[known]
+                                # DECAE, no se borra. Borrar de golpe hacia que un
+                                # titulo que parpadea un solo poll perdiera los 20
+                                # polls de evidencia y volviera a parecer nuevo
+                                # durante 60s. En esa ventana basto con que sonara
+                                # audio para grabar una reunion que no existia
+                                # (22/09/2026, 10s de "Communities and storyline").
+                                restante = self._idle_title_counts[known] - 1
+                                if restante <= 0:
+                                    del self._idle_title_counts[known]
+                                else:
+                                    self._idle_title_counts[known] = restante
                         for name in seen:
                             self._idle_title_counts[name] = self._idle_title_counts.get(name, 0) + 1
                     self._stale_titles = {
@@ -318,6 +328,7 @@ class TeamsCallDetector:
 
                     # Mejor sin nombre que con el de otra reunión: el fichero de
                     # audio acababa llamándose como una reunión de horas antes.
+                    titulo_residual = False
                     if detected_name and detected_name in self._stale_titles:
                         fresh = [c for c in title_candidates if c not in self._stale_titles]
                         if fresh:
@@ -331,6 +342,7 @@ class TeamsCallDetector:
                                 log.info(f"Ignorando título residual '{detected_name}' "
                                          "(ventana de una reunión ya terminada)")
                             detected_name = None
+                            titulo_residual = True
 
                     # Detectar cuándo el título vuelve a ser genérico (señal fuerte de fin)
                     if self._in_call and not title_active:
@@ -338,7 +350,12 @@ class TeamsCallDetector:
 
                     if active:
                         self._call_streak += 1
-                        if title_active:
+                        # Un titulo residual NO cuenta como titulo para acortar la
+                        # confirmacion: con via rapida bastan 2 polls (6s) y una
+                        # ventana que Teams dejo abierta arranca una grabacion en
+                        # cuanto suena cualquier audio. Sin el, hacen falta 6 polls
+                        # (18s), que un falso positivo no aguanta.
+                        if title_active and not titulo_residual:
                             self._call_streak_has_title = True
                         self._no_call_streak = 0
                     else:

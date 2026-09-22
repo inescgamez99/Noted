@@ -55,6 +55,7 @@ _STR = {
         action_items='Generando acciones...',
         ready='Minutas y acciones listas',
         transcription_failed='No se pudo transcribir la grabación. Revisa el log para más detalles.',
+        no_speech='La grabación no contiene voz: no se ha generado transcripción.',
         minutes_failed='No se pudieron generar las minutas. Revisa el log para más detalles.',
         mic_only='Grabando SOLO tu microfono: no se captura el audio de los demas. Si usas auriculares, sus voces no quedaran en la grabacion.',
         mic_unavailable='No se pudo acceder al micrófono. Comprueba que no lo usa otra app.',
@@ -73,6 +74,7 @@ _STR = {
         action_items='Generating action items...',
         ready='Meeting minutes & action items ready',
         transcription_failed='Transcription failed. Check the log for details.',
+        no_speech='No speech in the recording: no transcript was produced.',
         minutes_failed='Minutes generation failed. Check the log for details.',
         mic_only='Recording your microphone ONLY — system audio is not being captured. If you are on a headset, the others will not be in the recording.',
         mic_unavailable='Could not access the microphone. Check that no other app is using it.',
@@ -420,11 +422,8 @@ class TrayApp:
                 self.set_processing('')
 
     def _run_pipeline_sync(self, wav_path: Path):
-        from storage import get_transcript_path, get_minutes_path
+        from storage import get_transcript_path
         from transcriber import partial_resume, transcribe
-        from minutes_generator import generate_minutes, extract_title_from_minutes, save_minutes
-        from html_exporter import export_to_html
-        from actions_enricher import enrich_and_save
 
         s = _STR.get(get_ui_language(), _STR['en'])
         transcript_path = get_transcript_path(wav_path)
@@ -485,8 +484,17 @@ class TrayApp:
             lang_path.write_text(detected_language)
 
             if not transcript_text:
-                log.error(f"Transcripción fallida para {wav_path.name}")
-                self._notify('Noted ⚠', s['transcription_failed'])
+                # NO es un fallo: transcribe() devolvio sin excepcion y con
+                # idioma detectado. El VAD de Whisper se llevo todo el audio
+                # porque no habia voz. Tratarlo como error hacia imposible
+                # distinguir "no habia nada que transcribir" de "el
+                # transcriptor se rompio" — misma linea de log y misma
+                # notificacion. Paso el 22/09/2026 con una grabacion de 8,5s
+                # disparada por una ventana residual de Teams.
+                log.info(f"Sin voz en {wav_path.name}: nada que transcribir "
+                         f"(idioma detectado '{detected_language}'; la duracion "
+                         f"la registra faster_whisper justo encima)")
+                self._notify('Noted', s['no_speech'])
                 self.set_processing('')
                 return
 

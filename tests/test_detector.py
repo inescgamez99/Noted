@@ -219,3 +219,83 @@ def test_los_umbrales_mantienen_su_relacion():
     det = td.TeamsCallDetector()
     assert det._required < det._stale_title_polls
     assert det._required_end_fast < det._required_end_silent
+
+
+# ── El falso positivo del 22/09/2026 ──────────────────────────────────────
+#
+# Se grabaron 10 s de una ventana residual ('Communities and storyline') que el
+# detector habia ignorado correctamente a las 10:50 y a las 12:00. Dos cosas de
+# 38b133b se combinaron:
+#
+#   1. `audio_active` paso a valer tanto como el microfono para confirmar un
+#      titulo, asi que ya no hacia falta una llamada real.
+#   2. El contador de residual se BORRABA en cuanto el titulo desaparecia de
+#      los candidatos un solo poll, de modo que un parpadeo de la ventana
+#      devolvia el titulo a "nuevo" durante _stale_title_polls enteros.
+#
+# En esa ventana bastaba con que sonara cualquier audio para arrancar.
+
+def test_un_parpadeo_del_titulo_no_borra_los_polls_de_evidencia(teams, detector_factory):
+    """EL TEST CLAVE. El contador decae, no se borra: si desaparecer un poll
+    reiniciase la cuenta, cualquier ventana que parpadee volveria a parecer
+    una reunion nueva."""
+    teams.update(titles=['Reunion Vieja'], audio=False, mic=False)
+    det = detector_factory(stale_polls=5)
+    det.start()
+    espera_polls(12)
+    assert 'Reunion Vieja' in det._stale_titles, "no llego a marcarse residual"
+
+    teams.update(titles=[])                 # la ventana parpadea
+    espera_como_maximo(2)
+    teams.update(titles=['Reunion Vieja'])  # y vuelve
+    # espera_como_maximo, NO espera_polls: el margen de 0,8 s de espera_polls
+    # son ~17 polls a este intervalo, de sobra para que el contador se
+    # reconstruya desde cero y el test pase con y sin el arreglo.
+    espera_como_maximo(2)
+
+    assert 'Reunion Vieja' in det._stale_titles, \
+        "el parpadeo borro la evidencia: el titulo vuelve a parecer nuevo"
+
+
+def test_un_titulo_residual_con_audio_no_arranca_por_la_via_rapida(teams, detector_factory):
+    """Un titulo confirmado da via rapida (2 polls). Una ventana residual no
+    puede tenerla: con audio de fondo arrancaba una grabacion de una reunion
+    que no existia antes de que nadie pudiera reaccionar."""
+    teams.update(titles=['Reunion Vieja'], audio=False, mic=False)
+    det = detector_factory(stale_polls=5)
+    det.start()
+    espera_polls(12)
+    assert 'Reunion Vieja' in det._stale_titles
+
+    teams.update(audio=True)                # suena algo, pero sin microfono
+    espera_como_maximo(det._required + 1)   # lo que bastaba antes
+
+    assert not det.started, \
+        "arranco con la via rapida sobre una ventana residual"
+
+
+def test_pero_un_titulo_NUEVO_con_audio_si_arranca_rapido(teams, detector_factory):
+    """CONTROL: el arreglo no puede deshacer lo que 38b133b vino a arreglar.
+    Sin titulo residual de por medio, audio solo sigue confirmando en 2 polls
+    — que es lo que devolvio el popup en las llamadas 1:1."""
+    teams.update(titles=['Reunion Nueva'], audio=True, mic=False)
+    det = detector_factory(stale_polls=5)
+    det.start()
+    espera_polls(det._required)
+
+    assert det.started, "se perdio la deteccion rapida de 38b133b"
+
+
+def test_una_residual_acaba_arrancando_si_el_audio_persiste(teams, detector_factory):
+    """No es un bloqueo, es un retraso. Si de verdad empieza una reunion en esa
+    ventana, se graba: tarda 6 polls en vez de 2, no se pierde."""
+    teams.update(titles=['Reunion Vieja'], audio=False, mic=False)
+    det = detector_factory(stale_polls=5)
+    det.start()
+    espera_polls(12)
+    assert 'Reunion Vieja' in det._stale_titles
+
+    teams.update(audio=True)
+    espera_polls(det._required * 3 + 2)
+
+    assert det.started, "un audio sostenido tiene que acabar grabando"
