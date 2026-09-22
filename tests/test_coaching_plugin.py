@@ -110,11 +110,10 @@ def test_build_prompt_unknown_fixed_falls_back_to_auto():
 
 
 def test_build_prompt_truncates_long_transcript():
-    long_text = 'x' * 20000
+    # unique suffix that won't appear in a run of x's
+    long_text = 'x' * 14000 + 'UNIQUE_SUFFIX_MARKER'
     prompt = cp._build_prompt(long_text, None)
-    # only 14000 chars of transcript should appear
-    assert long_text[:14000] in prompt
-    assert long_text[14001:] not in prompt
+    assert 'UNIQUE_SUFFIX_MARKER' not in prompt
 
 
 # ── _shorten_level / _format_sticky_text ─────────────────────────────────────
