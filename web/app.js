@@ -3139,9 +3139,11 @@ async function saveCoachingLevel(level) {
   showToast(t('settings_saved'));
 }
 
-function saveChatNoticeEnabled(enabled) {
+async function saveChatNoticeEnabled(enabled) {
   const ta = document.getElementById('chat-notice-input');
   if (ta) ta.disabled = !enabled;
+  await pywebview.api.save_settings({ teams_chat_notice_enabled: enabled });
+  showToast(t('settings_saved'));
 }
 
 async function saveChatNoticeSettings() {
