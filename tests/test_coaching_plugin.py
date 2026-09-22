@@ -5,8 +5,6 @@ subprocess.Popen is replaced so tests run offline and fast.
 """
 import json
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -374,8 +372,6 @@ def test_grade_and_inject_sticky_positioned_top_right(tr_dirs, minutes_file, mon
 
 def test_tray_coaching_hook_survives_exception(tray, tr_dirs, monkeypatch):
     """If coaching_plugin raises, the pipeline must continue (no re-raise)."""
-    import tray_app as ta
-
     def boom(transcript, path):
         raise RuntimeError('simulated coaching failure')
 
