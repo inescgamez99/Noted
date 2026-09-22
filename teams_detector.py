@@ -168,6 +168,7 @@ class TeamsCallDetector:
         self._title_went_generic = False  # título volvió a genérico mientras en llamada
         self._call_generation = 0
         self._call_declined = False
+        self._declined_meeting: str | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
@@ -187,10 +188,14 @@ class TeamsCallDetector:
 
     @property
     def call_declined(self) -> bool:
-        return self._call_declined
+        if not self._call_declined:
+            return False
+        # Solo bloquea si seguimos en la misma reunión que fue rechazada
+        return self._current_meeting_name == self._declined_meeting
 
     def set_declined(self):
         self._call_declined = True
+        self._declined_meeting = self._current_meeting_name
 
     def start(self):
         self._stop_event.clear()
@@ -401,6 +406,7 @@ class TeamsCallDetector:
                     if self._in_call and (fast_end or slow_end):
                         self._in_call = False
                         self._call_declined = False
+                        self._declined_meeting = None
                         self._title_went_generic = False
                         self._no_audio_streak = 0
                         self._current_meeting_name = None

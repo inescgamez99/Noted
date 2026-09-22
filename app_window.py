@@ -342,7 +342,7 @@ class AppAPI:
                 if not tmp_pdf.exists():
                     return {'ok': False, 'error': 'Edge no generó el PDF'}
 
-                # Diálogo Save As via PowerShell (no bloquea el hilo de pywebview)
+                # Diálogo Save As via PowerShell con form TopMost para que no quede detrás
                 ps = (
                     'Add-Type -AssemblyName System.Windows.Forms;'
                     '$d = New-Object System.Windows.Forms.SaveFileDialog;'
@@ -350,7 +350,12 @@ class AppAPI:
                     '$d.Filter = "PDF|*.pdf";'
                     '$d.Title = "Guardar PDF";'
                     '$d.InitialDirectory = [Environment]::GetFolderPath("Desktop");'
-                    'if ($d.ShowDialog() -eq "OK") { $d.FileName }'
+                    '$f = New-Object System.Windows.Forms.Form;'
+                    '$f.TopMost = $true; $f.ShowInTaskbar = $false;'
+                    '$f.WindowState = [System.Windows.Forms.FormWindowState]::Minimized;'
+                    '$f.Show();'
+                    'if ($d.ShowDialog($f) -eq "OK") { $d.FileName };'
+                    '$f.Dispose();'
                 )
                 r = subprocess.run(
                     ['powershell', '-NoProfile', '-Command', ps],
