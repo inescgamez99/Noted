@@ -465,9 +465,9 @@ window.startTour = function () {
   const driverObj = window.driver.js.driver({
     showProgress: true,
     allowClose: false,
-    nextBtnText: 'Siguiente →',
-    prevBtnText: '← Anterior',
-    doneBtnText: '¡Empezar!',
+    nextBtnText: 'Siguiente',
+    prevBtnText: 'Anterior',
+    doneBtnText: 'Empezar',
     steps: buildSteps(),
     onDestroyStarted: () => {
       driverObj.destroy();
