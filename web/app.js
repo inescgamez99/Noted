@@ -161,6 +161,10 @@ const T = {
     proj_name_ph: 'Nombre del proyecto', proj_desc_ph: 'Descripción corta', proj_stake_ph: 'emails separados por coma',
     save_btn: 'Guardar',
     recording_title: 'Grabación y Transcripción',
+    coaching_label: 'Career Level Snapshot',
+    coaching_desc: 'Tras cada reunión, la IA analiza tu actuación y te da una idea aproximada de en qué nivel consultor estás actuando. Varía de llamada en llamada — es una instantánea, no una evaluación real de tu nivel ni de tu rendimiento.',
+    coaching_enabled_label: 'Activar Career Snapshot',
+    coaching_role_label: 'Rol:', coaching_role_auto: 'Auto-detectar',
     chat_notice_label: 'Mensaje de aviso en el chat de Teams',
     chat_notice_enabled_label: 'Enviar aviso al iniciar la grabación',
     chat_notice_desc: 'Personaliza el mensaje que se envía al chat de la reunión cuando empieza la grabación.',
@@ -380,6 +384,10 @@ const T = {
     proj_name_ph: 'Project name', proj_desc_ph: 'Short description', proj_stake_ph: 'comma-separated emails',
     save_btn: 'Save',
     recording_title: 'Recording & Transcription',
+    coaching_label: 'Career Level Snapshot',
+    coaching_desc: 'After each call, AI analyses your performance and gives you a rough idea of the consulting level you\'re operating at. This varies from meeting to meeting — it\'s a snapshot, not an actual evaluation of your level or performance.',
+    coaching_enabled_label: 'Enable Career Snapshot',
+    coaching_role_label: 'Role:', coaching_role_auto: 'Auto-detect',
     chat_notice_label: 'Teams chat recording notice',
     chat_notice_enabled_label: 'Send notice when recording starts',
     chat_notice_desc: 'Customize the message sent to the meeting chat when recording starts.',
@@ -598,6 +606,10 @@ const T = {
     proj_name_ph: 'Nom del projecte', proj_desc_ph: 'Descripció curta', proj_stake_ph: 'correus separats per comes',
     save_btn: 'Desar',
     recording_title: 'Gravació i Transcripció',
+    coaching_label: 'Career Level Snapshot',
+    coaching_desc: 'Després de cada trucada, la IA analitza la teva actuació i et dóna una idea aproximada del nivell consultor en què estàs actuant. Varia de reunió en reunió — és una instantània, no una avaluació real del teu nivell ni del teu rendiment.',
+    coaching_enabled_label: 'Activar Career Snapshot',
+    coaching_role_label: 'Rol:', coaching_role_auto: 'Auto-detectar',
     chat_notice_label: 'Missatge d\'avís al xat de Teams',
     chat_notice_enabled_label: 'Enviar avís en iniciar la gravació',
     chat_notice_desc: 'Personalitza el missatge que s\'envia al xat de la reunió quan comença la gravació.',
@@ -3117,6 +3129,16 @@ async function loadRecordingSettings() {
   }
 }
 
+async function saveCoachingEnabled(enabled) {
+  await pywebview.api.save_settings({ coaching_enabled: enabled });
+  showToast(t('settings_saved'));
+}
+
+async function saveCoachingLevel(level) {
+  await pywebview.api.save_settings({ coaching_level: level });
+  showToast(t('settings_saved'));
+}
+
 function saveChatNoticeEnabled(enabled) {
   const ta = document.getElementById('chat-notice-input');
   if (ta) ta.disabled = !enabled;
@@ -4091,6 +4113,15 @@ async function initSettings() {
     });
   });
 
+  const coachingCb = document.getElementById('coaching-enabled');
+  const coachingLevelSel = document.getElementById('coaching-level');
+  if (coachingCb || coachingLevelSel) {
+    pywebview.api.get_settings().then(s => {
+      if (coachingCb) coachingCb.checked = s.coaching_enabled === true;
+      if (coachingLevelSel) coachingLevelSel.value = s.coaching_level || 'auto';
+    });
+  }
+
   const nameInput = document.getElementById('user-name-input');
   if (nameInput) {
     pywebview.api.get_settings().then(s => {
@@ -4835,13 +4866,17 @@ async function _loadStickies(path) {
 
 function _stickyHtml(s) {
   const x = s.x ?? 20, y = s.y ?? 20;
-  return `<div class="sticky-note${s.minimized ? ' min' : ''}" data-sid="${escHtml(s.id)}" style="left:${x}px;top:${y}px;">
+  const posStyle = s.anchor === 'right' ? `right:${x}px;top:${y}px;` : `left:${x}px;top:${y}px;`;
+  const body = s.html
+    ? `<div class="sticky-html">${s.html}</div>`
+    : `<textarea class="sticky-body" placeholder="${t('sticky_ph')}" spellcheck="false">${escHtml(s.text || '')}</textarea>`;
+  return `<div class="sticky-note${s.minimized ? ' min' : ''}" data-sid="${escHtml(s.id)}" style="${posStyle}">
     <div class="sticky-head">
       <span class="sticky-preview">${escHtml((s.text || '').split('\n')[0].slice(0, 28))}</span>
       <button class="sticky-btn sticky-min" title="${t('sticky_min')}">${s.minimized ? '+' : '–'}</button>
       <button class="sticky-btn sticky-del" title="${t('sticky_del')}">×</button>
     </div>
-    <textarea class="sticky-body" placeholder="${t('sticky_ph')}" spellcheck="false">${escHtml(s.text || '')}</textarea>
+    ${body}
   </div>`;
 }
 
@@ -4863,7 +4898,7 @@ function _wireStickies() {
       node.classList.toggle('min', s.minimized);
       e.currentTarget.textContent = s.minimized ? '+' : '–';
       const prev = node.querySelector('.sticky-preview');
-      if (prev) prev.textContent = (ta.value || '').split('\n')[0].slice(0, 28);
+      if (prev) prev.textContent = (ta ? ta.value : (s.text || '')).split('\n')[0].slice(0, 28);
       _saveStickies();
     };
     if (ta) ta.oninput = () => {
