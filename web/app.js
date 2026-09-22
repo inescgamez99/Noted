@@ -1282,7 +1282,6 @@ async function openMeeting(path) {
           <div class="section-label">${t('section_actions')}</div>
           <div class="actions-count" style="margin-left:auto">${t('n_total', actions ? actions.length : 0)}</div>
           <button class="btn btn-ghost btn-sm" id="btn-add-action" style="margin-left:8px">+ ${t('add_action')}</button>
-          <button class="btn btn-ghost btn-sm" id="btn-regen-actions" style="margin-left:6px" title="${t('regen_actions')}">✦ ${t('regen_actions')}</button>
         </div>
         <div id="add-action-form" class="add-action-form" style="display:none"></div>
         <div id="regen-actions-form" class="add-action-form" style="display:none"></div>
