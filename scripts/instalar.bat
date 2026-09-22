@@ -163,7 +163,7 @@ echo   Listo. Busca el icono de Noted en la bandeja del sistema
 echo   ^(esquina inferior derecha, puede estar bajo la flecha ^^^)^)
 echo.
 echo   Para actualizar Noted en el futuro, abre Claude Code en esta
-echo   carpeta y escribe:  /noted
+echo   carpeta y escribe:  /update-noted
 echo.
 
 :end
