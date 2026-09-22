@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "source_prompt": "I want it so the minutes ONLY tells me the attendees, nothing else, in a table.",
+  "template": {
+    "language": "auto",
+    "sections": [
+      {
+        "name": "Attendees",
+        "description": "List all meeting attendees in a markdown table with two columns: 'Name' and 'Role' (leave Role blank if unknown). Include every person who spoke or was explicitly mentioned as present. Do not add any other information."
+      }
+    ],
+    "extra_rules": "The minutes must contain only the attendees table. Do not add summaries, context, decisions, notes, or any other content beyond what is in the defined sections."
+  }
+}

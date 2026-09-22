@@ -1,355 +1,733 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Noted</title>
-<script>(function(){const t=localStorage.getItem('theme')||'light';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})()</script>
-<link rel="icon" href="../noted_icon.ico">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css">
-</head>
-<body>
-
-<nav class="nav-rail">
-  <button class="nav-btn active" id="btn-meetings" onclick="showView('meetings')" title="Notas">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-    <span data-i18n="nav_notes">Notas</span>
-  </button>
-  <button class="nav-btn" id="btn-actions" onclick="showView('actions')" title="Panel Acciones">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-    <span data-i18n="nav_action_panel">Panel Acciones</span>
-  </button>
-  <button class="nav-btn" id="btn-projects" onclick="showView('projects')" title="Proyectos">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-    <span data-i18n="nav_projects">Proyectos</span>
-  </button>
-  <div class="nav-spacer"></div>
-  <button class="nav-btn" id="btn-trash" onclick="showView('trash')" title="Recently Deleted">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-    <span data-i18n="nav_trash">Eliminados</span>
-  </button>
-  <button class="nav-btn" id="btn-settings" onclick="showView('settings')" title="Ajustes">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    <span data-i18n="settings_nav">Ajustes</span>
-  </button>
-</nav>
-
-<div class="view" id="view-meetings">
-
-  <aside class="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-search-row">
-        <div class="search-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input type="text" id="search-input" data-i18n="search_ph" placeholder="Buscar en minutas..." oninput="onSearch(this.value)">
-        </div>
-        <button class="btn-refresh-meetings" id="btn-refresh-meetings" onclick="refreshMeetings()" title="Actualizar reuniones">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        </button>
-        <button class="btn-import-transcript" onclick="importTranscript()" title="Importar transcript">+</button>
-      </div>
-    </div>
-    <div class="sidebar-mode-toggle">
-      <button class="mode-btn active" id="mode-btn-days" onclick="setSidebarMode('days')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        <span data-i18n="sidebar_days">Días</span>
-      </button>
-      <button class="mode-btn" id="mode-btn-projects" onclick="setSidebarMode('projects')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        <span data-i18n="sidebar_projects">Proyectos</span>
-      </button>
-    </div>
-    <div class="meetings-list" id="meetings-list">
-      <div class="loading" data-i18n="loading_meetings">Cargando reuniones...</div>
-    </div>
-  </aside>
-
-  <div class="resize-handle"></div>
-
-  <main class="main-panel" id="main-panel">
-    <div class="empty-state">
-      <div class="empty-title" data-i18n="empty_title">Selecciona una reunión</div>
-      <div class="empty-sub" data-i18n="empty_sub">Elige una reunión de la lista para ver sus minutas y acciones</div>
-    </div>
-  </main>
-
-  <!-- Panel de ejecuciones en paralelo -->
-  <div class="runs-panel" id="runs-panel">
-    <div class="runs-panel-header">
-      <span class="runs-panel-title" id="runs-panel-title">Ejecuciones</span>
-      <button class="runs-panel-close" onclick="closeRunsPanel()">×</button>
-    </div>
-    <div class="runs-list" id="runs-list"></div>
-  </div>
-
-  <!-- FAB para reabrir el panel de runs cuando está cerrado -->
-  <button class="runs-toggle-fab" id="runs-toggle-fab" style="display:none" onclick="openRunsPanel()">
-    <span class="runs-fab-dot" id="runs-fab-dot"></span>
-    <span id="runs-fab-label">Runs</span>
-  </button>
-</div>
-
-<div class="view hidden" id="view-actions">
-  <div class="task-board">
-    <div class="task-board-header">
-      <div class="task-view-toggle">
-        <button class="task-view-btn" id="btn-view-board" onclick="setTaskView('board')">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="4" height="12" rx="1"/><rect x="6" y="2" width="4" height="12" rx="1"/><rect x="11" y="2" width="4" height="12" rx="1"/></svg>
-          Kanban
-        </button>
-        <button class="task-view-btn active" id="btn-view-list" onclick="setTaskView('list')">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="12" height="2" rx="1"/><rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="11" width="12" height="2" rx="1"/></svg>
-          Rows
-        </button>
-      </div>
-      <div style="flex:1"></div>
-      <button class="btn btn-ghost btn-sm" onclick="loadTaskBoard()" title="Actualizar">↺</button>
-    </div>
-    <div id="task-filter-bar" class="task-filter-bar"></div>
-    <div class="task-board-body" id="task-board-body">
-      <div class="loading" data-i18n="loading_actions">Cargando...</div>
-    </div>
-  </div>
-
-  <!-- Drawer de detalle de tarea -->
-  <div class="task-drawer-backdrop" id="task-drawer-backdrop" onclick="closeTaskDetail()"></div>
-  <div class="task-detail-drawer" id="task-detail-drawer">
-    <div class="task-detail-header">
-      <span class="task-detail-heading" data-i18n="drawer_title">Detalle de tarea</span>
-      <button class="task-detail-close" onclick="closeTaskDetail()">×</button>
-    </div>
-    <div class="task-detail-body" id="task-detail-body">
-      <div class="loading" data-i18n="loading">Cargando...</div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: mover acción al panel -->
-<div class="modal-overlay hidden" id="panel-modal">
-  <div class="modal-box">
-    <div class="modal-title" data-i18n="modal_move_title">Añadir al panel</div>
-    <div class="modal-field">
-      <label data-i18n="modal_project_label">Proyecto</label>
-      <select id="modal-project-select"></select>
-    </div>
-    <div class="modal-field">
-      <label data-i18n="modal_parent_label">Como sub-tarea de (opcional)</label>
-      <select id="modal-parent-select">
-        <option value="" data-i18n="modal_parent_none">Tarea nueva (nivel raíz)</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closePanelModal()" data-i18n="regen_cancel">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="confirmMoveToPanel()" data-i18n="modal_confirm">Añadir al panel</button>
-    </div>
-  </div>
-</div>
-
-<!-- Menú contextual: reuniones -->
-<div id="meeting-ctx-menu" class="ctx-menu hidden">
-  <button class="ctx-menu-item" id="ctx-pin-btn"><span id="ctx-pin-label"></span></button>
-  <div class="ctx-menu-separator"></div>
-  <button class="ctx-menu-item ctx-menu-danger" id="ctx-delete-btn"><span data-i18n="ctx_delete_meeting">Delete</span></button>
-</div>
-
-<!-- Modal: renombrar reunión -->
-<div class="modal-overlay hidden" id="rename-modal">
-  <div class="modal-box">
-    <div class="modal-title">Editar nombre</div>
-    <div class="modal-field">
-      <label for="rename-modal-input">Nombre</label>
-      <input type="text" id="rename-modal-input">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closeRenameModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="confirmRenameModal()">Guardar</button>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: confirmar eliminación -->
-<div class="modal-overlay hidden" id="confirm-modal">
-  <div class="modal-box">
-    <div class="modal-title" id="confirm-modal-title" data-i18n="confirm_delete_title">Eliminar proyecto</div>
-    <div class="modal-field">
-      <div id="confirm-modal-msg" style="font-size:13px;color:var(--subtext);line-height:1.5"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost btn-sm" onclick="closeConfirmModal()" data-i18n="regen_cancel">Cancelar</button>
-      <button class="btn btn-delete btn-sm" id="confirm-modal-ok" data-i18n="btn_delete">Eliminar</button>
-    </div>
-  </div>
-</div>
-
-<div class="view hidden" id="view-settings">
-  <div class="settings-view">
-    <div class="settings-view-header">
-      <h2 data-i18n="settings_nav">Ajustes</h2>
-    </div>
-    <div class="settings-view-body">
-
-      <!-- ── Account Settings ── -->
-      <div class="settings-group-header" data-i18n="account_settings_title">Cuenta</div>
-      <div class="settings-group">
-
-        <!-- Perfil -->
-        <div class="settings-card">
-          <div class="settings-card-title" data-i18n="name_label">Tu nombre</div>
-          <div class="settings-card-desc" data-i18n="name_desc">Se usa para identificar tus acciones asignadas</div>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <input type="text" id="user-name-input" class="settings-text-input" style="flex:1;margin-top:0" data-i18n="name_ph" placeholder="Nombre para filtrar acciones">
-            <button class="btn btn-primary btn-sm" id="btn-save-name" data-i18n="save_btn">Guardar</button>
-          </div>
-        </div>
-
-        <!-- Apariencia -->
-        <div class="settings-card">
-          <div class="settings-card-title" data-i18n="lang_label">Idioma de la app</div>
-          <div class="settings-toggle" id="lang-toggle">
-            <button class="toggle-btn active" data-lang="es" data-i18n="es_label">Español</button>
-            <button class="toggle-btn" data-lang="en" data-i18n="en_label">English</button>
-            <button class="toggle-btn" data-lang="ca" data-i18n="ca_label">Català</button>
-          </div>
-          <div class="settings-card-title" data-i18n="theme_label" style="margin-top:20px">Tema</div>
-          <div class="settings-toggle" id="theme-toggle">
-            <button class="toggle-btn active" data-theme-val="light" data-i18n="light">Claro</button>
-            <button class="toggle-btn" data-theme-val="dark" data-i18n="dark">Oscuro</button>
-          </div>
-        </div>
-
-        <!-- Modelo de transcripción -->
-        <div class="settings-card">
-          <div class="settings-card-title" data-i18n="recording_title">Grabación y Transcripción</div>
-          <div class="settings-card-desc" data-i18n="whisper_desc">Modelo Whisper para transcribir el audio. Más grande = más preciso pero más lento. Se aplica al reiniciar.</div>
-          <select id="whisper-model-select" class="settings-select" onchange="saveWhisperModel(this.value)">
-            <option value="tiny">tiny</option>
-            <option value="base">base</option>
-            <option value="small">small</option>
-            <option value="medium" selected>medium</option>
-            <option value="large-v3">large-v3</option>
-          </select>
-        </div>
-
-        <!-- Aviso en el chat de Teams -->
-        <div class="settings-card">
-          <div class="settings-card-title" data-i18n="chat_notice_label">Aviso en el chat de Teams</div>
-          <div class="settings-card-desc" data-i18n="chat_notice_desc">Se envía automáticamente al chat de la reunión cuando empieza la grabación.</div>
-          <label class="proj-export-check" style="margin-bottom:14px">
-            <input type="checkbox" id="chat-notice-enabled" onchange="saveChatNoticeEnabled(this.checked)">
-            <span data-i18n="chat_notice_enabled_label">Enviar aviso al iniciar la grabación</span>
-          </label>
-          <textarea id="chat-notice-input" class="settings-text-input settings-textarea" rows="3"
-            data-i18n="chat_notice_ph" disabled></textarea>
-          <div style="display:flex;justify-content:flex-end;margin-top:10px">
-            <button class="btn btn-primary btn-sm" onclick="saveChatNoticeSettings()" data-i18n="save_btn">Guardar</button>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  </div>
-</div>
-
-<div class="view hidden" id="view-projects">
-  <div class="settings-view">
-    <div class="settings-view-header">
-      <h2 data-i18n="nav_projects">Proyectos</h2>
-    </div>
-    <div class="settings-view-body">
-
-      <!-- ── Project Settings ── -->
-      <div class="settings-group settings-group--full">
-
-        <div class="settings-card">
-          <div class="settings-card-desc" data-i18n="projects_desc">Noted detecta automáticamente a qué proyecto pertenece cada reunión y permite filtrar acciones por proyecto</div>
-          <div id="projects-list-settings" style="margin-top:12px"></div>
-          <div style="display:flex;gap:8px;margin-top:12px">
-            <button class="btn btn-ghost btn-sm" style="flex:1" onclick="showAddProjectForm()" data-i18n="add_project">+ Añadir proyecto</button>
-            <button class="btn btn-ghost btn-sm" onclick="detectProjectsForAll()" data-i18n="btn_detect_projects" title="Analiza todas las notas sin proyecto asignado y las clasifica con Claude">Re-detectar proyectos</button>
-          </div>
-          <div id="add-project-form" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
-            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:14px">
-              <button class="btn btn-primary btn-sm" onclick="saveNewProject()" data-i18n="save_btn">Guardar</button>
-              <button class="btn btn-ghost btn-sm" onclick="hideAddProjectForm()">✕</button>
-            </div>
-            <div class="add-proj-grid">
-              <div>
-                <div class="proj-field-label" data-i18n="proj_name_ph">Nombre del proyecto</div>
-                <input type="text" class="settings-text-input" style="margin-top:4px" id="proj-name" data-i18n="proj_name_ph" placeholder="Nombre del proyecto">
-              </div>
-              <div>
-                <div class="proj-field-label" data-i18n="proj_desc_ph">Descripción corta</div>
-                <input type="text" class="settings-text-input" style="margin-top:4px" id="proj-desc" data-i18n="proj_desc_ph" placeholder="Descripción corta">
-              </div>
-              <div style="grid-column:1/-1">
-                <div class="proj-field-label" data-i18n="proj_stake_label">Stakeholder Emails</div>
-                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_stake_desc">Estos contactos se añadirán automáticamente como destinatarios cuando envíes las minutas de una reunión de este proyecto por email. Separa varios emails con comas.</div>
-                <input type="text" class="settings-text-input" id="proj-stakeholders" data-i18n="proj_stake_ph" placeholder="ana@empresa.com, equipo@empresa.com">
-              </div>
-              <div style="grid-column:1/-1">
-                <div class="proj-field-label" data-i18n="proj_dir_label">Carpeta del proyecto</div>
-                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_dir_desc">Por defecto, Noted guarda todo en su propia carpeta. Si seleccionas aquí la carpeta raíz de tu proyecto, las acciones de Claude se ejecutarán desde ahí.</div>
-                <div class="proj-folder-row">
-                  <span class="proj-folder-path empty" id="add-proj-folder-display" data-i18n="proj_folder_default">Carpeta de Noted (por defecto)</span>
-                  <button class="btn btn-ghost btn-sm" onclick="browseNewProjectFolder()" type="button" data-i18n="proj_folder_browse">Seleccionar carpeta</button>
-                </div>
-              </div>
-              <div style="grid-column:1/-1">
-                <div class="proj-field-label" data-i18n="proj_color_label">Color del proyecto</div>
-                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
-                  <button class="proj-color-swatch" id="add-proj-color-trigger" onclick="toggleNewProjectColorPicker()" type="button"></button>
-                  <div class="proj-color-picker" id="add-proj-color-picker" style="display:none"></div>
-                </div>
-              </div>
-              <div style="grid-column:1/-1">
-                <div class="proj-field-label" data-i18n="proj_context_label">Memoria del proyecto</div>
-                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_context_desc">Carpetas de documentos que Claude usará como contexto al generar minutas (READMEs, PRDs, specs técnicas…).</div>
-                <div class="proj-context-dirs" id="add-proj-context-dirs"></div>
-                <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="browseNewContextDir()" type="button" data-i18n="proj_context_add">+ Añadir carpeta</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  </div>
-</div>
-
-
-<div class="view hidden" id="view-trash">
-  <div class="settings-view">
-    <div class="settings-view-header">
-      <h2 data-i18n="nav_trash">Recently Deleted</h2>
-    </div>
-    <div class="settings-view-body">
-      <div class="settings-card-desc" data-i18n="trash_desc" style="margin-bottom:16px">Las reuniones eliminadas se guardan aquí. Puedes recuperarlas o borrarlas definitivamente.</div>
-      <div id="trash-list"><div class="loading" data-i18n="loading">Cargando...</div></div>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
-<!-- Pipeline status tab + panel -->
-<button class="pipeline-tab" id="pipeline-tab" onclick="togglePipelinePanel()">
-  <span class="pipeline-tab-dot" id="pipeline-tab-dot"></span>
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-  <span data-i18n="pipeline_title">En curso</span>
-</button>
-<div class="pipeline-panel" id="pipeline-panel">
-  <div class="pipeline-panel-header">
-    <span class="pipeline-panel-title" data-i18n="pipeline_title">En curso</span>
-    <button class="runs-panel-close" onclick="togglePipelinePanel()">×</button>
-  </div>
-  <div class="pipeline-panel-body" id="pipeline-panel-body"></div>
-</div>
-
-<script src="app.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Noted</title>
+
+<script>(function(){const t=localStorage.getItem('theme')||'light';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');})()</script>
+
+<link rel="icon" href="../noted_icon.ico">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="app.css">
+
+</head>
+
+<body>
+
+
+
+<nav class="nav-rail">
+
+  <button class="nav-btn active" id="btn-meetings" onclick="showView('meetings')" title="Notas">
+
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+
+    <span data-i18n="nav_notes">Notas</span>
+
+  </button>
+
+  <button class="nav-btn" id="btn-actions" onclick="showView('actions')" title="Panel Acciones">
+
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+
+    <span data-i18n="nav_action_panel">Panel Acciones</span>
+
+  </button>
+
+  <button class="nav-btn" id="btn-projects" onclick="showView('projects')" title="Proyectos">
+
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+
+    <span data-i18n="nav_projects">Proyectos</span>
+
+  </button>
+
+  <div class="nav-spacer"></div>
+
+  <button class="nav-btn" id="btn-trash" onclick="showView('trash')" title="Recently Deleted">
+
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+
+    <span data-i18n="nav_trash">Eliminados</span>
+
+  </button>
+
+  <button class="nav-btn" id="btn-settings" onclick="showView('settings')" title="Ajustes">
+
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+
+    <span data-i18n="settings_nav">Ajustes</span>
+
+  </button>
+
+</nav>
+
+
+
+<div class="view" id="view-meetings">
+
+
+
+  <aside class="sidebar">
+
+    <div class="sidebar-header">
+
+      <div class="sidebar-search-row">
+
+        <div class="search-box">
+
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+
+          <input type="text" id="search-input" data-i18n="search_ph" placeholder="Buscar en minutas..." oninput="onSearch(this.value)">
+
+        </div>
+
+        <button class="btn-refresh-meetings" id="btn-refresh-meetings" onclick="refreshMeetings()" title="Actualizar reuniones">
+
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+
+        </button>
+
+        <button class="btn-import-transcript" onclick="importTranscript()" title="Importar transcript">+</button>
+
+      </div>
+
+    </div>
+
+    <div class="sidebar-mode-toggle">
+
+      <button class="mode-btn active" id="mode-btn-days" onclick="setSidebarMode('days')">
+
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+
+        <span data-i18n="sidebar_days">Días</span>
+
+      </button>
+
+      <button class="mode-btn" id="mode-btn-projects" onclick="setSidebarMode('projects')">
+
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+
+        <span data-i18n="sidebar_projects">Proyectos</span>
+
+      </button>
+
+    </div>
+
+    <div class="meetings-list" id="meetings-list">
+
+      <div class="loading" data-i18n="loading_meetings">Cargando reuniones...</div>
+
+    </div>
+
+  </aside>
+
+
+
+  <div class="resize-handle"></div>
+
+
+
+  <main class="main-panel" id="main-panel">
+
+    <div class="empty-state">
+
+      <div class="empty-title" data-i18n="empty_title">Selecciona una reunión</div>
+
+      <div class="empty-sub" data-i18n="empty_sub">Elige una reunión de la lista para ver sus minutas y acciones</div>
+
+    </div>
+
+  </main>
+
+
+
+  <!-- Panel de ejecuciones en paralelo -->
+
+  <div class="runs-panel" id="runs-panel">
+
+    <div class="runs-panel-header">
+
+      <span class="runs-panel-title" id="runs-panel-title">Ejecuciones</span>
+
+      <button class="runs-panel-close" onclick="closeRunsPanel()">×</button>
+
+    </div>
+
+    <div class="runs-list" id="runs-list"></div>
+
+  </div>
+
+
+
+  <!-- FAB para reabrir el panel de runs cuando está cerrado -->
+
+  <button class="runs-toggle-fab" id="runs-toggle-fab" style="display:none" onclick="openRunsPanel()">
+
+    <span class="runs-fab-dot" id="runs-fab-dot"></span>
+
+    <span id="runs-fab-label">Runs</span>
+
+  </button>
+
+</div>
+
+
+
+<div class="view hidden" id="view-actions">
+
+  <div class="task-board">
+
+    <div class="task-board-header">
+
+      <div class="task-view-toggle">
+
+        <button class="task-view-btn" id="btn-view-board" onclick="setTaskView('board')">
+
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="4" height="12" rx="1"/><rect x="6" y="2" width="4" height="12" rx="1"/><rect x="11" y="2" width="4" height="12" rx="1"/></svg>
+
+          Kanban
+
+        </button>
+
+        <button class="task-view-btn active" id="btn-view-list" onclick="setTaskView('list')">
+
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="3" width="12" height="2" rx="1"/><rect x="2" y="7" width="12" height="2" rx="1"/><rect x="2" y="11" width="12" height="2" rx="1"/></svg>
+
+          Rows
+
+        </button>
+
+      </div>
+
+      <div style="flex:1"></div>
+
+      <button class="btn btn-ghost btn-sm" onclick="loadTaskBoard()" title="Actualizar">↺</button>
+
+    </div>
+
+    <div id="task-filter-bar" class="task-filter-bar"></div>
+
+    <div class="task-board-body" id="task-board-body">
+
+      <div class="loading" data-i18n="loading_actions">Cargando...</div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- Drawer de detalle de tarea -->
+
+  <div class="task-drawer-backdrop" id="task-drawer-backdrop" onclick="closeTaskDetail()"></div>
+
+  <div class="task-detail-drawer" id="task-detail-drawer">
+
+    <div class="task-detail-header">
+
+      <span class="task-detail-heading" data-i18n="drawer_title">Detalle de tarea</span>
+
+      <button class="task-detail-close" onclick="closeTaskDetail()">×</button>
+
+    </div>
+
+    <div class="task-detail-body" id="task-detail-body">
+
+      <div class="loading" data-i18n="loading">Cargando...</div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<!-- Modal: mover acción al panel -->
+
+<div class="modal-overlay hidden" id="panel-modal">
+
+  <div class="modal-box">
+
+    <div class="modal-title" data-i18n="modal_move_title">Añadir al panel</div>
+
+    <div class="modal-field">
+
+      <label data-i18n="modal_project_label">Proyecto</label>
+
+      <select id="modal-project-select"></select>
+
+    </div>
+
+    <div class="modal-field">
+
+      <label data-i18n="modal_parent_label">Como sub-tarea de (opcional)</label>
+
+      <select id="modal-parent-select">
+
+        <option value="" data-i18n="modal_parent_none">Tarea nueva (nivel raíz)</option>
+
+      </select>
+
+    </div>
+
+    <div class="modal-actions">
+
+      <button class="btn btn-ghost btn-sm" onclick="closePanelModal()" data-i18n="regen_cancel">Cancelar</button>
+
+      <button class="btn btn-primary btn-sm" onclick="confirmMoveToPanel()" data-i18n="modal_confirm">Añadir al panel</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<!-- Menú contextual: reuniones -->
+
+<div id="meeting-ctx-menu" class="ctx-menu hidden">
+
+  <button class="ctx-menu-item" id="ctx-pin-btn"><span id="ctx-pin-label"></span></button>
+
+  <div class="ctx-menu-separator"></div>
+
+  <button class="ctx-menu-item ctx-menu-danger" id="ctx-delete-btn"><span data-i18n="ctx_delete_meeting">Delete</span></button>
+
+</div>
+
+
+
+<!-- Modal: renombrar reunión -->
+
+<div class="modal-overlay hidden" id="rename-modal">
+
+  <div class="modal-box">
+
+    <div class="modal-title">Editar nombre</div>
+
+    <div class="modal-field">
+
+      <label for="rename-modal-input">Nombre</label>
+
+      <input type="text" id="rename-modal-input">
+
+    </div>
+
+    <div class="modal-actions">
+
+      <button class="btn btn-ghost btn-sm" onclick="closeRenameModal()">Cancelar</button>
+
+      <button class="btn btn-primary btn-sm" onclick="confirmRenameModal()">Guardar</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<!-- Modal: confirmar eliminación -->
+
+<div class="modal-overlay hidden" id="confirm-modal">
+
+  <div class="modal-box">
+
+    <div class="modal-title" id="confirm-modal-title" data-i18n="confirm_delete_title">Eliminar proyecto</div>
+
+    <div class="modal-field">
+
+      <div id="confirm-modal-msg" style="font-size:13px;color:var(--subtext);line-height:1.5"></div>
+
+    </div>
+
+    <div class="modal-actions">
+
+      <button class="btn btn-ghost btn-sm" onclick="closeConfirmModal()" data-i18n="regen_cancel">Cancelar</button>
+
+      <button class="btn btn-delete btn-sm" id="confirm-modal-ok" data-i18n="btn_delete">Eliminar</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<div class="view hidden" id="view-settings">
+
+  <div class="settings-view">
+
+    <div class="settings-view-header">
+
+      <h2 data-i18n="settings_nav">Ajustes</h2>
+
+    </div>
+
+    <div class="settings-view-body">
+
+
+
+      <!-- ── Account Settings ── -->
+
+      <div class="settings-group-header" data-i18n="account_settings_title">Cuenta</div>
+
+      <div class="settings-group">
+
+
+
+        <!-- Perfil -->
+
+        <div class="settings-card">
+
+          <div class="settings-card-title" data-i18n="name_label">Tu nombre</div>
+
+          <div class="settings-card-desc" data-i18n="name_desc">Se usa para identificar tus acciones asignadas</div>
+
+          <div style="display:flex;gap:8px;margin-top:4px">
+
+            <input type="text" id="user-name-input" class="settings-text-input" style="flex:1;margin-top:0" data-i18n="name_ph" placeholder="Nombre para filtrar acciones">
+
+            <button class="btn btn-primary btn-sm" id="btn-save-name" data-i18n="save_btn">Guardar</button>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Apariencia -->
+
+        <div class="settings-card">
+
+          <div class="settings-card-title" data-i18n="lang_label">Idioma de la app</div>
+
+          <div class="settings-toggle" id="lang-toggle">
+
+            <button class="toggle-btn active" data-lang="es" data-i18n="es_label">Español</button>
+
+            <button class="toggle-btn" data-lang="en" data-i18n="en_label">English</button>
+
+            <button class="toggle-btn" data-lang="ca" data-i18n="ca_label">Català</button>
+
+          </div>
+
+          <div class="settings-card-title" data-i18n="theme_label" style="margin-top:20px">Tema</div>
+
+          <div class="settings-toggle" id="theme-toggle">
+
+            <button class="toggle-btn active" data-theme-val="light" data-i18n="light">Claro</button>
+
+            <button class="toggle-btn" data-theme-val="dark" data-i18n="dark">Oscuro</button>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Modelo de transcripción -->
+
+        <div class="settings-card">
+
+          <div class="settings-card-title" data-i18n="recording_title">Grabación y Transcripción</div>
+
+          <div class="settings-card-desc" data-i18n="whisper_desc">Modelo Whisper para transcribir el audio. Más grande = más preciso pero más lento. Se aplica al reiniciar.</div>
+
+          <select id="whisper-model-select" class="settings-select" onchange="saveWhisperModel(this.value)">
+
+            <option value="tiny">tiny</option>
+
+            <option value="base">base</option>
+
+            <option value="small">small</option>
+
+            <option value="medium" selected>medium</option>
+
+            <option value="large-v3">large-v3</option>
+
+          </select>
+
+        </div>
+
+
+
+                <!-- Coaching de reuniones -->
+        <div class="settings-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
+            <div class="settings-card-title" data-i18n="coaching_label">Career Level Snapshot</div>
+            <label class="pill-toggle">
+              <input type="checkbox" id="coaching-enabled" onchange="saveCoachingEnabled(this.checked)">
+              <span class="pill-toggle-track"></span>
+            </label>
+          </div>
+          <div class="settings-card-desc" data-i18n="coaching_desc">After each call, AI analyses your performance and gives you a rough idea of the consulting level you're operating at. This varies from meeting to meeting — it's a snapshot, not an actual evaluation of your level or performance.</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;" data-i18n="coaching_role_label">Role:</span>
+            <select class="coaching-level-select" id="coaching-level" onchange="saveCoachingLevel(this.value)">
+              <option value="auto" data-i18n="coaching_role_auto">Auto-detect</option>
+              <option value="Analyst">Analyst</option>
+              <option value="Senior Analyst">S. Analyst</option>
+              <option value="Consultant">Consultant</option>
+              <option value="Senior Consultant">S. Consultant</option>
+              <option value="Manager">Manager</option>
+              <option value="Senior Manager">S. Manager</option>
+              <option value="Managing Director">MD</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Aviso en el chat de Teams -->
+
+        <div class="settings-card">
+
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
+            <div class="settings-card-title" data-i18n="chat_notice_label">Aviso en el chat de Teams</div>
+            <label class="pill-toggle">
+              <input type="checkbox" id="chat-notice-enabled" onchange="saveChatNoticeEnabled(this.checked)">
+              <span class="pill-toggle-track"></span>
+            </label>
+          </div>
+
+          <div class="settings-card-desc" data-i18n="chat_notice_desc">Se envía automáticamente al chat de la reunión cuando empieza la grabación.</div>
+
+          <textarea id="chat-notice-input" class="settings-text-input settings-textarea" rows="3"
+
+            data-i18n="chat_notice_ph" disabled></textarea>
+
+          <div style="display:flex;justify-content:flex-end;margin-top:10px">
+
+            <button class="btn btn-primary btn-sm" onclick="saveChatNoticeSettings()" data-i18n="save_btn">Guardar</button>
+
+          </div>
+
+        </div>
+
+
+
+      </div>
+
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<div class="view hidden" id="view-projects">
+
+  <div class="settings-view">
+
+    <div class="settings-view-header">
+
+      <h2 data-i18n="nav_projects">Proyectos</h2>
+
+    </div>
+
+    <div class="settings-view-body">
+
+
+
+      <!-- ── Project Settings ── -->
+
+      <div class="settings-group settings-group--full">
+
+
+
+        <div class="settings-card">
+
+          <div class="settings-card-desc" data-i18n="projects_desc">Noted detecta automáticamente a qué proyecto pertenece cada reunión y permite filtrar acciones por proyecto</div>
+
+          <div id="projects-list-settings" style="margin-top:12px"></div>
+
+          <div style="display:flex;gap:8px;margin-top:12px">
+
+            <button class="btn btn-ghost btn-sm" style="flex:1" onclick="showAddProjectForm()" data-i18n="add_project">+ Añadir proyecto</button>
+
+            <button class="btn btn-ghost btn-sm" onclick="detectProjectsForAll()" data-i18n="btn_detect_projects" title="Analiza todas las notas sin proyecto asignado y las clasifica con Claude">Re-detectar proyectos</button>
+
+          </div>
+
+          <div id="add-project-form" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+
+            <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:14px">
+
+              <button class="btn btn-primary btn-sm" onclick="saveNewProject()" data-i18n="save_btn">Guardar</button>
+
+              <button class="btn btn-ghost btn-sm" onclick="hideAddProjectForm()">✕</button>
+
+            </div>
+
+            <div class="add-proj-grid">
+
+              <div>
+
+                <div class="proj-field-label" data-i18n="proj_name_ph">Nombre del proyecto</div>
+
+                <input type="text" class="settings-text-input" style="margin-top:4px" id="proj-name" data-i18n="proj_name_ph" placeholder="Nombre del proyecto">
+
+              </div>
+
+              <div>
+
+                <div class="proj-field-label" data-i18n="proj_desc_ph">Descripción corta</div>
+
+                <input type="text" class="settings-text-input" style="margin-top:4px" id="proj-desc" data-i18n="proj_desc_ph" placeholder="Descripción corta">
+
+              </div>
+
+              <div style="grid-column:1/-1">
+
+                <div class="proj-field-label" data-i18n="proj_stake_label">Stakeholder Emails</div>
+
+                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_stake_desc">Estos contactos se añadirán automáticamente como destinatarios cuando envíes las minutas de una reunión de este proyecto por email. Separa varios emails con comas.</div>
+
+                <input type="text" class="settings-text-input" id="proj-stakeholders" data-i18n="proj_stake_ph" placeholder="ana@empresa.com, equipo@empresa.com">
+
+              </div>
+
+              <div style="grid-column:1/-1">
+
+                <div class="proj-field-label" data-i18n="proj_dir_label">Carpeta del proyecto</div>
+
+                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_dir_desc">Por defecto, Noted guarda todo en su propia carpeta. Si seleccionas aquí la carpeta raíz de tu proyecto, las acciones de Claude se ejecutarán desde ahí.</div>
+
+                <div class="proj-folder-row">
+
+                  <span class="proj-folder-path empty" id="add-proj-folder-display" data-i18n="proj_folder_default">Carpeta de Noted (por defecto)</span>
+
+                  <button class="btn btn-ghost btn-sm" onclick="browseNewProjectFolder()" type="button" data-i18n="proj_folder_browse">Seleccionar carpeta</button>
+
+                </div>
+
+              </div>
+
+              <div style="grid-column:1/-1">
+
+                <div class="proj-field-label" data-i18n="proj_color_label">Color del proyecto</div>
+
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+
+                  <button class="proj-color-swatch" id="add-proj-color-trigger" onclick="toggleNewProjectColorPicker()" type="button"></button>
+
+                  <div class="proj-color-picker" id="add-proj-color-picker" style="display:none"></div>
+
+                </div>
+
+              </div>
+
+              <div style="grid-column:1/-1">
+
+                <div class="proj-field-label" data-i18n="proj_context_label">Memoria del proyecto</div>
+
+                <div class="settings-card-desc" style="margin:3px 0 6px" data-i18n="proj_context_desc">Carpetas de documentos que Claude usará como contexto al generar minutas (READMEs, PRDs, specs técnicas…).</div>
+
+                <div class="proj-context-dirs" id="add-proj-context-dirs"></div>
+
+                <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="browseNewContextDir()" type="button" data-i18n="proj_context_add">+ Añadir carpeta</button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+
+      </div>
+
+
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+<div class="view hidden" id="view-trash">
+
+  <div class="settings-view">
+
+    <div class="settings-view-header">
+
+      <h2 data-i18n="nav_trash">Recently Deleted</h2>
+
+    </div>
+
+    <div class="settings-view-body">
+
+      <div class="settings-card-desc" data-i18n="trash_desc" style="margin-bottom:16px">Las reuniones eliminadas se guardan aquí. Puedes recuperarlas o borrarlas definitivamente.</div>
+
+      <div id="trash-list"><div class="loading" data-i18n="loading">Cargando...</div></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<div class="toast" id="toast"></div>
+
+
+
+<!-- Pipeline status tab + panel -->
+
+<button class="pipeline-tab" id="pipeline-tab" onclick="togglePipelinePanel()">
+
+  <span class="pipeline-tab-dot" id="pipeline-tab-dot"></span>
+
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+
+  <span data-i18n="pipeline_title">En curso</span>
+
+</button>
+
+<div class="pipeline-panel" id="pipeline-panel">
+
+  <div class="pipeline-panel-header">
+
+    <span class="pipeline-panel-title" data-i18n="pipeline_title">En curso</span>
+
+    <button class="runs-panel-close" onclick="togglePipelinePanel()">×</button>
+
+  </div>
+
+  <div class="pipeline-panel-body" id="pipeline-panel-body"></div>
+
+</div>
+
+
+
+<script src="app.js"></script>
+
+</body>
+
+</html>
+

@@ -736,6 +736,14 @@ class TrayApp:
         except Exception as e:
             log.warning(f"Error exportando HTML: {e}")
 
+        try:
+            import coaching_plugin
+            coaching_plugin.grade_and_inject(transcript_text, minutes_path)
+        except ImportError:
+            pass
+        except Exception as _ce:
+            log.warning(f"coaching_plugin: {_ce}")
+
         s = _STR.get(get_ui_language(), _STR['en'])
         self._notify('Noted', s['action_items'])
         self._current_job.update({'step': 3, 'step_label': 'Generando acciones', 'step_started': time.time()})
