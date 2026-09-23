@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Noted** is a Windows desktop daemon that auto-detects Teams calls, records audio (mic + system loopback), transcribes via Whisper, generates structured meeting minutes using Claude, extracts and enriches action items, and surfaces everything through a system tray icon + pywebview web UI.
 
+## Restarting the app during development
+
+**Always use `scripts\restart_noted.ps1`** to stop and restart the daemon:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\restart_noted.ps1
+```
+Never use `Invoke-CimMethod`, `Win32_Process.Create`, or WMI methods to launch processes — these trigger security alerts in corporate environments (Accenture SOC monitors WMI process creation as a malware indicator).
+
 ## Entry Points & Commands
 
 ```bash
