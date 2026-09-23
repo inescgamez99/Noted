@@ -4874,7 +4874,7 @@ function _stickyHtml(s) {
     : `<textarea class="sticky-body" placeholder="${t('sticky_ph')}" spellcheck="false">${escHtml(s.text || '')}</textarea>`;
   return `<div class="sticky-note${s.minimized ? ' min' : ''}" data-sid="${escHtml(s.id)}" style="${posStyle}">
     <div class="sticky-head">
-      <span class="sticky-preview">${escHtml((s.text || '').split('\n')[0].slice(0, 28))}</span>
+      <span class="sticky-preview">${escHtml(s.label || (s.text || '').split('\n')[0].slice(0, 28))}</span>
       <button class="sticky-btn sticky-min" title="${t('sticky_min')}">${s.minimized ? '+' : '–'}</button>
       <button class="sticky-btn sticky-del" title="${t('sticky_del')}">×</button>
     </div>
@@ -4900,7 +4900,7 @@ function _wireStickies() {
       node.classList.toggle('min', s.minimized);
       e.currentTarget.textContent = s.minimized ? '+' : '–';
       const prev = node.querySelector('.sticky-preview');
-      if (prev) prev.textContent = (ta ? ta.value : (s.text || '')).split('\n')[0].slice(0, 28);
+      if (prev) prev.textContent = s.label || (ta ? ta.value : (s.text || '')).split('\n')[0].slice(0, 28);
       _saveStickies();
     };
     if (ta) ta.oninput = () => {
@@ -4928,7 +4928,7 @@ function _wireStickies() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup',   onUp);
         const s = _stickies.find(x => x.id === id);
-        if (s) { s.x = parseInt(node.style.left)||0; s.y = parseInt(node.style.top)||0; _saveStickies(); }
+        if (s) { s.anchor = 'left'; s.x = parseInt(node.style.left)||0; s.y = parseInt(node.style.top)||0; _saveStickies(); }
       };
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup',   onUp);

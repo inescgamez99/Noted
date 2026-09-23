@@ -376,6 +376,7 @@ def grade_and_inject(transcript_text: str, minutes_path: Path) -> None:
     if result.get('insufficient'):
         sticky = {
             'id': f"coaching_{int(time.time() * 1000)}",
+            'label': 'Career Level Snapshot',
             'text': '📋 Insufficient data',
             'html': (
                 '<b style="font-size:13px;color:#78350f;">📋 COACHING</b><br>'
@@ -391,6 +392,7 @@ def grade_and_inject(transcript_text: str, minutes_path: Path) -> None:
     else:
         sticky = {
             'id': f"coaching_{int(time.time() * 1000)}",
+            'label': 'Career Level Snapshot',
             'text': _format_sticky_text(result),
             'html': _format_sticky_html(result),
             'x': 20,
