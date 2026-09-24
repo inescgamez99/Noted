@@ -5,6 +5,7 @@ inbox/
 trash/
 .env
 settings.json
+team/recipients.txt
 projects.json
 tasks.json
 buckets.json
