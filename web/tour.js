@@ -464,11 +464,19 @@ window.startTour = function () {
 
   const driverObj = window.driver.js.driver({
     showProgress: true,
-    allowClose: false,
+    allowClose: true,
     nextBtnText: 'Siguiente',
     prevBtnText: 'Anterior',
     doneBtnText: 'Empezar',
     steps: buildSteps(),
+    onPopoverRender: (popover) => {
+      popover.footer.querySelector('.driver-skip-btn')?.remove();
+      const skipBtn = document.createElement('button');
+      skipBtn.textContent = 'Saltar tour';
+      skipBtn.className = 'driver-skip-btn';
+      skipBtn.addEventListener('click', () => driverObj.destroy());
+      popover.footer.insertBefore(skipBtn, popover.footerButtons);
+    },
     onDestroyStarted: () => {
       driverObj.destroy();
     },
