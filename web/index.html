@@ -472,7 +472,7 @@
         <div class="settings-card">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
             <div class="settings-card-title" data-i18n="coaching_label">Career Level Snapshot</div>
-            <label class="pill-toggle">
+            <label class="pill-toggle" id="toggle-coaching">
               <input type="checkbox" id="coaching-enabled" onchange="saveCoachingEnabled(this.checked)">
               <span class="pill-toggle-track"></span>
             </label>
@@ -499,7 +499,7 @@
 
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px;">
             <div class="settings-card-title" data-i18n="chat_notice_label">Aviso en el chat de Teams</div>
-            <label class="pill-toggle">
+            <label class="pill-toggle" id="toggle-chat-notice">
               <input type="checkbox" id="chat-notice-enabled" onchange="saveChatNoticeEnabled(this.checked)">
               <span class="pill-toggle-track"></span>
             </label>
@@ -523,7 +523,9 @@
 
       </div>
 
-
+      <div style="display:flex;justify-content:flex-end;padding:16px 0 0">
+        <button class="btn btn-ghost btn-sm" onclick="window.resetTour()" id="btn-restart-tour" data-i18n="restart_tour">Repetir tour de bienvenida</button>
+      </div>
 
     </div>
 
@@ -725,6 +727,74 @@
 
 
 
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css"/>
+<style>
+/* ── Driver.js overrides — Noted design (dark modern) ── */
+.driver-popover {
+  background: #16162a !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(161,0,255,0.3) !important;
+  box-shadow: 0 3px 0 0 #A100FF inset, 0 24px 80px rgba(0,0,0,0.55), 0 4px 24px rgba(161,0,255,0.18) !important;
+  max-width: 360px !important;
+  min-width: 260px !important;
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+.driver-popover * {
+  -webkit-font-smoothing: antialiased !important;
+}
+.driver-popover-title {
+  color: #fff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  letter-spacing: -.02em !important;
+  line-height: 1.3 !important;
+}
+.driver-popover-description {
+  color: rgba(255,255,255,0.72) !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+.driver-popover-footer {
+  border-top-color: rgba(255,255,255,0.08) !important;
+}
+.driver-popover-progress-text {
+  color: rgba(255,255,255,0.38) !important;
+  font-size: 11px !important;
+}
+.driver-popover-prev-btn {
+  background: transparent !important;
+  border-color: rgba(255,255,255,0.18) !important;
+  color: rgba(255,255,255,0.65) !important;
+  border-radius: 8px !important;
+}
+.driver-popover-prev-btn:hover {
+  background: rgba(255,255,255,0.07) !important;
+  color: #fff !important;
+  border-color: rgba(255,255,255,0.3) !important;
+}
+.driver-popover-next-btn,
+.driver-popover-done-btn {
+  background: #A100FF !important;
+  border-color: #A100FF !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+}
+.driver-popover-next-btn:hover,
+.driver-popover-done-btn:hover {
+  background: #7500C0 !important;
+  border-color: #7500C0 !important;
+}
+.driver-popover-close-btn {
+  color: rgba(255,255,255,0.4) !important;
+}
+.driver-popover-close-btn:hover {
+  color: #fff !important;
+}
+.driver-popover-arrow { display: none !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+<script src="tour.js"></script>
 <script src="app.js"></script>
 
 </body>

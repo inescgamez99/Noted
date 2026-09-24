@@ -271,6 +271,7 @@ const T = {
     add_action_save: 'Guardar',
     add_action_cancel: 'Cancelar',
     delete_project_btn: 'Eliminar proyecto',
+    restart_tour: 'Repetir tour de bienvenida',
   },
   en: {
     nav_notes: 'Notes', nav_action_panel: 'Action Panel', nav_projects: 'Projects', nav_trash: 'Recently Deleted', settings_nav: 'Settings',
@@ -494,6 +495,7 @@ const T = {
     add_action_save: 'Save',
     add_action_cancel: 'Cancel',
     delete_project_btn: 'Delete project',
+    restart_tour: 'Replay welcome tour',
   },
   ca: {
     nav_notes: 'Notes', nav_action_panel: 'Panell d\'accions', nav_projects: 'Projectes', nav_trash: 'Eliminats recentment', settings_nav: 'Configuració',
@@ -711,6 +713,7 @@ const T = {
     add_action_deadline_ph: 'Data límit (opcional, YYYY-MM-DD)',
     add_action_save: 'Desar',
     add_action_cancel: 'Cancel·lar',
+    restart_tour: 'Repetir tour de benvinguda',
   },
 };
 
@@ -751,6 +754,14 @@ window.addEventListener('pywebviewready', async () => {
   allProjects = await pywebview.api.get_projects();
   await loadMeetings();
   await refreshPendingBadge();
+
+  // Onboarding tour: mostrar la primera vez
+  try {
+    const s = await pywebview.api.get_settings();
+    if (!s.onboarding_completed) {
+      setTimeout(() => window.startTour(), 500);
+    }
+  } catch (_) {}
 
   // Trozo 3: detectar acciones completadas desde terminal externo
   setInterval(async () => {
