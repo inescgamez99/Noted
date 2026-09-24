@@ -272,6 +272,7 @@ const T = {
     add_action_save: 'Guardar',
     add_action_cancel: 'Cancelar',
     delete_project_btn: 'Eliminar proyecto',
+    send_email: 'Enviar por correo',
     restart_tour: 'Repetir tour de bienvenida',
   },
   en: {
@@ -496,6 +497,7 @@ const T = {
     add_action_save: 'Save',
     add_action_cancel: 'Cancel',
     delete_project_btn: 'Delete project',
+    send_email: 'Send by email',
     restart_tour: 'Replay welcome tour',
   },
   ca: {
@@ -714,6 +716,7 @@ const T = {
     add_action_deadline_ph: 'Data límit (opcional, YYYY-MM-DD)',
     add_action_save: 'Desar',
     add_action_cancel: 'Cancel·lar',
+    send_email: 'Enviar per correu',
     restart_tour: 'Repetir tour de benvinguda',
   },
 };
