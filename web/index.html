@@ -792,6 +792,21 @@
   color: #fff !important;
 }
 .driver-popover-arrow { display: none !important; }
+/* WebView2: evita doble render de texto en botones por compositing del box-shadow */
+.driver-popover-prev-btn,
+.driver-popover-next-btn,
+.driver-popover-done-btn {
+  -webkit-backface-visibility: hidden !important;
+  backface-visibility: hidden !important;
+  -webkit-transform: translateZ(0) !important;
+  transform: translateZ(0) !important;
+}
+.driver-popover-prev-btn::before, .driver-popover-prev-btn::after,
+.driver-popover-next-btn::before, .driver-popover-next-btn::after,
+.driver-popover-done-btn::before, .driver-popover-done-btn::after {
+  content: none !important;
+  display: none !important;
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 <script src="tour.js"></script>
