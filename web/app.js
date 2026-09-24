@@ -1562,7 +1562,6 @@ function renderActionCards(actions, path, container, meetingDate) {
     const prompt = a.prompt_enriched || a.prompt_original || '';
     const claudeExec = a.claude_executable || (a.type && a.type !== 'human' && prompt.trim().length > 0);
     const inPanel = a.in_panel === true;
-    const autoOpen = false;
     return `
     <div class="action-card ${a.executed ? 'done' : ''}" id="card-${a.index}">
       <div class="action-card-row">
@@ -1575,7 +1574,7 @@ function renderActionCards(actions, path, container, meetingDate) {
             ${inPanel ? t('btn_in_panel') : t('btn_move_panel')}
           </button>
           ${claudeExec
-            ? `<button class="btn btn-ghost btn-sm" data-toggle="${a.index}">${autoOpen ? t('btn_prompt_hide') : t('btn_prompt_show')}</button>`
+            ? `<button class="btn btn-ghost btn-sm" data-toggle="${a.index}">${t('btn_prompt_show')}</button>`
             : ''}
           <button class="btn btn-ghost btn-sm" data-edit="${a.index}" title="${t('btn_edit')}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
           <button class="btn btn-delete btn-sm" data-del="${a.index}" title="${t('btn_delete')}">×</button>
@@ -1593,7 +1592,7 @@ function renderActionCards(actions, path, container, meetingDate) {
         </div>
       </div>
       ${claudeExec ? `
-      <div class="action-card-body ${autoOpen ? 'open' : ''}" id="body-${a.index}">
+      <div class="action-card-body" id="body-${a.index}">
         ${a.type === 'document_change' ? `
         <div class="prompt-label">${t('doc_file_label')}</div>
         <div class="dir-row">
