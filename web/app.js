@@ -28,6 +28,7 @@ let _buckets = [];
 let _dragTaskId = null;
 let _dragBucketId = null;
 let _filterProjectId = null;  // null = todos
+let _colFilters = {};         // { status: Set, assignee: Set, priority: Set } — missing key = no filter
 let _sortBy = null;           // null | 'end_date' | 'priority' | 'title' | 'tag'
 let _groupBy = 'status';     // 'status' | 'priority' | 'assignee' | 'due_date'
 let _customStatuses     = [];
@@ -1102,6 +1103,13 @@ document.addEventListener('keydown', (e) => {
 
   if (inInput) return; // don't intercept nav shortcuts while typing
 
+  // Ctrl+Shift+R → hard reload (picks up new JS/CSS)
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    window.location.reload();
+    return;
+  }
+
   // F5 / Ctrl+R → refresh meeting list + re-open active meeting
   if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
     e.preventDefault();
@@ -2014,9 +2022,132 @@ function _setFilter(projectId) {
 }
 
 function _filteredTasks() {
-  const tasks = _taskData.tasks || [];
-  if (_filterProjectId === null) return tasks;
-  return tasks.filter(t => (t.project_id || 'none') === _filterProjectId);
+  let tasks = _taskData.tasks || [];
+  if (_filterProjectId !== null)
+    tasks = tasks.filter(t => (t.project_id || 'none') === _filterProjectId);
+  if (_colFilters.status?.size)
+    tasks = tasks.filter(t => _colFilters.status.has(t.status || 'not_started'));
+  if (_colFilters.assignee?.size)
+    tasks = tasks.filter(t => _colFilters.assignee.has(t.assignee || '__none__'));
+  if (_colFilters.priority?.size)
+    tasks = tasks.filter(t => _colFilters.priority.has(t.priority || '__none__'));
+  if (_colFilters.start_date?.size)
+    tasks = tasks.filter(t => _colFilters.start_date.has(t.start_date || '__none__'));
+  if (_colFilters.end_date?.size)
+    tasks = tasks.filter(t => _colFilters.end_date.has(t.end_date || t.deadline || '__none__'));
+  return tasks;
+}
+
+// ── Column header filter (Excel-style) ──────────────────────────────────────
+let _activeColFilter = null; // currently open column key
+
+function _colFilterValues(col) {
+  const tasks = (() => {
+    let t = _taskData.tasks || [];
+    if (_filterProjectId !== null) t = t.filter(x => (x.project_id || 'none') === _filterProjectId);
+    return t;
+  })();
+  const vals = new Set();
+  tasks.forEach(t => {
+    let v;
+    if (col === 'status')     v = t.status     || 'not_started';
+    else if (col === 'assignee')  v = t.assignee    || '__none__';
+    else if (col === 'priority')  v = t.priority    || '__none__';
+    else if (col === 'start_date') v = t.start_date || '__none__';
+    else if (col === 'end_date')  v = t.end_date || t.deadline || '__none__';
+    if (v !== undefined) vals.add(v);
+  });
+  return [...vals].sort();
+}
+
+function _colFilterLabel(col, val) {
+  const L = currentLang === 'en';
+  if (val === '__none__') return L ? '(empty)' : '(vacío)';
+  if (col === 'status')   return _statusLabel(val);
+  if (col === 'priority') return _priorityLabel(val);
+  return val;
+}
+
+function _openColFilter(e, col) {
+  e.stopPropagation();
+  const existing = document.getElementById('col-filter-panel');
+  if (existing && _activeColFilter === col) { _closeColFilter(); return; }
+  _closeColFilter();
+  _activeColFilter = col;
+
+  const L = currentLang === 'en';
+  const selected = _colFilters[col] || null;
+  const vals = _colFilterValues(col);
+  const allChecked = !selected;
+
+  const rows = vals.map(v => {
+    const checked = allChecked || selected.has(v) ? 'checked' : '';
+    return `<label class="cf-row"><input type="checkbox" value="${escHtml(v)}" ${checked} data-cf-col="${col}"> ${escHtml(_colFilterLabel(col, v))}</label>`;
+  }).join('');
+
+  const panel = document.createElement('div');
+  panel.id = 'col-filter-panel';
+  panel.className = 'col-filter-panel';
+  panel.innerHTML = `
+    <label class="cf-row cf-all"><input type="checkbox" id="cf-all-chk" ${allChecked ? 'checked' : ''}> <b>${L ? 'Select all' : 'Seleccionar todo'}</b></label>
+    <div class="cf-divider"></div>
+    <div class="cf-list">${rows}</div>
+    <div class="cf-footer">
+      <button class="cf-btn-clear" onclick="_clearColFilter('${col}')">${L ? 'Clear' : 'Limpiar'}</button>
+      <button class="cf-btn-apply" onclick="_applyColFilter('${col}')">${L ? 'Apply' : 'Aplicar'}</button>
+    </div>`;
+
+  // Position below the clicked button
+  document.body.appendChild(panel);
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  panel.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  panel.style.top  = (rect.bottom + 4) + 'px';
+
+  // "Select all" toggle
+  panel.querySelector('#cf-all-chk').addEventListener('change', function() {
+    panel.querySelectorAll('[data-cf-col]').forEach(cb => cb.checked = this.checked);
+  });
+  // Individual checkbox → update "select all"
+  panel.querySelectorAll('[data-cf-col]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const all = [...panel.querySelectorAll('[data-cf-col]')].every(c => c.checked);
+      panel.querySelector('#cf-all-chk').checked = all;
+    });
+  });
+
+  setTimeout(() => document.addEventListener('click', _colFilterOutside), 0);
+}
+
+function _colFilterOutside(e) {
+  const panel = document.getElementById('col-filter-panel');
+  if (panel && !panel.contains(e.target)) _closeColFilter();
+}
+
+function _closeColFilter() {
+  document.getElementById('col-filter-panel')?.remove();
+  document.removeEventListener('click', _colFilterOutside);
+  _activeColFilter = null;
+}
+
+function _applyColFilter(col) {
+  const panel = document.getElementById('col-filter-panel');
+  if (!panel) return;
+  const checked = [...panel.querySelectorAll('[data-cf-col]:checked')].map(c => c.value);
+  const all = [...panel.querySelectorAll('[data-cf-col]')].length;
+  if (checked.length === 0 || checked.length === all) {
+    delete _colFilters[col];
+  } else {
+    _colFilters[col] = new Set(checked);
+  }
+  _closeColFilter();
+  renderTaskBoard();
+}
+
+function _clearColFilter(col) {
+  delete _colFilters[col];
+  _closeColFilter();
+  renderTaskBoard();
 }
 
 function renderTaskBoard() {
@@ -2034,17 +2165,39 @@ function renderTaskBoard() {
     byProject[pid].push(task);
   });
 
-  const sections = _filterProjectId
+  // Latest last_edited per project (for sorting)
+  const latestEdit = {};
+  (_taskData.tasks || []).forEach(tk => {
+    const pid = tk.project_id || 'none';
+    const ts = tk.last_edited || tk.created_at || '';
+    if (!latestEdit[pid] || ts > latestEdit[pid]) latestEdit[pid] = ts;
+  });
+
+  let sections = _filterProjectId
     ? (projects.find(p => p.id === _filterProjectId)
         ? [projects.find(p => p.id === _filterProjectId)]
         : [{ id: _filterProjectId, name: t('task_no_project') }])
     : [{ id: 'none', name: t('task_no_project') }, ...projects];
 
-  body.innerHTML = sections.map(p => _renderProjectSection(p, byProject[p.id] || [])).join('');
+  // Sort: most recently edited first; projects with no tasks go to bottom
+  sections.sort((a, b) => {
+    const ta = latestEdit[a.id] || '';
+    const tb = latestEdit[b.id] || '';
+    if (!ta && !tb) return 0;
+    if (!ta) return 1;
+    if (!tb) return -1;
+    return tb > ta ? 1 : -1;
+  });
+
+  body.innerHTML = sections.map(p => {
+    const ptasks = byProject[p.id] || [];
+    const hasNoTasks = ptasks.filter(tk => !tk.parent_id).length === 0;
+    return _renderProjectSection(p, ptasks, hasNoTasks);
+  }).join('');
   _bindTaskBoardEvents();
 }
 
-function _renderProjectSection(project, projectTasks) {
+function _renderProjectSection(project, projectTasks, startCollapsed = false) {
   const topLevel = projectTasks.filter(t => !t.parent_id);
   const subMap = {};
   projectTasks.forEach(t => {
@@ -2056,18 +2209,23 @@ function _renderProjectSection(project, projectTasks) {
   return `
   <div class="task-project-section" data-project-id="${project.id}">
     <div class="task-project-header" style="border-left-color:${color}" onclick="toggleProjectSection('${project.id}')">
-      <span class="task-project-chevron open" style="color:${color}">▶</span>
+      <span class="task-project-chevron${startCollapsed ? '' : ' open'}" style="color:${color}">▶</span>
       <span class="task-project-name" style="color:${color}">${escHtml(project.name)}</span>
       <span class="task-project-count" style="color:${color};background:${color}1a">${done}/${topLevel.length}</span>
     </div>
-    <div class="task-project-body" id="proj-body-${project.id}">
+    <div class="task-project-body" id="proj-body-${project.id}"${startCollapsed ? ' style="display:none"' : ''}>
       <div class="task-col-headers">
         <span class="task-col-hdr">${t('task_col_name')}</span>
-        <span class="task-col-hdr">${t('task_col_status')}</span>
-        <span class="task-col-hdr">${t('task_col_assignee')}</span>
-        <span class="task-col-hdr">${t('task_col_start_date')}</span>
-        <span class="task-col-hdr">${t('task_col_end_date')}</span>
-        <span class="task-col-hdr">${t('task_col_priority')}</span>
+        ${['status','assignee','start_date','end_date','priority'].map((col, i) => {
+          const labels = [t('task_col_status'), t('task_col_assignee'), t('task_col_start_date'), t('task_col_end_date'), t('task_col_priority')];
+          const active = !!_colFilters[col]?.size;
+          return `<span class="task-col-hdr filterable${active?' hdr-filtered':''}">
+            ${labels[i]}
+            <button class="col-filter-btn${active?' active':''}" onclick="_openColFilter(event,'${col}')" title="Filtrar">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="${active?'currentColor':'none'}" stroke="currentColor" stroke-width="2.5"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            </button>
+          </span>`;
+        }).join('')}
         <span></span>
       </div>
       ${topLevel.map(task => _renderTaskRow(task, subMap[task.id] || [], false)).join('')}
@@ -2847,6 +3005,16 @@ async function openTaskDetail(taskId) {
   ).join('');
   const meetingMeta = task.meeting_path ? _meetingMetaFromPath(task.meeting_path) : null;
 
+  // Parent task candidates: top-level tasks in same project, excluding self and own subitems
+  const ownDescendants = new Set([taskId]);
+  const gatherDesc = (id) => (_taskData.tasks || []).filter(x => x.parent_id === id).forEach(x => { ownDescendants.add(x.id); gatherDesc(x.id); });
+  gatherDesc(taskId);
+  const parentCandidates = (_taskData.tasks || []).filter(x =>
+    !x.parent_id && x.project_id === task.project_id && !ownDescendants.has(x.id)
+  );
+  const parentOpts = `<option value="">${currentLang === 'en' ? '(top-level)' : '(nivel raíz)'}</option>` +
+    parentCandidates.map(x => `<option value="${x.id}"${task.parent_id === x.id ? ' selected' : ''}>${escHtml(x.title)}</option>`).join('');
+
   body.innerHTML = `
     <div class="drawer-field">
       <div class="drawer-field-label">${t('task_col_name')}</div>
@@ -2893,6 +3061,11 @@ async function openTaskDetail(taskId) {
         <input class="drawer-tag-input" id="drawer-tag-input" type="text" placeholder="${t('tags_placeholder')}">
       </div>
     </div>
+    ${!_boardView && parentCandidates.length > 0 ? `
+    <div class="drawer-field">
+      <div class="drawer-field-label">${currentLang === 'en' ? 'Parent task' : 'Tarea padre'}</div>
+      <select class="drawer-cell-input" id="drawer-parent-task">${parentOpts}</select>
+    </div>` : ''}
     <div class="drawer-field">
       <div class="drawer-field-label">${t('task_col_description')}</div>
       <textarea class="drawer-desc-textarea" id="drawer-description" placeholder="${t('desc_placeholder')}">${escHtml(task.description || '')}</textarea>
@@ -3008,6 +3181,17 @@ async function openTaskDetail(taskId) {
     const val = document.getElementById('drawer-bucket').value;
     saveField('bucket_id', () => val);
     if (_boardView) renderKanbanBoard();
+  });
+  document.getElementById('drawer-parent-task')?.addEventListener('change', async () => {
+    const newParentId = document.getElementById('drawer-parent-task').value || null;
+    const tk = _taskData.tasks.find(x => x.id === taskId);
+    if (!tk) return;
+    await pywebview.api.update_task(taskId, { parent_id: newParentId });
+    tk.parent_id = newParentId;
+    tk.last_edited = new Date().toISOString();
+    renderTaskBoard();
+    // Reopen drawer so it stays visible with updated data
+    openTaskDetail(taskId);
   });
 
   // Tags

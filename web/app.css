@@ -357,7 +357,7 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .type-code_change    { background: #dbeafe; color: #1d4ed8; }
 .type-document_change{ background: #fef9c3; color: #854d0e; }
 
-.action-title { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; }
+.action-title { flex: 1; font-size: 13px; font-weight: 500; min-width: 0; white-space: normal; word-break: break-word; line-height: 1.45; }
 .action-title.done-text { text-decoration: line-through; color: var(--muted); }
 .action-project  { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 .action-assignee { font-size: 11px; color: var(--accent); flex-shrink: 0; }
@@ -432,7 +432,7 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .flat-action-item.done { opacity: 0.55; }
 .flat-action-item-row { display: flex; align-items: flex-start; gap: 10px; }
 .flat-action-info { flex: 1; min-width: 0; }
-.flat-action-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.flat-action-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; white-space: normal; word-break: break-word; line-height: 1.45; }
 .flat-action-title.done-text { text-decoration: line-through; color: var(--muted); }
 .flat-action-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); }
 .flat-action-btns { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
@@ -458,7 +458,7 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
   display: flex; align-items: flex-start; gap: 10px;
 }
 .global-action-info { flex: 1; min-width: 0; }
-.global-action-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.global-action-title { font-size: 13px; font-weight: 500; margin-bottom: 3px; white-space: normal; word-break: break-word; line-height: 1.45; }
 .global-action-title.done-text { text-decoration: line-through; color: var(--muted); }
 .global-action-from { font-size: 11px; color: var(--muted); }
 .global-action-btns { display: flex; gap: 4px; flex-shrink: 0; }
@@ -1735,6 +1735,50 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .task-filter-pills {
   display: flex; gap: 2px; align-items: center; overflow: hidden;
 }
+/* ── Excel-style column filters ── */
+.task-col-hdr.filterable { display: flex; align-items: center; gap: 3px; cursor: default; }
+.task-col-hdr.hdr-filtered { color: var(--accent); }
+.col-filter-btn {
+  background: none; border: none; padding: 1px 2px; cursor: pointer;
+  color: var(--muted); border-radius: 3px; display: flex; align-items: center;
+  flex-shrink: 0; transition: color .12s, background .12s;
+}
+.col-filter-btn:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.col-filter-btn.active { color: var(--accent); }
+
+.col-filter-panel {
+  position: fixed; z-index: 9999;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+  padding: 6px 0; min-width: 180px; max-width: 220px;
+  font-size: 12px;
+}
+.cf-row {
+  display: flex; align-items: center; gap: 7px;
+  padding: 4px 12px; cursor: pointer; user-select: none;
+  color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cf-row:hover { background: var(--surface2); }
+.cf-row input[type=checkbox] { accent-color: var(--accent); flex-shrink: 0; }
+.cf-all { font-size: 11px; color: var(--muted); }
+.cf-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.cf-list { max-height: 200px; overflow-y: auto; }
+.cf-footer {
+  display: flex; justify-content: flex-end; gap: 6px;
+  padding: 6px 10px 2px; border-top: 1px solid var(--border); margin-top: 4px;
+}
+.cf-btn-clear {
+  font-size: 11px; font-family: inherit; background: none;
+  border: 1px solid var(--border); border-radius: 5px; padding: 2px 9px;
+  color: var(--muted); cursor: pointer;
+}
+.cf-btn-clear:hover { border-color: var(--text); color: var(--text); }
+.cf-btn-apply {
+  font-size: 11px; font-family: inherit;
+  background: var(--accent); border: none; border-radius: 5px;
+  padding: 2px 10px; color: #fff; cursor: pointer; font-weight: 600;
+}
+.cf-btn-apply:hover { background: #7500c0; }
 .task-filter-btn {
   background: none;
   border: none;

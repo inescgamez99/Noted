@@ -1,4 +1,5 @@
 import logging
+import os
 import queue
 import subprocess
 import struct
@@ -12,6 +13,22 @@ import sounddevice as sd
 import soundfile as sf
 
 from config import SAMPLE_RATE, PROJECT_DIR
+
+_RECORDING_SENTINEL = PROJECT_DIR / '.recording_active'
+
+
+def _write_sentinel():
+    try:
+        _RECORDING_SENTINEL.write_text(str(os.getpid()))
+    except OSError:
+        pass
+
+
+def _remove_sentinel():
+    try:
+        _RECORDING_SENTINEL.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 log = logging.getLogger(__name__)
 
@@ -161,6 +178,7 @@ class AudioRecorder:
         threading.Thread(target=self._start_loopback_async, daemon=True,
                          name='LoopbackInit').start()
 
+        _write_sentinel()
         log.info(f"Recording started → {output_path}")
 
     def stop(self) -> Path | None:
@@ -184,6 +202,7 @@ class AudioRecorder:
         self._close_inputs()
         self._close_writers()
         self._discard_temp()
+        _remove_sentinel()
         self._save_event.set()
         log.info("Recording cancelled — audio discarded")
 
@@ -629,6 +648,7 @@ class AudioRecorder:
             log.error(f"Error guardando WAV: {e}", exc_info=True)
         finally:
             self._discard_temp()
+            _remove_sentinel()
             self._save_event.set()
 
     @staticmethod

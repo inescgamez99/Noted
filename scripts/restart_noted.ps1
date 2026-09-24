@@ -6,6 +6,29 @@ $root = Split-Path $PSScriptRoot -Parent
 $venv = Join-Path $root ".venv\Scripts\python.exe"
 $main = Join-Path $root "main.py"
 
+# ── GUARDRAIL: no reiniciar si hay una grabacion activa ──────────────────────
+$sentinel = Join-Path $root ".recording_active"
+if (Test-Path $sentinel) {
+    $sentinelPid = (Get-Content $sentinel -ErrorAction SilentlyContinue).Trim()
+    $isAlive = $false
+    if ($sentinelPid) {
+        try {
+            $proc = Get-Process -Id ([int]$sentinelPid) -ErrorAction Stop
+            $isAlive = $true
+        } catch { }
+    }
+    if ($isAlive) {
+        Write-Host ""
+        Write-Host "  *** GRABACION ACTIVA — NO SE PUEDE REINICIAR ***" -ForegroundColor Red
+        Write-Host "  Espera a que termine la reunion antes de reiniciar Noted." -ForegroundColor Yellow
+        Write-Host ""
+        exit 1
+    } else {
+        # Sentinel obsoleto (proceso murio sin limpiar) — ignorar y continuar
+        Remove-Item $sentinel -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # Detener instancia existente
 $lock = Join-Path $root ".lock"
 if (Test-Path $lock) {
@@ -25,5 +48,5 @@ Get-Process python, pythonw -ErrorAction SilentlyContinue |
 Start-Sleep -Seconds 1
 
 # Arrancar con Start-Process (NO WMI / Invoke-CimMethod)
-Start-Process -FilePath $venv -ArgumentList "`"$main`"" -WorkingDirectory $root
+Start-Process -FilePath $venv -ArgumentList "`"$main`"" -WorkingDirectory $root -WindowStyle Hidden
 Write-Host "Noted arrancado."
