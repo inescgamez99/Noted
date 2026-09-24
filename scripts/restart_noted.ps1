@@ -1,4 +1,4 @@
-# Reinicia el daemon de Noted de forma segura.
+﻿# Reinicia el daemon de Noted de forma segura.
 # Usar SIEMPRE este script en lugar de comandos WMI/CIM ad-hoc —
 # los metodos Win32_Process.Create disparan alertas de seguridad en entornos corporativos.
 
