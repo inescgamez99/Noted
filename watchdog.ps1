@@ -79,6 +79,11 @@ try {
     exit 1
 }
 
+# Actualizar install_path.txt con la ruta correcta encontrada en este arranque.
+# Evita que un install_path.txt obsoleto (p.ej. tras renombrar el directorio)
+# rompa el fallback en el siguiente arranque sin $PSScriptRoot.
+Save-TRRoot $dir
+
 $pyEnv = Get-TRPython -Root $dir
 if (-not $pyEnv) { Log "ERROR: no se encontro python"; exit 1 }
 
