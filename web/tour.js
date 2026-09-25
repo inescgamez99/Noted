@@ -367,12 +367,51 @@ window.startTour = function () {
     doneBtnText: window.__t('tour_btn_done'),
     steps: buildSteps(),
     onPopoverRender: (popover) => {
-      popover.footer.querySelector('.driver-skip-btn')?.remove();
+      // ── Emoji icon bubble in header ──
+      const titleEl = popover.title;
+      if (titleEl) {
+        const raw = titleEl.textContent || '';
+        const m = raw.match(/^(\p{Extended_Pictographic}️?)\s*/u);
+        if (m) {
+          const icon = document.createElement('span');
+          icon.className = 'driver-title-icon';
+          icon.textContent = m[1];
+          titleEl.textContent = raw.slice(m[0].length);
+          titleEl.parentElement?.insertBefore(icon, titleEl);
+        }
+      }
+
+      // ── Footer restructure: [progress | skip ···spacer··· prev next] ──
+      const footer = popover.footer;
+      footer.querySelector('.driver-skip-btn')?.remove();
+      footer.querySelector('.driver-footer-sep')?.remove();
+      footer.querySelector('.driver-footer-spacer')?.remove();
+
+      const progressEl = footer.querySelector('.driver-popover-progress-text');
+
+      const sep = document.createElement('span');
+      sep.className = 'driver-footer-sep';
+      sep.textContent = '|';
+
       const skipBtn = document.createElement('button');
       skipBtn.textContent = window.__t('tour_btn_skip');
       skipBtn.className = 'driver-skip-btn';
       skipBtn.addEventListener('click', () => driverObj.destroy());
-      popover.footer.insertBefore(skipBtn, popover.footerButtons);
+
+      const spacer = document.createElement('span');
+      spacer.className = 'driver-footer-spacer';
+
+      if (progressEl) {
+        progressEl.after(sep, skipBtn, spacer);
+      } else {
+        footer.prepend(spacer, skipBtn, sep);
+      }
+
+      // Add → arrow to next button
+      const nextBtn = footer.querySelector('.driver-popover-next-btn');
+      if (nextBtn && !nextBtn.textContent.includes('→')) {
+        nextBtn.textContent = nextBtn.textContent.trim() + ' →';
+      }
     },
     onDestroyStarted: () => {
       driverObj.destroy();
