@@ -368,7 +368,23 @@
 
 </div>
 
-
+<!-- Modal: generar capa semántica (documentos extra) -->
+<div class="modal-overlay hidden" id="semantic-modal">
+  <div class="modal-box">
+    <div class="modal-title" data-i18n="semantic_dialog_title">Generar capa semántica</div>
+    <div class="modal-field">
+      <div id="semantic-modal-msg" style="font-size:13px;color:var(--subtext);line-height:1.5"></div>
+    </div>
+    <div class="modal-field">
+      <div id="semantic-modal-docs" class="semantic-doc-list"></div>
+      <button class="btn btn-ghost btn-sm" id="semantic-modal-browse" data-i18n="semantic_dialog_browse">Añadir documentos…</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeSemanticModal()" data-i18n="regen_cancel">Cancelar</button>
+      <button class="btn btn-primary btn-sm" id="semantic-modal-go" data-i18n="semantic_dialog_generate">Generar</button>
+    </div>
+  </div>
+</div>
 
 <div class="view hidden" id="view-settings">
 

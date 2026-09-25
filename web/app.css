@@ -271,6 +271,14 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .btn-green   { background: var(--green); color: white; }
 .btn-green:hover { opacity: 0.9; }
 
+/* Diálogo Semantic Layer: lista de documentos extra */
+.semantic-doc-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; max-height: 180px; overflow-y: auto; }
+.semantic-doc-empty { font-size: 12px; color: var(--muted); padding: 6px 0; }
+.semantic-doc-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.semantic-doc-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.semantic-doc-x { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; line-height: 1; padding: 3px 5px; border-radius: 4px; flex: none; }
+.semantic-doc-x:hover { color: var(--red); background: var(--surface2); }
+
 /* Tabs de detalle — top exacto se asigna vía JS tras medir el header */
 .detail-tabs {
   display: flex; gap: 0; border-bottom: 1px solid var(--border);
