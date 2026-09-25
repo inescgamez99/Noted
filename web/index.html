@@ -828,6 +828,54 @@
 <script src="tour.js"></script>
 <script src="app.js"></script>
 
+<!-- Language picker (first run) -->
+<div id="lang-picker-overlay" class="lang-picker-overlay hidden">
+  <div class="lang-picker-card">
+    <div class="lang-picker-wordmark">Noted</div>
+    <p class="lang-picker-sub">Choose your language &middot; Elige tu idioma &middot; Tria el teu idioma</p>
+    <div class="lang-picker-btns">
+      <button class="lang-pick-btn" data-lang="en">English</button>
+      <button class="lang-pick-btn" data-lang="es">Español</button>
+      <button class="lang-pick-btn" data-lang="ca">Català</button>
+    </div>
+  </div>
+</div>
+
+<style>
+.lang-picker-overlay {
+  position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  animation: lp-fade-in 0.25s ease;
+}
+.lang-picker-overlay.hidden { display: none; }
+@keyframes lp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.lang-picker-card {
+  display: flex; flex-direction: column; align-items: center; gap: 24px;
+  padding: 56px 48px; text-align: center;
+}
+.lang-picker-wordmark {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 40px; font-weight: 700; color: var(--accent);
+  letter-spacing: -1px;
+}
+.lang-picker-sub {
+  color: var(--subtext); font-size: 13px; line-height: 1.6; max-width: 320px;
+}
+.lang-picker-btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.lang-pick-btn {
+  padding: 14px 32px; border-radius: var(--r-lg);
+  border: 2px solid var(--border); background: var(--surface);
+  font-size: 15px; font-weight: 600; cursor: pointer; color: var(--text);
+  font-family: 'Inter', sans-serif;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.12s, box-shadow 0.15s;
+}
+.lang-pick-btn:hover {
+  border-color: var(--accent); background: var(--accent-tint); color: var(--accent);
+  transform: translateY(-2px); box-shadow: 0 6px 20px var(--glow);
+}
+.lang-pick-btn:active { transform: translateY(0); }
+</style>
+
 </body>
 
 </html>

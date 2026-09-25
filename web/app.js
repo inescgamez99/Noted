@@ -274,6 +274,36 @@ const T = {
     delete_project_btn: 'Eliminar proyecto',
     send_email: 'Enviar por correo',
     restart_tour: 'Repetir tour de bienvenida',
+    lang_pick_title: 'Elige tu idioma',
+    lang_pick_subtitle: 'Puedes cambiarlo después en Ajustes',
+    tour_btn_next: 'Siguiente', tour_btn_prev: 'Anterior', tour_btn_done: 'Empezar', tour_btn_skip: 'Saltar tour',
+    tour_s1_title: '👋 Bienvenida a Noted', tour_s1_desc: 'En los próximos pasos te enseñamos todo lo que puedes hacer. Hemos cargado una reunión de demo para que puedas verlo con datos reales.',
+    tour_s2_title: 'Noted vive en tu bandeja', tour_s2_desc: 'El icono aparece en la bandeja del sistema (esquina inferior derecha, puede estar oculto bajo la flecha ˄). Desde ahí puedes lanzar una grabación manual, darle contexto antes de grabar, ver el estado actual o cancelar una grabación en curso.',
+    tour_s3_title: 'Tus notas, siempre aquí', tour_s3_desc: 'La sección principal donde viven todas tus minutas. Puedes acceder a ellas también haciendo clic en el icono de la bandeja.',
+    tour_s4_title: 'Buscar en todas tus minutas', tour_s4_desc: 'Busca en el contenido de todas tus minutas a la vez. Atajo rápido: Ctrl+F desde cualquier vista.',
+    tour_s5_title: 'Días o Proyectos', tour_s5_desc: 'Agrupa tus reuniones por fecha o por proyecto según lo que necesites en cada momento.',
+    tour_s6_title: 'Tus reuniones', tour_s6_desc: 'Cada reunión grabada aparece aquí. Haz clic para abrirla. Clic derecho para fijarla arriba o eliminarla.',
+    tour_s7_title: 'Importar transcript', tour_s7_desc: '¿Tienes un transcript de un cliente o un compañero? Impórtalo directamente y Noted generará las minutas igual que si lo hubiera grabado él.',
+    tour_s8_title: 'Título editable', tour_s8_desc: 'El título se genera automáticamente a partir del contenido. Haz clic sobre él para editarlo cuando quieras.',
+    tour_s9_title: 'Proyecto detectado', tour_s9_desc: 'Noted intenta detectar automáticamente a qué proyecto pertenece cada reunión. Si se ha equivocado, cámbialo aquí.',
+    tour_s10_title: 'Minutas generadas por Claude', tour_s10_desc: 'El cuerpo incluye un resumen de lo hablado, las decisiones tomadas y las tareas detectadas y asignadas automáticamente.',
+    tour_s11_title: 'Regenerar minutas', tour_s11_desc: 'Si el resultado no te convence, puedes darle contexto adicional — qué corregir, qué tono usar, qué añadir — y Claude regenera las minutas ajustadas a lo que necesitas.',
+    tour_s12_title: 'Nota adhesiva', tour_s12_desc: 'Crea un post-it flotante sobre las minutas. Puedes arrastrarlo, minimizarlo o eliminarlo — es tu espacio para anotar lo que quieras sin tocar el contenido generado.',
+    tour_s13_title: 'Hablar con Claude', tour_s13_desc: 'Abre las minutas directamente en Claude para hacer preguntas, profundizar en un tema o redactar un follow-up email personalizado.',
+    tour_s14_title: 'Compartir y exportar', tour_s14_desc: 'Envía las minutas por email a los asistentes, copia el contenido al portapapeles, expórtalas como PDF o HTML. Todo en una barra de acciones rápidas.',
+    tour_s15_title: 'Mover al panel de Acciones', tour_s15_desc: 'Cada acción detectada en las minutas tiene este botón. Úsalo para añadirla al panel de Acciones y hacerle seguimiento independiente vinculado a un proyecto.',
+    tour_s16_title: 'Panel de Acciones', tour_s16_desc: 'Aquí tienes todas las tareas pendientes de todas tus reuniones en un solo sitio, sin tener que abrir cada minuta.',
+    tour_s17_title: 'Kanban o lista', tour_s17_desc: 'Visualiza las acciones como tablero Kanban o como lista según tu preferencia.',
+    tour_s18_title: 'Filtros', tour_s18_desc: 'Filtra las acciones por proyecto, persona asignada o estado para centrarte en lo que importa.',
+    tour_s19_title: 'Detalle de tarea', tour_s19_desc: 'Haz clic en cualquier tarea para ver el detalle completo: de qué reunión salió, quién la tiene asignada y cuál es su estado actual.',
+    tour_s20_title: 'Proyectos', tour_s20_desc: 'Define tus proyectos para clasificar tus notas y acciones. Por cada proyecto puedes configurar nombre, descripción, stakeholders para email, carpeta de trabajo y color.',
+    tour_s21_title: 'Eliminados recientemente', tour_s21_desc: 'Las reuniones eliminadas se guardan aquí durante 30 días. Puedes recuperarlas antes de que desaparezcan definitivamente.',
+    tour_s22_title: 'Tu nombre', tour_s22_desc: 'Ponle tu nombre para que Noted sepa qué acciones son tuyas cuando filtras por asignado.',
+    tour_s23_title: 'Idioma y tema', tour_s23_desc: 'Elige el idioma de la interfaz y el tema claro u oscuro. Se aplica al instante.',
+    tour_s24_title: 'Modelo de transcripción', tour_s24_desc: 'Controla la precisión de la transcripción. Medium es el equilibrio recomendado entre velocidad y calidad.',
+    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'Después de cada llamada, la IA analiza tu intervención y te da un snapshot del nivel de consulting al que estás operando.',
+    tour_s26_title: 'Aviso al chat de Teams', tour_s26_desc: 'Configura el mensaje que Noted envía automáticamente al chat de Teams cuando empieza a grabar, para avisar a los participantes.',
+    tour_s27_title: '🎉 ¡Ya lo sabes todo!', tour_s27_desc: 'Listo. Entra en tu próxima reunión de Teams y Noted hará el resto. El popup aparece en cuanto detecte la llamada — tienes 30 segundos para aceptar.',
   },
   en: {
     nav_notes: 'Notes', nav_action_panel: 'Action Panel', nav_projects: 'Projects', nav_trash: 'Recently Deleted', settings_nav: 'Settings',
@@ -499,6 +529,36 @@ const T = {
     delete_project_btn: 'Delete project',
     send_email: 'Send by email',
     restart_tour: 'Replay welcome tour',
+    lang_pick_title: 'Choose your language',
+    lang_pick_subtitle: 'You can change it later in Settings',
+    tour_btn_next: 'Next', tour_btn_prev: 'Previous', tour_btn_done: 'Get started', tour_btn_skip: 'Skip tour',
+    tour_s1_title: '👋 Welcome to Noted', tour_s1_desc: 'In the next steps we\'ll show you everything you can do. We\'ve loaded a demo meeting so you can see it with real data.',
+    tour_s2_title: 'Noted lives in your tray', tour_s2_desc: 'The icon appears in the system tray (bottom right, may be hidden under the ˄ arrow). From there you can start a manual recording, add context before recording, see the current status or cancel an ongoing recording.',
+    tour_s3_title: 'Your notes, always here', tour_s3_desc: 'The main section where all your minutes live. You can also access them by clicking the tray icon.',
+    tour_s4_title: 'Search all your minutes', tour_s4_desc: 'Search the content of all your minutes at once. Quick shortcut: Ctrl+F from any view.',
+    tour_s5_title: 'Days or Projects', tour_s5_desc: 'Group your meetings by date or by project depending on what you need at each moment.',
+    tour_s6_title: 'Your meetings', tour_s6_desc: 'Each recorded meeting appears here. Click to open it. Right-click to pin it to the top or delete it.',
+    tour_s7_title: 'Import transcript', tour_s7_desc: 'Have a transcript from a client or colleague? Import it directly and Noted will generate the minutes just as if it had recorded it itself.',
+    tour_s8_title: 'Editable title', tour_s8_desc: 'The title is automatically generated from the content. Click on it to edit it whenever you want.',
+    tour_s9_title: 'Detected project', tour_s9_desc: 'Noted tries to automatically detect which project each meeting belongs to. If it got it wrong, change it here.',
+    tour_s10_title: 'Claude-generated minutes', tour_s10_desc: 'The body includes a summary of what was discussed, the decisions made and the automatically detected and assigned tasks.',
+    tour_s11_title: 'Regenerate minutes', tour_s11_desc: 'If the result doesn\'t satisfy you, you can give it additional context — what to correct, what tone to use, what to add — and Claude regenerates the minutes adjusted to what you need.',
+    tour_s12_title: 'Sticky note', tour_s12_desc: 'Create a floating sticky note on the minutes. You can drag it, minimize it or delete it — it\'s your space to jot down whatever you want without touching the generated content.',
+    tour_s13_title: 'Chat with Claude', tour_s13_desc: 'Open the minutes directly in Claude to ask questions, go deeper on a topic or draft a personalised follow-up email.',
+    tour_s14_title: 'Share and export', tour_s14_desc: 'Send the minutes by email to attendees, copy the content to the clipboard, export them as PDF or HTML. All in a quick action bar.',
+    tour_s15_title: 'Move to Actions panel', tour_s15_desc: 'Each action detected in the minutes has this button. Use it to add it to the Actions panel and track it independently linked to a project.',
+    tour_s16_title: 'Actions Panel', tour_s16_desc: 'Here you have all pending tasks from all your meetings in one place, without having to open each minute.',
+    tour_s17_title: 'Kanban or list', tour_s17_desc: 'View actions as a Kanban board or as a list depending on your preference.',
+    tour_s18_title: 'Filters', tour_s18_desc: 'Filter actions by project, assigned person or status to focus on what matters.',
+    tour_s19_title: 'Task detail', tour_s19_desc: 'Click on any task to see the full detail: which meeting it came from, who it\'s assigned to and what its current status is.',
+    tour_s20_title: 'Projects', tour_s20_desc: 'Define your projects to classify your notes and actions. For each project you can configure name, description, stakeholders for email, working folder and colour.',
+    tour_s21_title: 'Recently deleted', tour_s21_desc: 'Deleted meetings are saved here for 30 days. You can recover them before they disappear permanently.',
+    tour_s22_title: 'Your name', tour_s22_desc: 'Add your name so Noted knows which actions are yours when you filter by assignee.',
+    tour_s23_title: 'Language and theme', tour_s23_desc: 'Choose the interface language and light or dark theme. Applied instantly.',
+    tour_s24_title: 'Transcription model', tour_s24_desc: 'Controls transcription accuracy. Medium is the recommended balance between speed and quality.',
+    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'After each call, the AI analyses your intervention and gives you a snapshot of the consulting level you\'re operating at.',
+    tour_s26_title: 'Teams chat notice', tour_s26_desc: 'Configure the message Noted automatically sends to the Teams chat when it starts recording, to notify participants.',
+    tour_s27_title: '🎉 You\'re all set!', tour_s27_desc: 'Ready. Join your next Teams meeting and Noted will do the rest. The popup appears as soon as it detects the call — you have 30 seconds to accept.',
   },
   ca: {
     nav_notes: 'Notes', nav_action_panel: 'Panell d\'accions', nav_projects: 'Projectes', nav_trash: 'Eliminats recentment', settings_nav: 'Configuració',
@@ -718,6 +778,36 @@ const T = {
     add_action_cancel: 'Cancel·lar',
     send_email: 'Enviar per correu',
     restart_tour: 'Repetir tour de benvinguda',
+    lang_pick_title: 'Tria el teu idioma',
+    lang_pick_subtitle: 'Pots canviar-lo des dels Ajustos',
+    tour_btn_next: 'Següent', tour_btn_prev: 'Anterior', tour_btn_done: 'Comença', tour_btn_skip: 'Saltar tour',
+    tour_s1_title: '👋 Benvinguda a Noted', tour_s1_desc: 'En els propers passos t\'ensenyem tot el que pots fer. Hem carregat una reunió de demo perquè puguis veure-ho amb dades reals.',
+    tour_s2_title: 'Noted viu a la safata', tour_s2_desc: 'La icona apareix a la safata del sistema (cantonada inferior dreta, pot estar amagada sota la fletxa ˄). Des d\'allà pots llançar una gravació manual, donar-li context abans de gravar, veure l\'estat actual o cancel·lar una gravació en curs.',
+    tour_s3_title: 'Les teves notes, sempre aquí', tour_s3_desc: 'La secció principal on viuen totes les teves actes. Hi pots accedir també fent clic a la icona de la safata.',
+    tour_s4_title: 'Cercar a totes les actes', tour_s4_desc: 'Cerca al contingut de totes les actes alhora. Drecera ràpida: Ctrl+F des de qualsevol vista.',
+    tour_s5_title: 'Dies o Projectes', tour_s5_desc: 'Agrupa les teves reunions per data o per projecte segons el que necessitis en cada moment.',
+    tour_s6_title: 'Les teves reunions', tour_s6_desc: 'Cada reunió gravada apareix aquí. Fes clic per obrir-la. Clic dret per fixar-la a dalt o eliminar-la.',
+    tour_s7_title: 'Importar transcripció', tour_s7_desc: 'Tens una transcripció d\'un client o company? Importa-la directament i Noted generarà les actes igual que si l\'hagués gravat ell.',
+    tour_s8_title: 'Títol editable', tour_s8_desc: 'El títol es genera automàticament a partir del contingut. Fes clic per editar-lo quan vulguis.',
+    tour_s9_title: 'Projecte detectat', tour_s9_desc: 'Noted intenta detectar automàticament a quin projecte pertany cada reunió. Si s\'ha equivocat, canvia-ho aquí.',
+    tour_s10_title: 'Actes generades per Claude', tour_s10_desc: 'El cos inclou un resum del que s\'ha parlat, les decisions preses i les tasques detectades i assignades automàticament.',
+    tour_s11_title: 'Regenerar actes', tour_s11_desc: 'Si el resultat no et convenç, pots donar-li context addicional — què corregir, quin to usar, què afegir — i Claude regenera les actes ajustades al que necessites.',
+    tour_s12_title: 'Nota adhesiva', tour_s12_desc: 'Crea un post-it flotant sobre les actes. Pots arrossegar-lo, minimitzar-lo o eliminar-lo — és el teu espai per anotar el que vulguis sense tocar el contingut generat.',
+    tour_s13_title: 'Parlar amb Claude', tour_s13_desc: 'Obre les actes directament a Claude per fer preguntes, aprofundir en un tema o redactar un email de seguiment personalitzat.',
+    tour_s14_title: 'Compartir i exportar', tour_s14_desc: 'Envia les actes per correu als assistents, copia el contingut al porta-retalls, exporta-les com a PDF o HTML. Tot en una barra d\'accions ràpides.',
+    tour_s15_title: 'Moure al panell d\'accions', tour_s15_desc: 'Cada acció detectada a les actes té aquest botó. Usa\'l per afegir-la al panell d\'accions i fer-ne un seguiment independent vinculat a un projecte.',
+    tour_s16_title: 'Panell d\'accions', tour_s16_desc: 'Aquí tens totes les tasques pendents de totes les teves reunions en un sol lloc, sense haver d\'obrir cada acta.',
+    tour_s17_title: 'Kanban o llista', tour_s17_desc: 'Visualitza les accions com a tauler Kanban o com a llista segons la teva preferència.',
+    tour_s18_title: 'Filtres', tour_s18_desc: 'Filtra les accions per projecte, persona assignada o estat per centrar-te en el que importa.',
+    tour_s19_title: 'Detall de tasca', tour_s19_desc: 'Fes clic en qualsevol tasca per veure el detall complet: de quina reunió va sortir, qui la té assignada i quin és el seu estat actual.',
+    tour_s20_title: 'Projectes', tour_s20_desc: 'Defineix els teus projectes per classificar les teves notes i accions. Per cada projecte pots configurar nom, descripció, stakeholders per correu, carpeta de treball i color.',
+    tour_s21_title: 'Eliminats recentment', tour_s21_desc: 'Les reunions eliminades es guarden aquí durant 30 dies. Les pots recuperar abans que desapareguin definitivament.',
+    tour_s22_title: 'El teu nom', tour_s22_desc: 'Posa el teu nom perquè Noted sàpiga quines accions són les teves quan filtres per assignat.',
+    tour_s23_title: 'Idioma i tema', tour_s23_desc: 'Tria l\'idioma de la interfície i el tema clar o fosc. S\'aplica a l\'instant.',
+    tour_s24_title: 'Model de transcripció', tour_s24_desc: 'Controla la precisió de la transcripció. Medium és l\'equilibri recomanat entre velocitat i qualitat.',
+    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'Després de cada trucada, la IA analitza la teva intervenció i et dona un snapshot del nivell de consulting al qual estàs operant.',
+    tour_s26_title: 'Avís al xat de Teams', tour_s26_desc: 'Configura el missatge que Noted envia automàticament al xat de Teams quan comença a gravar, per avisar els participants.',
+    tour_s27_title: '🎉 Ja ho saps tot!', tour_s27_desc: 'Llest. Entra a la teva propera reunió de Teams i Noted farà la resta. El popup apareix quan detecta la trucada — tens 30 segons per acceptar.',
   },
 };
 
@@ -745,6 +835,21 @@ function applyLang(lang) {
   }
 }
 
+function showLangPicker(onPick) {
+  const overlay = document.getElementById('lang-picker-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.querySelectorAll('.lang-pick-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const lang = btn.dataset.lang;
+      applyLang(lang);
+      try { await pywebview.api.save_settings({ language: lang }); } catch (_) {}
+      overlay.classList.add('hidden');
+      if (typeof onPick === 'function') setTimeout(onPick, 300);
+    }, { once: true });
+  });
+}
+
 // Mapas de rutas por índice para evitar rutas en atributos HTML
 const meetingPaths  = {};   // idx -> path
 const actionPaths   = {};   // i -> {path, index}
@@ -759,11 +864,15 @@ window.addEventListener('pywebviewready', async () => {
   await loadMeetings();
   await refreshPendingBadge();
 
-  // Onboarding tour: mostrar la primera vez
+  // Onboarding tour: primera vez pedir idioma, luego mostrar tour
   try {
     const s = await pywebview.api.get_settings();
     if (!s.onboarding_completed) {
-      setTimeout(() => window.startTour(), 500);
+      if (!s.language) {
+        setTimeout(() => showLangPicker(() => window.startTour()), 500);
+      } else {
+        setTimeout(() => window.startTour(), 500);
+      }
     }
   } catch (_) {}
 

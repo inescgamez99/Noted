@@ -204,150 +204,87 @@ function injectDemoTasks() {
 // ── Tour steps ────────────────────────────────────────────────────────────────
 
 function buildSteps() {
+  const T = window.__t || (k => k);
   return [
     // 1 — Bienvenida
     {
-      popover: {
-        title: '👋 Bienvenida a Noted',
-        description: 'En los próximos pasos te enseñamos todo lo que puedes hacer. Hemos cargado una reunión de demo para que puedas verlo con datos reales.',
-      },
+      popover: { title: T('tour_s1_title'), description: T('tour_s1_desc') },
     },
-    // 2 — Bandeja del sistema (centrado, no se puede apuntar a icono de Windows)
+    // 2 — Bandeja del sistema
     {
-      popover: {
-        title: 'Noted vive en tu bandeja',
-        description: 'El icono aparece en la bandeja del sistema (esquina inferior derecha, puede estar oculto bajo la flecha ˄). Desde ahí puedes lanzar una grabación manual, darle contexto antes de grabar, ver el estado actual o cancelar una grabación en curso.',
-      },
+      popover: { title: T('tour_s2_title'), description: T('tour_s2_desc') },
     },
     // 3 — Nav Notas
     {
       element: '#btn-meetings',
-      popover: {
-        title: 'Tus notas, siempre aquí',
-        description: 'La sección principal donde viven todas tus minutas. Puedes acceder a ellas también haciendo clic en el icono de la bandeja.',
-        side: 'right',
-      },
+      popover: { title: T('tour_s3_title'), description: T('tour_s3_desc'), side: 'right' },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('meetings'); },
     },
     // 4 — Buscador
     {
       element: '#search-input',
-      popover: {
-        title: 'Buscar en todas tus minutas',
-        description: 'Busca en el contenido de todas tus minutas a la vez. Atajo rápido: Ctrl+F desde cualquier vista.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s4_title'), description: T('tour_s4_desc'), side: 'bottom' },
     },
     // 5 — Toggle Días/Proyectos
     {
       element: '.sidebar-mode-toggle',
-      popover: {
-        title: 'Días o Proyectos',
-        description: 'Agrupa tus reuniones por fecha o por proyecto según lo que necesites en cada momento.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s5_title'), description: T('tour_s5_desc'), side: 'bottom' },
     },
     // 6 — Reunión en sidebar
     {
       element: '#tour-demo-item',
-      popover: {
-        title: 'Tus reuniones',
-        description: 'Cada reunión grabada aparece aquí. Haz clic para abrirla. Clic derecho para fijarla arriba o eliminarla.',
-        side: 'right',
-      },
+      popover: { title: T('tour_s6_title'), description: T('tour_s6_desc'), side: 'right' },
     },
     // 7 — Import (+)
     {
       element: '.btn-import-transcript',
-      popover: {
-        title: 'Importar transcript',
-        description: '¿Tienes un transcript de un cliente o un compañero? Impórtalo directamente y Noted generará las minutas igual que si lo hubiera grabado él.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s7_title'), description: T('tour_s7_desc'), side: 'bottom' },
     },
     // 8 — Título editable
     {
       element: '#detail-title-text',
-      popover: {
-        title: 'Título editable',
-        description: 'El título se genera automáticamente a partir del contenido. Haz clic sobre él para editarlo cuando quieras.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s8_title'), description: T('tour_s8_desc'), side: 'bottom' },
     },
     // 9 — Tab proyecto
     {
       element: '#meeting-project-select',
-      popover: {
-        title: 'Proyecto detectado',
-        description: 'Noted intenta detectar automáticamente a qué proyecto pertenece cada reunión. Si se ha equivocado, cámbialo aquí.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s9_title'), description: T('tour_s9_desc'), side: 'bottom' },
     },
     // 10 — Cuerpo de minutas
     {
       element: '#section-notes',
-      popover: {
-        title: 'Minutas generadas por Claude',
-        description: 'El cuerpo incluye un resumen de lo hablado, las decisiones tomadas y las tareas detectadas y asignadas automáticamente.',
-        side: 'top',
-      },
+      popover: { title: T('tour_s10_title'), description: T('tour_s10_desc'), side: 'top' },
     },
-    // 11 — Regenerar (barra de acciones, top-right → side left)
+    // 11 — Regenerar
     {
       element: '#btn-regenerate',
-      popover: {
-        title: 'Regenerar minutas',
-        description: 'Si el resultado no te convence, puedes darle contexto adicional — qué corregir, qué tono usar, qué añadir — y Claude regenera las minutas ajustadas a lo que necesitas.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s11_title'), description: T('tour_s11_desc'), side: 'left' },
     },
-    // 12 — Post-it (barra de acciones, top-right → side left)
+    // 12 — Post-it
     {
       element: '#btn-sticky-bar',
-      popover: {
-        title: 'Nota adhesiva',
-        description: 'Crea un post-it flotante sobre las minutas. Puedes arrastrarlo, minimizarlo o eliminarlo — es tu espacio para anotar lo que quieras sin tocar el contenido generado.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s12_title'), description: T('tour_s12_desc'), side: 'left' },
     },
-    // 13 — Hablar con Claude (barra de acciones, top-right → side left)
+    // 13 — Hablar con Claude
     {
       element: '#btn-claude',
-      popover: {
-        title: 'Hablar con Claude',
-        description: 'Abre las minutas directamente en Claude para hacer preguntas, profundizar en un tema o redactar un follow-up email personalizado.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s13_title'), description: T('tour_s13_desc'), side: 'left' },
     },
-    // 14 — Exportar (barra de acciones, top-right → side left)
+    // 14 — Exportar
     {
       element: '#btn-email',
-      popover: {
-        title: 'Compartir y exportar',
-        description: 'Envía las minutas por email a los asistentes, copia el contenido al portapapeles, expórtalas como PDF o HTML. Todo en una barra de acciones rápidas.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s14_title'), description: T('tour_s14_desc'), side: 'left' },
     },
-    // 15 — Mover al panel (tab acciones)
+    // 15 — Mover al panel
     {
       element: '#tour-move-panel-btn',
-      popover: {
-        title: 'Mover al panel de Acciones',
-        description: 'Cada acción detectada en las minutas tiene este botón. Úsalo para añadirla al panel de Acciones y hacerle seguimiento independiente vinculado a un proyecto.',
-        side: 'top',
-      },
-      onHighlightStarted: () => {
-        document.getElementById('tab-actions')?.click();
-      },
+      popover: { title: T('tour_s15_title'), description: T('tour_s15_desc'), side: 'top' },
+      onHighlightStarted: () => { document.getElementById('tab-actions')?.click(); },
     },
     // 16 — Nav Acciones
     {
       element: '#btn-actions',
-      popover: {
-        title: 'Panel de Acciones',
-        description: 'Aquí tienes todas las tareas pendientes de todas tus reuniones en un solo sitio, sin tener que abrir cada minuta.',
-        side: 'right',
-      },
+      popover: { title: T('tour_s16_title'), description: T('tour_s16_desc'), side: 'right' },
       onHighlightStarted: () => {
         if (typeof showView === 'function') showView('actions');
         injectDemoTasks();
@@ -356,102 +293,59 @@ function buildSteps() {
     // 17 — Kanban/Rows
     {
       element: '.task-view-toggle',
-      popover: {
-        title: 'Kanban o lista',
-        description: 'Visualiza las acciones como tablero Kanban o como lista según tu preferencia.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s17_title'), description: T('tour_s17_desc'), side: 'bottom' },
     },
     // 18 — Filtros
     {
       element: '#task-filter-bar',
-      popover: {
-        title: 'Filtros',
-        description: 'Filtra las acciones por proyecto, persona asignada o estado para centrarte en lo que importa.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s18_title'), description: T('tour_s18_desc'), side: 'bottom' },
     },
     // 19 — Tarea individual
     {
       element: '#tour-task-1',
-      popover: {
-        title: 'Detalle de tarea',
-        description: 'Haz clic en cualquier tarea para ver el detalle completo: de qué reunión salió, quién la tiene asignada y cuál es su estado actual.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s19_title'), description: T('tour_s19_desc'), side: 'bottom' },
     },
     // 20 — Nav Proyectos
     {
       element: '#btn-projects',
-      popover: {
-        title: 'Proyectos',
-        description: 'Define tus proyectos para clasificar tus notas y acciones. Por cada proyecto puedes configurar nombre, descripción, stakeholders para email, carpeta de trabajo y color.',
-        side: 'right',
-      },
+      popover: { title: T('tour_s20_title'), description: T('tour_s20_desc'), side: 'right' },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('projects'); },
     },
     // 21 — Nav Trash
     {
       element: '#btn-trash',
-      popover: {
-        title: 'Eliminados recientemente',
-        description: 'Las reuniones eliminadas se guardan aquí durante 30 días. Puedes recuperarlas antes de que desaparezcan definitivamente.',
-        side: 'right',
-      },
+      popover: { title: T('tour_s21_title'), description: T('tour_s21_desc'), side: 'right' },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('trash'); },
     },
     // 22 — Nombre (settings)
     {
       element: '#user-name-input',
-      popover: {
-        title: 'Tu nombre',
-        description: 'Ponle tu nombre para que Noted sepa qué acciones son tuyas cuando filtras por asignado.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s22_title'), description: T('tour_s22_desc'), side: 'bottom' },
       onHighlightStarted: () => { if (typeof showView === 'function') showView('settings'); },
     },
     // 23 — Idioma y tema
     {
       element: '#lang-toggle',
-      popover: {
-        title: 'Idioma y tema',
-        description: 'Elige el idioma de la interfaz y el tema claro u oscuro. Se aplica al instante.',
-        side: 'bottom',
-      },
+      popover: { title: T('tour_s23_title'), description: T('tour_s23_desc'), side: 'bottom' },
     },
     // 24 — Whisper
     {
       element: '#whisper-model-select',
-      popover: {
-        title: 'Modelo de transcripción',
-        description: 'Controla la precisión de la transcripción. Medium es el equilibrio recomendado entre velocidad y calidad.',
-        side: 'top',
-      },
+      popover: { title: T('tour_s24_title'), description: T('tour_s24_desc'), side: 'top' },
     },
-    // 25 — Career Level (apunta al label visible, no al input oculto)
+    // 25 — Career Level
     {
       element: '#toggle-coaching',
-      popover: {
-        title: 'Career Level Snapshot',
-        description: 'Después de cada llamada, la IA analiza tu intervención y te da un snapshot del nivel de consulting al que estás operando.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s25_title'), description: T('tour_s25_desc'), side: 'left' },
     },
-    // 26 — Chat notice (apunta al label visible, no al input oculto)
+    // 26 — Chat notice
     {
       element: '#toggle-chat-notice',
-      popover: {
-        title: 'Aviso al chat de Teams',
-        description: 'Configura el mensaje que Noted envía automáticamente al chat de Teams cuando empieza a grabar, para avisar a los participantes.',
-        side: 'left',
-      },
+      popover: { title: T('tour_s26_title'), description: T('tour_s26_desc'), side: 'left' },
     },
     // 27 — Final
     {
-      popover: {
-        title: '🎉 ¡Ya lo sabes todo!',
-        description: 'Listo. Entra en tu próxima reunión de Teams y Noted hará el resto. El popup aparece en cuanto detecte la llamada — tienes 30 segundos para aceptar.',
-      },
+      popover: { title: T('tour_s27_title'), description: T('tour_s27_desc') },
     },
   ];
 }
@@ -459,20 +353,23 @@ function buildSteps() {
 // ── API pública ───────────────────────────────────────────────────────────────
 
 window.startTour = function () {
+  // Expose t() to buildSteps via global bridge so tour.js can use it without importing app.js internals
+  window.__t = typeof t === 'function' ? t : (k => k);
+
   injectDemoMeeting();
   if (typeof showView === 'function') showView('meetings');
 
   const driverObj = window.driver.js.driver({
     showProgress: true,
     allowClose: true,
-    nextBtnText: 'Siguiente',
-    prevBtnText: 'Anterior',
-    doneBtnText: 'Empezar',
+    nextBtnText: window.__t('tour_btn_next'),
+    prevBtnText: window.__t('tour_btn_prev'),
+    doneBtnText: window.__t('tour_btn_done'),
     steps: buildSteps(),
     onPopoverRender: (popover) => {
       popover.footer.querySelector('.driver-skip-btn')?.remove();
       const skipBtn = document.createElement('button');
-      skipBtn.textContent = 'Saltar tour';
+      skipBtn.textContent = window.__t('tour_btn_skip');
       skipBtn.className = 'driver-skip-btn';
       skipBtn.addEventListener('click', () => driverObj.destroy());
       popover.footer.insertBefore(skipBtn, popover.footerButtons);
