@@ -477,20 +477,7 @@
               <span class="pill-toggle-track"></span>
             </label>
           </div>
-          <div class="settings-card-desc" data-i18n="coaching_desc">After each call, AI analyses your performance and gives you a rough idea of the consulting level you're operating at. This varies from meeting to meeting — it's a snapshot, not an actual evaluation of your level or performance.</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
-            <span style="font-size:12px;color:var(--muted);font-weight:600;" data-i18n="coaching_role_label">Role:</span>
-            <select class="coaching-level-select" id="coaching-level" onchange="saveCoachingLevel(this.value)">
-              <option value="auto" data-i18n="coaching_role_auto">Auto-detect</option>
-              <option value="Analyst">Analyst</option>
-              <option value="Senior Analyst">S. Analyst</option>
-              <option value="Consultant">Consultant</option>
-              <option value="Senior Consultant">S. Consultant</option>
-              <option value="Manager">Manager</option>
-              <option value="Senior Manager">S. Manager</option>
-              <option value="Managing Director">MD</option>
-            </select>
-          </div>
+          <div class="settings-card-desc" data-i18n="coaching_desc">After each meeting, AI analyses your contributions and gives you concrete tips to communicate more effectively. It only evaluates what you said — if you didn't speak, no feedback is generated.</div>
         </div>
 
         <!-- Aviso en el chat de Teams -->
@@ -830,10 +817,11 @@
   border: 1.5px solid #e5e7eb !important;
   border-radius: 10px !important;
   color: #374151 !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 500 !important;
-  padding: 9px 20px !important;
+  padding: 8px 16px !important;
   cursor: pointer !important;
+  white-space: nowrap !important;
 }
 .driver-popover-prev-btn:hover {
   border-color: #9ca3af !important;
@@ -845,11 +833,11 @@
   border: none !important;
   border-radius: 10px !important;
   color: #fff !important;
-  font-size: 14px !important;
+  font-size: 13px !important;
   font-weight: 700 !important;
-  padding: 9px 22px !important;
+  padding: 8px 16px !important;
   cursor: pointer !important;
-  letter-spacing: -0.1px !important;
+  white-space: nowrap !important;
 }
 .driver-popover-next-btn:hover,
 .driver-popover-done-btn:hover { background: #7500C0 !important; }

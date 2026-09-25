@@ -203,9 +203,18 @@ def _detect_and_save_project(minutes_path: Path, projects_dir: Path):
 
     # Read meeting content
     try:
-        content = minutes_path.read_text(encoding='utf-8')[:1500]
+        raw = minutes_path.read_text(encoding='utf-8')
     except Exception:
         return
+
+    # Extract clean title from TITULO: line if present
+    meeting_title = minutes_path.stem
+    for line in raw.splitlines()[:5]:
+        if line.startswith('TITULO:'):
+            meeting_title = line.removeprefix('TITULO:').strip()
+            break
+
+    content = raw[:4000]
 
     proj_block = '\n'.join(
         f"- id: {p['id']} | name: {p['name']} | description: {p.get('description','')} | stakeholders: {', '.join(p.get('stakeholders', []))}"
@@ -215,11 +224,11 @@ def _detect_and_save_project(minutes_path: Path, projects_dir: Path):
     prompt = f"""Given these projects:
 {proj_block}
 
-Meeting title: {minutes_path.stem}
+Meeting title: {meeting_title}
 Meeting content (excerpt):
 {content}
 
-Which project does this meeting belong to? Consider the title, content, people mentioned, and topics.
+Which project does this meeting belong to? Consider the title, content, people mentioned, client names, and topics.
 Return ONLY the project id from the list above (e.g. "my-project"), or "none" if no project matches clearly.
 No explanation, just the id or "none"."""
 

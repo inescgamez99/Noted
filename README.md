@@ -1,136 +1,71 @@
 # Noted
 
-Daemon de Windows que detecta automáticamente reuniones de Teams, graba el audio, transcribe con Whisper y genera minutas estructuradas usando Claude AI. Todo accesible desde un icono en la bandeja del sistema.
+Daemon de Windows que detecta llamadas de Teams automáticamente, graba el audio (micrófono + loopback del sistema), transcribe con Whisper y genera minutas estructuradas usando Claude. Todo se consulta desde un icono en la bandeja del sistema.
 
-## Qué hace
+## Requisitos
 
-- Detecta llamadas de Teams automáticamente
-- Graba micrófono + audio del sistema (loopback)
-- Transcribe con faster-whisper (modelo local, sin coste)
-- Genera minutas con Claude: resumen, decisiones, acciones
-- Extrae y enriquece action items (asignados a personas y proyectos)
-- Exporta a HTML y a carpetas de proyecto (SharePoint, etc.)
-- Chat con Claude sobre cualquier reunión usando el transcript completo
-- Interfaz web local para ver y gestionar todas las notas
-
-## Requisitos previos
-
-Solo necesitas instalar **Git** manualmente. El resto (Python, Node.js, Claude CLI) lo instala el instalador automáticamente.
-
-**Git** — comprueba si ya lo tienes abriendo PowerShell (menú Inicio → escribe "PowerShell" → Enter) y ejecutando:
-
-```powershell
-git --version
-```
-
-Si ves un número de versión, ya lo tienes. Si no, descárgalo desde [git-scm.com/download/win](https://git-scm.com/download/win) e instálalo con las opciones por defecto.
-
-No necesitas ninguna API key. La app usa tu cuenta de claude.ai.
+- **Windows 10/11** (64-bit)
+- **Python 3.11+**
+- **[Claude Code CLI](https://docs.anthropic.com/claude-code)** instalado y autenticado (`claude --version` debe funcionar en el terminal)
+- **Clave API de Anthropic** (se obtiene en [console.anthropic.com](https://console.anthropic.com))
 
 ## Instalación
 
-### Paso 1 — Descargar el proyecto
+```bash
+# 1. Instalar dependencias Python
+pip install -r requirements.txt
 
-Abre PowerShell y pega este comando:
+# 2. Crear el archivo de configuración
+copy .env.example .env
+# Editar .env y añadir tu ANTHROPIC_API_KEY
+```
 
+Archivo `.env` mínimo:
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## Primera ejecución
+
+```bash
+python main.py
+```
+
+Aparece un icono de Noted en la bandeja del sistema. Al hacer clic se abre la interfaz web, que lanza el **tour guiado** automáticamente la primera vez. El tour pide idioma y nombre, y muestra las funcionalidades principales.
+
+> **Nota:** La primera transcripción descarga el modelo Whisper `medium` (~1,5 GB). Puede tardar unos minutos dependiendo de la conexión.
+
+## Uso básico
+
+- **Detección automática:** Noted detecta cuando entras en una llamada de Teams y muestra una ventana de confirmación (30 s) para empezar a grabar.
+- **Grabación manual:** Clic derecho en el icono de bandeja → *Iniciar grabación*.
+- **Minutas:** Cuando termina la llamada, Noted transcribe y genera las minutas automáticamente. Aparecen en la pestaña *Notas*.
+- **Acciones:** Las tareas detectadas en la reunión se extraen y muestran en la pestaña *Acciones*.
+
+## Configuración adicional (opcional)
+
+Todas las opciones se pueden ajustar desde la interfaz web (icono de ajustes):
+
+| Ajuste | Descripción |
+|--------|-------------|
+| Nombre | Se usa para identificar tu voz en el transcript |
+| Idioma | Idioma de la interfaz y por defecto de las minutas |
+| Modelo Whisper | `medium` es el equilibrio recomendado; `large-v3` es más preciso pero más lento |
+| Meeting Coach | Activa consejos de comunicación tras cada reunión |
+| Proyectos | Asocia reuniones a proyectos para archivar y buscar por contexto |
+
+Variables de entorno avanzadas en `.env`:
+```
+WHISPER_MODEL=medium        # tiny | base | small | medium | large-v3
+WHISPER_LANGUAGE=es         # omitir para detección automática
+OUTPUT_DIR=C:\ruta\salida   # carpeta de minutas y grabaciones (por defecto: carpeta del proyecto)
+```
+
+## Desarrollo
+
+Ver `CLAUDE.md` para arquitectura, comandos de desarrollo y guía de contribución.
+
+Para reiniciar el daemon durante desarrollo:
 ```powershell
-git clone https://github.com/inescgamez99/noted.git "$env:USERPROFILE\Documents\Noted"
+powershell -ExecutionPolicy Bypass -File scripts\restart_noted.ps1
 ```
-
-Esto descarga la app en tu carpeta `Documentos\Noted`. Verás unas líneas de texto mientras descarga — cuando vuelva a aparecer el cursor, ha terminado.
-
-### Paso 2 — Ejecutar el instalador
-
-Abre el Explorador de archivos (el icono de carpeta en la barra de tareas), navega a `Documentos\Noted\scripts` y haz doble clic en **`instalar.bat`**.
-
-Se abre una ventana negra que instala automáticamente Python, Node.js y Claude CLI si no los tienes. Cuando termine y veas que Claude está listo, escribe exactamente esto y pulsa Enter:
-
-```
-/noted
-```
-
-Claude hace todo lo demás solo: instala las dependencias de la app, configura el arranque automático con Windows y la arranca por primera vez. El proceso tarda entre 5 y 15 minutos dependiendo de tu conexión.
-
-Al terminar, verás un pequeño icono gris en la esquina inferior derecha de la pantalla (en la bandeja del sistema). Si no lo ves, haz clic en la flechita `^` de esa zona para ver los iconos ocultos.
-
-> A partir de este momento, la app arranca sola cada vez que enciendes el ordenador.
-
-## Uso
-
-| Acción | Cómo |
-|---|---|
-| Ver minutas | Click en el icono → "Ver minutas y acciones" |
-| Añadir contexto mientras grabas | Click derecho en el icono → "Añadir contexto a grabación" |
-| Chat sobre una reunión | Abre la reunión → "Chat con Claude" |
-| Regenerar minutas con foco | Abre la reunión → "Regenerar minutas" |
-| Exportar a carpeta de proyecto | Abre la reunión → "Exportar a proyecto" |
-
-## Recibir actualizaciones
-
-Cuando haya una nueva versión disponible, abre PowerShell, ve a la carpeta del proyecto y abre Claude:
-
-```powershell
-cd "$env:USERPROFILE\Documents\Noted"
-claude
-```
-
-Cuando Claude esté listo, escribe `/noted`. Detecta automáticamente que ya está instalado, descarga los cambios y reinicia la app sin que tengas que hacer nada más.
-
-> El watchdog se encarga de reiniciar automáticamente si el daemon se cae.
-
-## Configuración avanzada
-
-### Cambiar el modelo Whisper
-
-En la app → Ajustes → Grabación. Modelos disponibles: `tiny`, `base`, `small`, `medium` (por defecto), `large-v3`. Más grande = más preciso pero más lento.
-
-### Configurar proyectos y carpetas de exportación
-
-En la app → Ajustes → Proyectos. Puedes asociar un proyecto (ej: "MiProyecto") a una carpeta local (ej: ruta mapeada de SharePoint). Cada reunión detectada como de ese proyecto exportará automáticamente transcript, HTML y versión email a esa carpeta.
-
-### Directorio de salida personalizado
-
-En `.env`:
-
-```env
-OUTPUT_DIR=C:\ruta\donde\guardar\todo
-```
-
-## Estructura del proyecto
-
-```
-Noted/
-├── main.py                 # Entrada principal del daemon
-├── tray_app.py             # Icono bandeja + pipeline de procesamiento
-├── popup.py                # Popup de confirmación de grabación
-├── audio_recorder.py       # Grabación mic + loopback
-├── transcriber.py          # Transcripción con faster-whisper
-├── minutes_generator.py    # Generación de minutas con Claude
-├── actions_parser.py       # Extracción de action items
-├── actions_enricher.py     # Enriquecimiento con Claude (proyecto, asignado)
-├── project_exporter.py     # Exportación a carpetas de proyecto
-├── html_exporter.py        # Exportación a HTML
-├── app_window.py           # Interfaz web (pywebview + API Python)
-├── web/                    # Frontend (HTML, JS, CSS)
-├── storage.py              # Rutas y almacenamiento
-├── config.py               # Configuración global
-├── watchdog.ps1            # Script de auto-reinicio
-├── scripts/                # Instaladores y lanzadores
-│   ├── instalar.bat        # Instalador para usuarios finales
-│   ├── install_autostart.bat  # Registra el arranque con Windows
-│   └── start_watchdog.vbs  # Lanzador silencioso del watchdog
-└── requirements.txt
-```
-
-## Troubleshooting
-
-**El icono no aparece**: Busca en los iconos ocultos (^). Si no está, ejecuta `scripts\start_watchdog.vbs`.
-
-**El daemon no arranca / lock file**: Si ves errores de "already running", ejecuta en PowerShell:
-```powershell
-Remove-Item "C:\ruta\a\Noted\.lock" -Force
-```
-
-**Claude no genera minutas**: Asegúrate de que `claude` está en el PATH y has hecho `claude login`.
-
-**No detecta Teams**: Teams debe estar ejecutándose con una llamada activa. La detección tarda ~6 segundos en confirmarse.

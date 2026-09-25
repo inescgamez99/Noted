@@ -14,11 +14,21 @@ _model_name: str | None = None
 _model_lock = threading.Lock()
 
 _LANG_REMAP = {
+    # Galician/Basque — speakers write in Spanish
     'gl': 'es', 'eu': 'es',
-    'pt': 'es', 'it': 'es', 'fr': 'es', 'la': 'es',
+    # Celtic / Gaelic
     'cy': 'en', 'ga': 'en', 'gd': 'en',
-    # Malay/Indonesian are common Whisper false-positives when audio starts with silence
+    # Romance false-positives (pt/fr/de intentionally NOT here — real meeting languages)
+    'it': 'en', 'la': 'en', 'ro': 'en',
+    # Southeast Asian — common false-positive when audio starts with silence
     'ms': 'en', 'id': 'en',
+    # East Asian — very common false-positives with background noise or short audio
+    'zh': 'en', 'ja': 'en', 'ko': 'en',
+    # Other false-positives
+    'nl': 'en', 'tr': 'en', 'ar': 'en', 'hi': 'en', 'ru': 'en',
+    'pl': 'en', 'cs': 'en', 'uk': 'en',
+    # Nordic
+    'sv': 'en', 'da': 'en', 'no': 'en', 'fi': 'en',
 }
 
 # Modelos de mayor a menor. Si no hay memoria para el configurado se va bajando:
@@ -274,8 +284,8 @@ def _transcribe_with_speakers(model, audio_path: Path) -> tuple[str, str]:
     detected = _remap(getattr(mic_info, 'language', None))
     log.info(f"Idioma detectado (diarización): {detected}")
 
-    me_label = f'[{ME_NAME}]' if ME_NAME else '[Speaker 1]'
-    others_label = '[Speaker 2]'
+    me_label = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
+    others_label = '[Otros]'
     mic_segments: list[tuple[float, str, str]] = []
     for seg in mic_segs_raw:
         t = seg.text.strip()

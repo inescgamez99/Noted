@@ -681,6 +681,24 @@ class TrayApp:
         except Exception as e:
             log.warning(f"No se pudo preparar la memoria de proyecto: {e}")
 
+        # Fetch Outlook participants BEFORE generating minutes so they can be injected into the prompt
+        participants = []
+        try:
+            from outlook_sender import find_meeting_participants
+            _pm = re.match(r'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})', wav_path.stem)
+            if _pm:
+                from datetime import datetime as _dt
+                _rec_time = _dt(int(_pm.group(1)), int(_pm.group(2)), int(_pm.group(3)),
+                                int(_pm.group(4)), int(_pm.group(5)))
+                _pnm = re.match(r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_(.+)', wav_path.stem)
+                _rec_name = _pnm.group(1).replace('_', ' ') if _pnm else None
+                if _rec_name and _rec_name.strip().lower() in ('manual', 'recording'):
+                    _rec_name = None
+                participants = find_meeting_participants(_rec_time, meeting_name=_rec_name)
+                log.info(f"Participantes detectados: {len(participants)}")
+        except Exception as e:
+            log.warning(f"No se pudieron detectar participantes: {e}")
+
         # Última salida antes del paso caro: generar minutas es una llamada a
         # Claude, y no tiene sentido pagarla si la reunión ya está descartada.
         if self._is_cancelled(wav_path.stem):
@@ -689,7 +707,8 @@ class TrayApp:
         self._current_job.update({'step': 2, 'step_label': 'Generando minutas', 'step_started': time.time()})
         self.set_processing('Generando minutas...')
         raw = generate_minutes(transcript_text, wav_path, extra_context=extra_context,
-                               language=detected_language, context_dir=_ctx_dir)
+                               language=detected_language, context_dir=_ctx_dir,
+                               participants=participants)
         if not raw:
             log.error("Generación de minutas fallida")
             self._notify('Noted ⚠', s['minutes_failed'])
@@ -719,27 +738,6 @@ class TrayApp:
             log.warning(f"No se pudo copiar transcript a minutes: {e}")
 
         self._move_to_processed(wav_path, transcript_path)
-
-        rec_time = None
-        m = re.match(r'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})', wav_path.stem)
-        if m:
-            from datetime import datetime as _dt
-            rec_time = _dt(int(m.group(1)), int(m.group(2)), int(m.group(3)),
-                           int(m.group(4)), int(m.group(5)))
-
-        name_m = re.match(r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_(.+)', wav_path.stem)
-        rec_name = name_m.group(1).replace('_', ' ') if name_m else None
-        if rec_name and rec_name.strip().lower() in ('manual', 'recording'):
-            rec_name = None
-
-        participants = []
-        try:
-            from outlook_sender import find_meeting_participants
-            if rec_time:
-                participants = find_meeting_participants(rec_time, meeting_name=rec_name)
-                log.info(f"Participantes detectados: {len(participants)}")
-        except Exception as e:
-            log.warning(f"No se pudieron detectar participantes: {e}")
 
         try:
             mins_text = minutes_path.read_text(encoding='utf-8')

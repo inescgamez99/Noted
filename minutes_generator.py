@@ -161,7 +161,7 @@ def _get_system_prompt(language: str = 'auto') -> str:
     return _SYSTEM_PROMPT_BASE.format(language_instruction=instruction)
 
 
-def _build_prompt(transcript: str, recording_path: Path, extra_context: str | None = None, language: str = 'auto', me_name: str = '') -> str:
+def _build_prompt(transcript: str, recording_path: Path, extra_context: str | None = None, language: str = 'auto', me_name: str = '', participants: list | None = None) -> str:
     m = re.match(r'(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})', recording_path.stem)
     fecha = m.group(1) if m else 'desconocida'
     hora = f"{m.group(2)}:{m.group(3)}" if m else 'desconocida'
@@ -213,6 +213,47 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
                 f"En el transcript, [{me_name}] se refiere a ella. Usa su nombre real en toda la minuta."
             )
 
+    # A: inject Outlook calendar attendees into context
+    participants_note = ''
+    if participants:
+        names = [p.get('name') or p.get('email', '') for p in participants
+                 if p.get('name') or p.get('email')]
+        if names:
+            if lang == 'en':
+                participants_note = f"\nCalendar attendees: {', '.join(names)}"
+            else:
+                participants_note = f"\nAsistentes del calendario: {', '.join(names)}"
+
+    # B: diarization override — transcript has speaker labels
+    diarization_override = ''
+    if re.search(r'^\[.+?\]:', transcript, re.MULTILINE):
+        speaker_name = me_name or ('Recorder' if lang == 'en' else 'Grabador/a')
+        has_attendees = bool(participants_note)
+        if lang == 'en':
+            diarization_override = (
+                "\n## IMPORTANT OVERRIDE — Speaker labels present\n"
+                "Ignore the 'no diarization' rule in the system prompt. "
+                "This transcript HAS speaker labels:\n"
+                f"- [{speaker_name}]: the person who recorded this meeting\n"
+                "- [Otros]: all remote participants combined (may be multiple people)\n"
+                "Use these labels to attribute statements when relevant. "
+                f"List {speaker_name}"
+                + (" and the calendar attendees" if has_attendees else "")
+                + " in the Attendees section."
+            )
+        else:
+            diarization_override = (
+                "\n## OVERRIDE — Etiquetas de hablante presentes\n"
+                "Ignora la instrucción 'no hay diarización' del system prompt. "
+                "Este transcript SÍ contiene etiquetas de hablante:\n"
+                f"- [{speaker_name}]: la persona que grabó esta reunión\n"
+                "- [Otros]: el resto de participantes remotos (pueden ser varios)\n"
+                "Usa las etiquetas para atribuir intervenciones cuando sea relevante. "
+                f"Incluye a {speaker_name}"
+                + (" y a los asistentes del calendario" if has_attendees else "")
+                + " en la sección de Asistentes."
+            )
+
     if len(transcript) > _MAX_TRANSCRIPT_CHARS:
         log.warning(
             f"Transcript truncado: {len(transcript)} → {_MAX_TRANSCRIPT_CHARS} chars"
@@ -224,7 +265,7 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
 
     parts = [
         f"## Context / Contexto",
-        date_label + recorder_note,
+        date_label + recorder_note + participants_note,
         "",
         "## Transcript" if lang == 'en' else "## Transcripción",
         transcript,
@@ -236,6 +277,9 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
         "(Then a blank line, then the sections in this order:)",
     ] + [f"- {s}" for s in sections]
 
+    if diarization_override:
+        parts.append(diarization_override)
+
     if extra_context:
         parts.insert(3, f"{ctx_label}\n{extra_context}\n")
 
@@ -243,7 +287,8 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
 
 
 def _generate_via_cli(transcript: str, recording_path: Path, extra_context: str | None = None,
-                      language: str = 'auto', context_dir: str | None = None) -> str | None:
+                      language: str = 'auto', context_dir: str | None = None,
+                      participants: list | None = None) -> str | None:
     if not _CLAUDE_BIN:
         log.error("claude CLI no encontrado en PATH")
         return None
@@ -254,7 +299,8 @@ def _generate_via_cli(transcript: str, recording_path: Path, extra_context: str 
         me_name = _cfg.get('user_name', '').strip()
     except Exception:
         me_name = ''
-    user_prompt = _build_prompt(transcript, recording_path, extra_context, language, me_name=me_name)
+    user_prompt = _build_prompt(transcript, recording_path, extra_context, language, me_name=me_name,
+                                participants=participants)
     system_prompt = _get_system_prompt(language).replace('```', '~~~')
 
     cmd = [_CLAUDE_BIN, '-p']
@@ -422,16 +468,19 @@ def generate_minutes(
     on_complete=None,
     language: str = 'auto',
     context_dir: str | None = None,
+    participants: list | None = None,
 ) -> str | None:
     """
     Si on_complete es callable, ejecuta en thread daemon y devuelve None.
     Si no, bloquea y devuelve el texto de las minutas.
     context_dir: carpeta del proyecto para acceso agéntico (memoria + documentos).
+    participants: lista de asistentes del calendario (Outlook) para inyectar en el prompt.
     """
     def _run():
         log.info(f"Generando minutas con claude CLI (idioma: {language}"
                  f"{', con contexto de proyecto' if context_dir else ''})...")
-        result = _generate_via_cli(transcript, recording_path, extra_context, language, context_dir)
+        result = _generate_via_cli(transcript, recording_path, extra_context, language, context_dir,
+                                   participants=participants)
         if on_complete:
             on_complete(result)
         return result

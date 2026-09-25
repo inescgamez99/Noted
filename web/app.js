@@ -162,10 +162,9 @@ const T = {
     proj_name_ph: 'Nombre del proyecto', proj_desc_ph: 'Descripción corta', proj_stake_ph: 'emails separados por coma',
     save_btn: 'Guardar',
     recording_title: 'Grabación y Transcripción',
-    coaching_label: 'Career Level Snapshot',
-    coaching_desc: 'Tras cada reunión, la IA analiza tu actuación y te da una idea aproximada de en qué nivel consultor estás actuando. Varía de llamada en llamada — es una instantánea, no una evaluación real de tu nivel ni de tu rendimiento.',
-    coaching_enabled_label: 'Activar Career Snapshot',
-    coaching_role_label: 'Rol:', coaching_role_auto: 'Auto-detectar',
+    coaching_label: 'Coach de reuniones',
+    coaching_desc: 'Tras cada reunión, la IA analiza tu intervención y te da consejos concretos para comunicarte mejor. Solo evalúa lo que tú dijiste — si no hablaste, no genera feedback.',
+    coaching_enabled_label: 'Activar Coach de reuniones',
     chat_notice_label: 'Mensaje de aviso en el chat de Teams',
     chat_notice_enabled_label: 'Enviar aviso al iniciar la grabación',
     chat_notice_desc: 'Personaliza el mensaje que se envía al chat de la reunión cuando empieza la grabación.',
@@ -301,7 +300,7 @@ const T = {
     tour_s22_title: 'Tu nombre', tour_s22_desc: 'Ponle tu nombre para que Noted sepa qué acciones son tuyas cuando filtras por asignado.',
     tour_s23_title: 'Idioma y tema', tour_s23_desc: 'Elige el idioma de la interfaz y el tema claro u oscuro. Se aplica al instante.',
     tour_s24_title: 'Modelo de transcripción', tour_s24_desc: 'Controla la precisión de la transcripción. Medium es el equilibrio recomendado entre velocidad y calidad.',
-    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'Después de cada llamada, la IA analiza tu intervención y te da un snapshot del nivel de consulting al que estás operando.',
+    tour_s25_title: '🎯 Coach de reuniones', tour_s25_desc: 'Activa el Coach de reuniones para recibir consejos concretos de comunicación después de cada llamada. Solo analiza lo que tú dijiste.',
     tour_s26_title: 'Aviso al chat de Teams', tour_s26_desc: 'Configura el mensaje que Noted envía automáticamente al chat de Teams cuando empieza a grabar, para avisar a los participantes.',
     tour_s27_title: '🎉 ¡Ya lo sabes todo!', tour_s27_desc: 'Listo. Entra en tu próxima reunión de Teams y Noted hará el resto. El popup aparece en cuanto detecte la llamada — tienes 30 segundos para aceptar.',
   },
@@ -417,10 +416,9 @@ const T = {
     proj_name_ph: 'Project name', proj_desc_ph: 'Short description', proj_stake_ph: 'comma-separated emails',
     save_btn: 'Save',
     recording_title: 'Recording & Transcription',
-    coaching_label: 'Career Level Snapshot',
-    coaching_desc: 'After each call, AI analyses your performance and gives you a rough idea of the consulting level you\'re operating at. This varies from meeting to meeting — it\'s a snapshot, not an actual evaluation of your level or performance.',
-    coaching_enabled_label: 'Enable Career Snapshot',
-    coaching_role_label: 'Role:', coaching_role_auto: 'Auto-detect',
+    coaching_label: 'Meeting Coach',
+    coaching_desc: 'After each meeting, AI analyses your contributions and gives you concrete tips to communicate more effectively. It only evaluates what you said — if you didn\'t speak, no feedback is generated.',
+    coaching_enabled_label: 'Enable Meeting Coach',
     chat_notice_label: 'Teams chat recording notice',
     chat_notice_enabled_label: 'Send notice when recording starts',
     chat_notice_desc: 'Customize the message sent to the meeting chat when recording starts.',
@@ -556,7 +554,7 @@ const T = {
     tour_s22_title: 'Your name', tour_s22_desc: 'Add your name so Noted knows which actions are yours when you filter by assignee.',
     tour_s23_title: 'Language and theme', tour_s23_desc: 'Choose the interface language and light or dark theme. Applied instantly.',
     tour_s24_title: 'Transcription model', tour_s24_desc: 'Controls transcription accuracy. Medium is the recommended balance between speed and quality.',
-    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'After each call, the AI analyses your intervention and gives you a snapshot of the consulting level you\'re operating at.',
+    tour_s25_title: '🎯 Meeting Coach', tour_s25_desc: 'Enable Meeting Coach to receive concrete communication tips after each call. It only analyses what you said.',
     tour_s26_title: 'Teams chat notice', tour_s26_desc: 'Configure the message Noted automatically sends to the Teams chat when it starts recording, to notify participants.',
     tour_s27_title: '🎉 You\'re all set!', tour_s27_desc: 'Ready. Join your next Teams meeting and Noted will do the rest. The popup appears as soon as it detects the call — you have 30 seconds to accept.',
   },
@@ -671,10 +669,9 @@ const T = {
     proj_name_ph: 'Nom del projecte', proj_desc_ph: 'Descripció curta', proj_stake_ph: 'correus separats per comes',
     save_btn: 'Desar',
     recording_title: 'Gravació i Transcripció',
-    coaching_label: 'Career Level Snapshot',
-    coaching_desc: 'Després de cada trucada, la IA analitza la teva actuació i et dóna una idea aproximada del nivell consultor en què estàs actuant. Varia de reunió en reunió — és una instantània, no una avaluació real del teu nivell ni del teu rendiment.',
-    coaching_enabled_label: 'Activar Career Snapshot',
-    coaching_role_label: 'Rol:', coaching_role_auto: 'Auto-detectar',
+    coaching_label: 'Coach de reunions',
+    coaching_desc: 'Després de cada reunió, la IA analitza la teva intervenció i et dóna consells concrets per comunicar-te millor. Només avalua el que tu vas dir — si no vas parlar, no genera feedback.',
+    coaching_enabled_label: 'Activar Coach de reunions',
     chat_notice_label: 'Missatge d\'avís al xat de Teams',
     chat_notice_enabled_label: 'Enviar avís en iniciar la gravació',
     chat_notice_desc: 'Personalitza el missatge que s\'envia al xat de la reunió quan comença la gravació.',
@@ -805,7 +802,7 @@ const T = {
     tour_s22_title: 'El teu nom', tour_s22_desc: 'Posa el teu nom perquè Noted sàpiga quines accions són les teves quan filtres per assignat.',
     tour_s23_title: 'Idioma i tema', tour_s23_desc: 'Tria l\'idioma de la interfície i el tema clar o fosc. S\'aplica a l\'instant.',
     tour_s24_title: 'Model de transcripció', tour_s24_desc: 'Controla la precisió de la transcripció. Medium és l\'equilibri recomanat entre velocitat i qualitat.',
-    tour_s25_title: 'Career Level Snapshot', tour_s25_desc: 'Després de cada trucada, la IA analitza la teva intervenció i et dona un snapshot del nivell de consulting al qual estàs operant.',
+    tour_s25_title: '🎯 Coach de reunions', tour_s25_desc: 'Activa el Coach de reunions per rebre consells concrets de comunicació després de cada trucada. Només analitza el que tu vas dir.',
     tour_s26_title: 'Avís al xat de Teams', tour_s26_desc: 'Configura el missatge que Noted envia automàticament al xat de Teams quan comença a gravar, per avisar els participants.',
     tour_s27_title: '🎉 Ja ho saps tot!', tour_s27_desc: 'Llest. Entra a la teva propera reunió de Teams i Noted farà la resta. El popup apareix quan detecta la trucada — tens 30 segons per acceptar.',
   },
@@ -818,6 +815,7 @@ function t(key, ...args) {
 
 function applyLang(lang) {
   currentLang = lang;
+  window.__lang = lang;
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const v = t(el.dataset.i18n);
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') el.placeholder = v;
@@ -1338,6 +1336,10 @@ function _updateActionBar(tab) {
   show('btn-more', tab === 'notes');
 
   show('btn-claude', tab !== 'transcript');
+
+  // Stickies only visible on notes tab
+  const stickyLayer = document.getElementById('sticky-layer');
+  if (stickyLayer) stickyLayer.style.display = tab === 'notes' ? '' : 'none';
 }
 
 async function openMeeting(path) {
@@ -3440,10 +3442,6 @@ async function saveCoachingEnabled(enabled) {
   showToast(t('settings_saved'));
 }
 
-async function saveCoachingLevel(level) {
-  await pywebview.api.save_settings({ coaching_level: level });
-  showToast(t('settings_saved'));
-}
 
 async function saveChatNoticeEnabled(enabled) {
   const ta = document.getElementById('chat-notice-input');
@@ -4422,11 +4420,9 @@ async function initSettings() {
   });
 
   const coachingCb = document.getElementById('coaching-enabled');
-  const coachingLevelSel = document.getElementById('coaching-level');
-  if (coachingCb || coachingLevelSel) {
+  if (coachingCb) {
     pywebview.api.get_settings().then(s => {
-      if (coachingCb) coachingCb.checked = s.coaching_enabled === true;
-      if (coachingLevelSel) coachingLevelSel.value = s.coaching_level || 'auto';
+      coachingCb.checked = s.coaching_enabled === true;
     });
   }
 

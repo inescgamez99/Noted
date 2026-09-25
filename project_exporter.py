@@ -77,7 +77,9 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
     save_email      = project.get('export_save_email', True)
     save_pdf        = project.get('export_save_pdf', False)
 
-    slug = minutes_path.stem
+    from config import ME_NAME
+    _prefix = re.sub(r'[^\w]', '', ME_NAME) + '_' if ME_NAME else ''
+    slug = _prefix + minutes_path.stem
 
     # 1 – Transcript
     if save_transcript:
