@@ -91,10 +91,10 @@ function injectDemoMeeting() {
           </ul>
           <h2>Acciones</h2>
           <ul>
-            <li>📌 <strong>Dani</strong> — Ponerse al día sobre el estado del proyecto</li>
-            <li>📌 <strong>Sara</strong> — Organizar con el LS Hub team la siguiente reunión de HBA</li>
-            <li>📌 <strong>Guille</strong> — Preparar demo del caso Pfizer para el equipo</li>
-            <li>📌 <strong>Ricardo</strong> — Agendar sesión para explorar add-ons para Noted</li>
+            <li>📌 <strong>Ines</strong> — Distribuir Noted al resto del equipo antes del viernes</li>
+            <li>📌 <strong>Felipe</strong> — Revisar y cerrar los PRs pendientes esta semana</li>
+            <li>📌 <strong>Ana y Maria</strong> — Preparar demo de nuevas funcionalidades para el cliente</li>
+            <li>📌 <strong>Todo el equipo</strong> — Completar la formación de onboarding antes del 30 de septiembre</li>
           </ul>
         </div>
       </div>
@@ -108,8 +108,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-0">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Ponerse al día con Dani sobre el estado del proyecto</span>
-                <div class="action-meta"><span class="action-assignee">Dani</span></div>
+                <span class="action-title">Distribuir Noted al resto del equipo</span>
+                <div class="action-meta"><span class="action-assignee">Ines</span> · <span style="font-size:11px;color:var(--muted)">viernes</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm" id="tour-move-panel-btn">Mover al panel</button>
@@ -120,8 +120,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-1">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Organizar con Sara y el LS Hub team la siguiente reunión de HBA</span>
-                <div class="action-meta"><span class="action-assignee">Sara</span></div>
+                <span class="action-title">Revisar y cerrar los PRs pendientes</span>
+                <div class="action-meta"><span class="action-assignee">Felipe</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -132,8 +132,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-2">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Pedir a Guille que prepare una demo del caso Pfizer para el equipo</span>
-                <div class="action-meta"><span class="action-assignee">Guille</span></div>
+                <span class="action-title">Preparar demo de nuevas funcionalidades para el cliente</span>
+                <div class="action-meta"><span class="action-assignee">Ana</span> · <span class="action-assignee">Maria</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -144,8 +144,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-3">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Agendar sesión con Ricardo para explorar sus ideas de add-ons para Noted</span>
-                <div class="action-meta"><span class="action-assignee">Ricardo</span></div>
+                <span class="action-title">Completar la formación de onboarding</span>
+                <div class="action-meta"><span class="action-assignee">Todo el equipo</span> · <span style="font-size:11px;color:var(--muted)">30 sep</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -302,7 +302,7 @@ function buildSteps() {
       popover: { title: T('tour_s16_title'), description: T('tour_s16_desc'), side: 'right' },
       onHighlightStarted: () => {
         if (typeof showView === 'function') showView('actions');
-        injectDemoTasks();
+        setTimeout(injectDemoTasks, 200);
       },
     },
     // 17 — Kanban/Rows
@@ -326,7 +326,7 @@ function buildSteps() {
       popover: { title: T('tour_s20_title'), description: T('tour_s20_desc'), side: 'right' },
       onHighlightStarted: () => {
         if (typeof showView === 'function') showView('projects');
-        injectDemoProjects();
+        setTimeout(injectDemoProjects, 200);
       },
     },
     // 21 — Nav Trash
