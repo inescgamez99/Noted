@@ -5446,6 +5446,18 @@ async function _loadStickies(path) {
   try { _stickies = (await pywebview.api.get_stickies(path)) || []; }
   catch (_) { _stickies = []; }
   layer.innerHTML = _stickies.map(_stickyHtml).join('');
+  // Snap coaching stickies (un-dragged) to just below the action buttons at render time.
+  const bar = document.querySelector('.detail-actions-bar');
+  if (bar) {
+    const md = document.querySelector('.meeting-detail');
+    const barBottom = bar.getBoundingClientRect().bottom - (md ? md.getBoundingClientRect().top : 0);
+    layer.querySelectorAll('.sticky-note').forEach(node => {
+      const s = _stickies.find(x => x.id === node.dataset.sid);
+      if (s && s.anchor === 'right' && String(s.id).startsWith('coaching_')) {
+        node.style.top = (barBottom + 4) + 'px';
+      }
+    });
+  }
   _wireStickies();
 }
 
