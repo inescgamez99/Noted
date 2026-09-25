@@ -91,10 +91,10 @@ function injectDemoMeeting() {
           </ul>
           <h2>Acciones</h2>
           <ul>
-            <li>📌 <strong>Ines</strong> — Distribuir Noted al resto del equipo antes del viernes</li>
-            <li>📌 <strong>Felipe</strong> — Revisar y cerrar los PRs pendientes esta semana</li>
-            <li>📌 <strong>Ana y Maria</strong> — Preparar demo de nuevas funcionalidades para el cliente</li>
-            <li>📌 <strong>Todo el equipo</strong> — Completar la formación de onboarding antes del 30 de septiembre</li>
+            <li>📌 <strong>Dani</strong> — Ponerse al día sobre el estado del proyecto</li>
+            <li>📌 <strong>Sara</strong> — Organizar con el LS Hub team la siguiente reunión de HBA</li>
+            <li>📌 <strong>Guille</strong> — Preparar demo del caso Pfizer para el equipo</li>
+            <li>📌 <strong>Ricardo</strong> — Agendar sesión para explorar add-ons para Noted</li>
           </ul>
         </div>
       </div>
@@ -108,8 +108,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-0">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Distribuir Noted al resto del equipo</span>
-                <div class="action-meta"><span class="action-assignee">Ines</span> · <span style="font-size:11px;color:var(--muted)">viernes</span></div>
+                <span class="action-title">Ponerse al día con Dani sobre el estado del proyecto</span>
+                <div class="action-meta"><span class="action-assignee">Dani</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm" id="tour-move-panel-btn">Mover al panel</button>
@@ -120,8 +120,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-1">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Revisar y cerrar los PRs pendientes</span>
-                <div class="action-meta"><span class="action-assignee">Felipe</span></div>
+                <span class="action-title">Organizar con Sara y el LS Hub team la siguiente reunión de HBA</span>
+                <div class="action-meta"><span class="action-assignee">Sara</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -132,8 +132,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-2">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Preparar demo para el cliente</span>
-                <div class="action-meta"><span class="action-assignee">Ana</span> · <span class="action-assignee">Maria</span></div>
+                <span class="action-title">Pedir a Guille que prepare una demo del caso Pfizer para el equipo</span>
+                <div class="action-meta"><span class="action-assignee">Guille</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -144,8 +144,8 @@ function injectDemoMeeting() {
           <div class="action-card" id="card-3">
             <div class="action-card-row">
               <div class="action-card-main">
-                <span class="action-title">Completar la formación de onboarding</span>
-                <div class="action-meta"><span class="action-assignee">Todo el equipo</span> · <span style="font-size:11px;color:var(--muted)">30 sep</span></div>
+                <span class="action-title">Agendar sesión con Ricardo para explorar sus ideas de add-ons para Noted</span>
+                <div class="action-meta"><span class="action-assignee">Ricardo</span></div>
               </div>
               <div class="action-card-btns">
                 <button class="btn btn-ghost btn-sm">Mover al panel</button>
@@ -173,30 +173,45 @@ function injectDemoMeeting() {
   });
 }
 
+function _taskRow(id, title, person, date) {
+  const badge = `<span style="font-size:11px;background:rgba(161,0,255,0.08);color:var(--accent,#A100FF);border-radius:4px;padding:2px 7px;white-space:nowrap">${person}</span>`;
+  const dateBadge = date ? `<span style="font-size:11px;color:var(--muted);white-space:nowrap">${date}</span>` : '';
+  return `
+    <div class="task-item" id="${id}" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer">
+      <span style="font-size:13px;font-weight:500;min-width:0;flex:1">${title}</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">${badge}${dateBadge}</div>
+    </div>`;
+}
+
 function injectDemoTasks() {
   const body = document.getElementById('task-board-body');
   if (!body) return;
   body.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:8px;padding:12px">
       <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:4px 0">En curso</div>
-      <div class="task-item" id="tour-task-1" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-        <span style="font-size:13px;font-weight:500">Distribuir Noted al equipo</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:11px;background:var(--accent-soft,#eff6ff);color:var(--accent,#3b82f6);border-radius:4px;padding:2px 7px">Ines</span>
-          <span style="font-size:11px;color:var(--muted)">Viernes</span>
-        </div>
-      </div>
-      <div class="task-item" id="tour-task-2" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-        <span style="font-size:13px;font-weight:500">Revisar y cerrar PRs pendientes</span>
-        <span style="font-size:11px;background:var(--accent-soft,#eff6ff);color:var(--accent,#3b82f6);border-radius:4px;padding:2px 7px">Felipe</span>
-      </div>
+      ${_taskRow('tour-task-1', 'Ponerse al día con Dani sobre el estado del proyecto', 'Dani')}
+      ${_taskRow('tour-task-2', 'Organizar con Sara y el LS Hub team la siguiente reunión de HBA', 'Sara')}
+      ${_taskRow('tour-task-3', 'Agendar sesión con Ricardo para explorar sus ideas de add-ons para Noted', 'Ricardo')}
       <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:12px 0 4px">Pendiente</div>
-      <div class="task-item" id="tour-task-3" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer">
-        <span style="font-size:13px;font-weight:500">Preparar demo para cliente</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:11px;background:var(--accent-soft,#eff6ff);color:var(--accent,#3b82f6);border-radius:4px;padding:2px 7px">Ana</span>
-          <span style="font-size:11px;color:var(--muted)">30 Sep</span>
+      ${_taskRow('tour-task-4', 'Preguntar a Jaime por opciones de restaurante para la cena del equipo del jueves', 'Jaime', 'Jueves')}
+      ${_taskRow('tour-task-5', 'Alinear con Marta Bailador y Elsa la disponibilidad del equipo para Q4', 'Marta B.')}
+      ${_taskRow('tour-task-6', 'Pedir a Guille que prepare una demo del caso Pfizer para el equipo', 'Guille')}
+      ${_taskRow('tour-task-7', 'Hablar con Feli para incluir Noted en el repositorio compartido del equipo', 'Feli')}
+      ${_taskRow('tour-task-8', 'Robarle la bolsa de Trader Joe\'s a Miguel antes de que se la lleve a casa', 'Miguel')}
+    </div>`;
+}
+
+function injectDemoProjects() {
+  const list = document.getElementById('projects-list-settings');
+  if (!list) return;
+  list.innerHTML = `
+    <div class="project-settings-item" style="border-left-color:#A100FF">
+      <div class="project-settings-row" style="cursor:default;pointer-events:none">
+        <div style="min-width:0;flex:1">
+          <div class="project-settings-name">Data &amp; AI Team</div>
+          <div class="project-settings-desc">Iniciativas internas del equipo: herramientas de productividad, demos con clientes y formación en IA.</div>
         </div>
+        <span class="project-chevron">▸</span>
       </div>
     </div>`;
 }
@@ -309,7 +324,10 @@ function buildSteps() {
     {
       element: '#btn-projects',
       popover: { title: T('tour_s20_title'), description: T('tour_s20_desc'), side: 'right' },
-      onHighlightStarted: () => { if (typeof showView === 'function') showView('projects'); },
+      onHighlightStarted: () => {
+        if (typeof showView === 'function') showView('projects');
+        injectDemoProjects();
+      },
     },
     // 21 — Nav Trash
     {
