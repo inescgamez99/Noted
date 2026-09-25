@@ -43,17 +43,28 @@ def _prune(d: dict) -> None:
 
 
 def skill_dir() -> Path | None:
-    """Localiza la skill INSTALADA ontoforge-meetings. No está embebida en la app:
-    vive como skill de Claude Code en ~/.claude/skills/ontoforge-meetings."""
-    candidate = Path.home() / '.claude' / 'skills' / 'ontoforge-meetings'
-    return candidate if (candidate / 'SKILL.md').exists() else None
+    """Localiza la skill knowledge-capture.
+    Primero busca la versión bundled en el repo (exporters/semantic_layer/knowledge-capture/),
+    luego en ~/.claude/skills/ como fallback."""
+    bundled = Path(__file__).parent / 'knowledge-capture'
+    if (bundled / 'SKILL.md').exists():
+        return bundled
+    base = Path.home() / '.claude' / 'skills'
+    for name in ('knowledge-capture', 'knowledgecapture', 'knowledge_capture'):
+        candidate = base / name
+        if (candidate / 'SKILL.md').exists():
+            return candidate
+    return None
 
 
 def read_config(sdir: Path) -> dict:
-    """Lee config.txt de la skill (scripts_path, data_path)."""
+    """Lee config.txt (scripts_path, data_path).
+    Siempre busca primero en ~/.claude/skills/knowledge-capture/config.txt — esos
+    paths son del usuario y no se commitean al repo aunque el SKILL.md sí."""
     cfg = {'scripts_path': '', 'data_path': ''}
+    user_cfg = Path.home() / '.claude' / 'skills' / 'knowledge-capture' / 'config.txt'
+    cfg_file = user_cfg if user_cfg.exists() else sdir / 'config.txt'
     try:
-        cfg_file = sdir / 'config.txt'
         if cfg_file.exists():
             for line in cfg_file.read_text(encoding='utf-8').splitlines():
                 line = line.strip()
@@ -63,7 +74,7 @@ def read_config(sdir: Path) -> dict:
                 if k.strip() in cfg:
                     cfg[k.strip()] = v.strip()
     except Exception as e:
-        log.warning(f"ontoforge config.txt: {e}")
+        log.warning(f"knowledge-capture config.txt: {e}")
     return cfg
 
 
@@ -180,24 +191,23 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
                     f"primary sources and fold any previous ontology into the CSV: {context_dir}")
 
             today = datetime.now().strftime('%Y-%m-%d')
+            skill_instructions = (sdir / 'SKILL.md').read_text(encoding='utf-8')
             prompt = (
-                "Use the installed **ontoforge-meetings** skill to process this meeting and "
-                "produce its OntoForge ontology input (the combined entity/relationship CSV).\n\n"
+                f"{skill_instructions}\n\n"
+                "---\n\n"
+                "Follow the skill instructions above to process this meeting. "
+                "The transcript already exists on disk — do NOT re-record or re-transcribe.\n\n"
                 f"Meeting: {stem}\n"
                 f"Date: {today}\n\n"
-                "Inputs for this capture (already on disk — do NOT re-record; a cleaned "
-                "transcript already exists, so you do not need to transcribe again unless you "
-                "also want to mine the audio):\n"
+                "Inputs already on disk:\n"
                 + "\n".join(inputs_lines) + "\n\n"
-                "Follow the skill exactly: create the meeting folder under the skill's data_path, "
-                "copy these inputs into its `inputs/` subfolder, consolidate ALL of them "
-                "(transcript plus any project documents and previous ontology) into ONE "
-                "deduplicated CSV, and save the readable record. When finished, print the final "
-                "skill report including the exact absolute path of the generated "
-                "`*_ontology_input.csv`."
+                "Create the meeting folder under data_path, copy the inputs into its `inputs/` "
+                "subfolder, consolidate ALL of them into ONE deduplicated CSV, and save the "
+                "readable record. When finished, print the final report including the exact "
+                "absolute path of the generated `*_ontology_input.csv`."
             )
 
-            add_dirs = {str(sdir)}
+            add_dirs = set()
             for p in (transcript_file, audio_file, *extra_files):
                 if p:
                     add_dirs.add(str(p.parent))
@@ -208,7 +218,7 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
             if scripts_path:
                 add_dirs.add(scripts_path)
 
-            cmd = [CLAUDE_BIN, '-p', '--allowedTools', 'Skill,Read,Write,Edit,Bash,Glob,Grep']
+            cmd = [CLAUDE_BIN, '-p', '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep']
             for d in add_dirs:
                 cmd += ['--add-dir', d]
 
@@ -218,7 +228,7 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
             proc = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding='utf-8', cwd=str(sdir), env=env,
+                text=True, encoding='utf-8', cwd=str(Path(data_path) if data_path else sdir.parent), env=env,
                 creationflags=0x08000000 if os.name == 'nt' else 0,
             )
             try:

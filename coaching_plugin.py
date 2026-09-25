@@ -202,7 +202,7 @@ def grade_and_inject(transcript_text: str, minutes_path: Path) -> None:
                 f'<span style="color:#92400e;font-size:12px;">{_no_speech_msg}</span>'
             ),
             'x': 8,
-            'y': 8,
+            'y': 56,
             'anchor': 'right',
             'minimized': True,
         }
@@ -213,7 +213,7 @@ def grade_and_inject(transcript_text: str, minutes_path: Path) -> None:
             'text': _format_sticky_text(result),
             'html': _format_sticky_html(result),
             'x': 8,
-            'y': 8,
+            'y': 56,
             'anchor': 'right',
             'minimized': True,
         }
