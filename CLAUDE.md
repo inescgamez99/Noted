@@ -43,9 +43,8 @@ scripts\install_autostart.bat   # registers Task Scheduler entry
 
 ## Configuration
 
-`.env` file in project root:
+`.env` file in project root (all optional):
 ```
-ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...          # optional, Whisper fallback only
 WHISPER_MODEL=medium           # tiny|base|small|medium|large
 WHISPER_LANGUAGE=es            # omit for auto-detect

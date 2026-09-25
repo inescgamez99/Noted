@@ -7,22 +7,11 @@ Daemon de Windows que detecta llamadas de Teams automáticamente, graba el audio
 - **Windows 10/11** (64-bit)
 - **Python 3.11+**
 - **[Claude Code CLI](https://docs.anthropic.com/claude-code)** instalado y autenticado (`claude --version` debe funcionar en el terminal)
-- **Clave API de Anthropic** (se obtiene en [console.anthropic.com](https://console.anthropic.com))
 
 ## Instalación
 
 ```bash
-# 1. Instalar dependencias Python
 pip install -r requirements.txt
-
-# 2. Crear el archivo de configuración
-copy .env.example .env
-# Editar .env y añadir tu ANTHROPIC_API_KEY
-```
-
-Archivo `.env` mínimo:
-```
-ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Primera ejecución
