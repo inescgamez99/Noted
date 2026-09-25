@@ -325,6 +325,7 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 
 /* Transcript tab */
 .transcript-section { padding: 24px 32px 32px; }
+.semantic-section { padding: 24px 32px 32px; }
 .transcript-content { font-size: 13px; line-height: 1.8; color: var(--subtext); white-space: pre-wrap; font-family: 'Graphik', 'Segoe UI', monospace; }
 .actions-count { font-size: 13px; color: var(--subtext); }
 

@@ -1384,39 +1384,35 @@ function dayLabel(dateStr) {
 
 function _updateActionBar(tab) {
   const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
+  const isSem = tab === 'semantic';
 
-  // Edit: only on notes tab (transcript = read-only, actions = per-card edit)
-  const editBtn = document.getElementById('btn-edit-notes');
-  if (editBtn) {
-    editBtn.style.display = tab === 'notes' ? '' : 'none';
-    editBtn.title = t('btn_edit');
-  }
+  // Standard buttons — all hidden on semantic tab
+  show('btn-claude',            !isSem && tab !== 'transcript');
+  show('btn-edit-notes',        !isSem && tab === 'notes');
+  show('btn-copy',              !isSem);
+  show('btn-email',             !isSem);
+  show('btn-export-transcript', !isSem && tab === 'transcript');
+  show('btn-semantic-bar',      !isSem && tab === 'transcript');
+  show('btn-sticky-bar',        !isSem && tab === 'actions');
+  show('btn-sticky',            !isSem && tab === 'notes');
+  show('btn-regenerate',        !isSem && tab !== 'transcript');
+  show('btn-html',              !isSem && tab === 'notes');
+  show('btn-pdf',               !isSem && tab === 'notes');
+  show('btn-more',              !isSem && tab === 'notes');
+  show('btn-semantic',          !isSem && tab === 'notes');
 
-  // Copy + Email: always visible, titles change
+  // Copy + Email: titles change by tab
   const copyBtn = document.getElementById('btn-copy');
   const mailBtn = document.getElementById('btn-email');
   if (copyBtn) copyBtn.title = tab === 'actions' ? t('copy_actions') : tab === 'transcript' ? t('copy_transcript') : t('copy_note');
   if (mailBtn) mailBtn.title = tab === 'actions' ? t('email_actions') : tab === 'transcript' ? t('email_transcript') : t('send_email');
 
-  // Export transcript + Semantic Layer: visible in main bar only on transcript tab
-  show('btn-export-transcript', tab === 'transcript');
-  show('btn-semantic-bar',      tab === 'transcript');
+  // Semantic-specific action buttons
+  show('btn-sem-folder',    isSem);
+  show('btn-sem-regen',     isSem);
+  show('btn-sem-ontoforge', isSem);
 
-  // Sticky: in dropdown (notes), in main bar (actions), hidden (transcript)
-  show('btn-sticky',     tab === 'notes');      // dropdown item
-  show('btn-sticky-bar', tab === 'actions');    // direct bar button
-
-  // Dropdown items (notes only)
-  show('btn-regenerate', tab !== 'transcript');
-  show('btn-html',       tab === 'notes');
-  show('btn-pdf',        tab === 'notes');
-
-  // ··· only on notes (has sticky + regenerate + html); actions and transcript have nothing there
-  show('btn-more', tab === 'notes');
-
-  show('btn-claude', tab !== 'transcript');
-
-  // Stickies only visible on notes tab
+  // Stickies layer only visible on notes tab
   const stickyLayer = document.getElementById('sticky-layer');
   if (stickyLayer) stickyLayer.style.display = tab === 'notes' ? '' : 'none';
 }
@@ -1441,6 +1437,7 @@ async function openMeeting(path) {
     pywebview.api.get_semantic_info(path).catch(() => ({})),
   ]);
   const hasSemantic = !!(semanticInfo && semanticInfo.generated_at);
+  _currentSemanticInfo = semanticInfo || {};
 
   const meeting = allMeetings.find(m => m.path === path) || {};
   const pendingCount = actions ? actions.filter(a => !a.executed).length : 0;
@@ -1477,6 +1474,9 @@ async function openMeeting(path) {
           <button class="action-icon-btn" id="btn-semantic-bar" title="${t('semantic_layer')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
           <button class="action-icon-btn" id="btn-sticky-bar" title="${t('sticky_add')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9l7-7V5a2 2 0 0 0-2-2z"/><path d="M14 21v-6a1 1 0 0 1 1-1h6"/></svg></button>
           <button class="action-icon-btn" id="btn-regenerate" title="${t('btn_regenerate')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74"/><path d="M3 3v4h4"/></svg></button>
+          <button class="action-icon-btn" id="btn-sem-folder" title="${t('semantic_open_inputs')}" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg></button>
+          <button class="action-icon-btn" id="btn-sem-regen" title="${t('semantic_tab_regen')}" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74"/><path d="M3 3v4h4"/></svg></button>
+          <button class="action-icon-btn action-icon-btn--accent" id="btn-sem-ontoforge" title="${t('semantic_open_ontoforge')}" style="display:none"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button>
           <div class="action-more-wrap">
             <button class="action-icon-btn" id="btn-more" title="${t('more_actions')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
             <div class="action-menu hidden" id="action-menu">
@@ -1539,6 +1539,16 @@ async function openMeeting(path) {
   };
   document.getElementById('btn-semantic').addEventListener('click', _semanticEntry);
   document.getElementById('btn-semantic-bar')?.addEventListener('click', _semanticEntry);
+  document.getElementById('btn-sem-folder')?.addEventListener('click', () => {
+    const p = _currentSemanticInfo.inputs_dir || _currentSemanticInfo.csv_local;
+    if (p) pywebview.api.reveal_file(p);
+  });
+  document.getElementById('btn-sem-regen')?.addEventListener('click', () => {
+    const m = allMeetings.find(x => x.path === currentPath);
+    openSemanticDialog(currentPath, (m && m.title) || '');
+  });
+  document.getElementById('btn-sem-ontoforge')?.addEventListener('click', () =>
+    pywebview.api.open_url('https://knowledge-staging.accenture.com/ontoforge/ontology'));
   document.getElementById('btn-export-transcript').addEventListener('click', () => exportTranscript(path));
   document.getElementById('btn-claude').addEventListener('click', () => openMinutesInClaude(path));
   document.getElementById('btn-regenerate').addEventListener('click', () => toggleRegenBar());
@@ -4356,6 +4366,8 @@ async function runSemanticLayer(path, title, extraDocs) {
   }, 3000);
 }
 
+let _currentSemanticInfo = {};
+
 async function renderSemanticTab(path) {
   const sec = document.getElementById('section-semantic');
   if (!sec || sec.dataset.path !== path) return;
@@ -4364,10 +4376,12 @@ async function renderSemanticTab(path) {
   let info = {};
   try { info = (await pywebview.api.get_semantic_info(path)) || {}; } catch (_) {}
 
+  _currentSemanticInfo = info;
+
   // Aún no generado → estado vacío + botón generar
   if (!info || !info.generated_at) {
     sec.innerHTML = `
-      <div style="text-align:center;padding:44px 20px;color:var(--muted)">
+      <div style="text-align:center;padding:60px 32px;color:var(--muted)">
         <div style="font-size:13px;margin-bottom:16px;line-height:1.5">${t('semantic_tab_empty')}</div>
         <button class="btn btn-primary btn-sm" id="btn-semantic-generate">${t('semantic_tab_generate')}</button>
       </div>`;
@@ -4382,10 +4396,10 @@ async function renderSemanticTab(path) {
     if (!fpath) return '';
     const name = fpath.split(/[\\/]/).pop();
     return `
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:var(--surface)">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(name)}${badge ? `<span style="font-size:10px;background:#8b5cf6;color:#fff;padding:1px 7px;border-radius:10px;flex:none">${escHtml(badge)}</span>` : ''}</div>
-          <div style="font-size:11px;color:var(--muted)">${escHtml(label)}${exists ? '' : ' — ' + (L ? 'file missing' : 'no encontrado')}</div>
+          <div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(name)}${badge ? `<span style="font-size:10px;background:#8b5cf6;color:#fff;padding:2px 8px;border-radius:10px;flex:none;font-weight:500">${escHtml(badge)}</span>` : ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${escHtml(label)}${exists ? '' : ' — ' + (L ? 'file missing' : 'no encontrado')}</div>
         </div>
         <button class="btn btn-ghost btn-sm" data-sem-reveal="${escHtml(fpath)}" ${exists ? '' : 'disabled'}>${t('semantic_reveal')}</button>
         <button class="btn btn-ghost btn-sm" data-sem-open="${escHtml(fpath)}" ${exists ? '' : 'disabled'}>${t('semantic_open')}</button>
@@ -4398,16 +4412,9 @@ async function renderSemanticTab(path) {
   const genDate   = escHtml((info.generated_at || '').replace('T', ' '));
 
   sec.innerHTML = `
-    <div style="padding:4px 2px 14px">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">${t('semantic_generated_at')} ${genDate}</div>
-      ${fileRow(L ? 'Upload this file to OntoForge' : 'Sube este archivo a OntoForge', csvPath, csvExists, 'OntoForge')}
-      ${fileRow(L ? 'Readable record' : 'Registro legible', info.record_local, info.record_local_exists, '')}
-      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-        ${info.inputs_dir ? `<button class="btn btn-ghost btn-sm" data-sem-reveal="${escHtml(info.inputs_dir)}" ${info.inputs_dir_exists ? '' : 'disabled'}>${t('semantic_open_inputs')}</button>` : ''}
-        <button class="btn btn-ghost btn-sm" id="btn-semantic-regen">${t('semantic_tab_regen')}</button>
-        <button class="btn btn-primary btn-sm" id="btn-semantic-ontoforge">${t('semantic_open_ontoforge')}</button>
-      </div>
-    </div>`;
+    <div style="font-size:12px;color:var(--muted);margin-bottom:20px">${t('semantic_generated_at')} ${genDate}</div>
+    ${fileRow(L ? 'Upload this file to OntoForge' : 'Sube este archivo a OntoForge', csvPath, csvExists, 'OntoForge')}
+    ${fileRow(L ? 'Readable record' : 'Registro legible', info.record_local, info.record_local_exists, '')}`;
 
   sec.querySelectorAll('[data-sem-reveal]').forEach(b =>
     b.addEventListener('click', () => pywebview.api.reveal_file(b.dataset.semReveal)));
@@ -4418,12 +4425,6 @@ async function renderSemanticTab(path) {
       try { await navigator.clipboard.writeText(b.dataset.semCopy); showToast(t('semantic_copied')); }
       catch (_) { showToast(t('semantic_copy_fail')); }
     }));
-  document.getElementById('btn-semantic-regen')?.addEventListener('click', () => {
-    const m = allMeetings.find(x => x.path === path);
-    openSemanticDialog(path, (m && m.title) || '');
-  });
-  document.getElementById('btn-semantic-ontoforge')?.addEventListener('click', () =>
-    pywebview.api.open_url('https://knowledge-staging.accenture.com/ontoforge/ontology'));
 }
 
 // ── Diálogo "Generar capa semántica" con documentos extra ───────────────────────

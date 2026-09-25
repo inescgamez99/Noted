@@ -235,8 +235,9 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
                 "Ignore the 'no diarization' rule in the system prompt. "
                 "This transcript HAS speaker labels:\n"
                 f"- [{speaker_name}]: the person who recorded this meeting\n"
-                "- [Otros]: all remote participants combined (may be multiple people)\n"
-                "Use these labels to attribute statements when relevant. "
+                "- [Otros]: all remote participants combined — treat as a group; "
+                "do NOT invent sub-labels like 'Speaker 1', 'Speaker 2', etc.\n"
+                "Use only these two labels to attribute statements when relevant. "
                 f"List {speaker_name}"
                 + (" and the calendar attendees" if has_attendees else "")
                 + " in the Attendees section."
@@ -247,8 +248,9 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
                 "Ignora la instrucción 'no hay diarización' del system prompt. "
                 "Este transcript SÍ contiene etiquetas de hablante:\n"
                 f"- [{speaker_name}]: la persona que grabó esta reunión\n"
-                "- [Otros]: el resto de participantes remotos (pueden ser varios)\n"
-                "Usa las etiquetas para atribuir intervenciones cuando sea relevante. "
+                "- [Otros]: el resto de participantes remotos — trátalo como grupo; "
+                "NO inventes sub-etiquetas como 'Speaker 1', 'Speaker 2', 'Hablante 2', etc.\n"
+                "Usa solo estas dos etiquetas para atribuir intervenciones cuando sea relevante. "
                 f"Incluye a {speaker_name}"
                 + (" y a los asistentes del calendario" if has_attendees else "")
                 + " en la sección de Asistentes."
