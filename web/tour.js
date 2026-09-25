@@ -367,51 +367,58 @@ window.startTour = function () {
     doneBtnText: window.__t('tour_btn_done'),
     steps: buildSteps(),
     onPopoverRender: (popover) => {
-      // ── Emoji icon bubble in header ──
-      const titleEl = popover.title;
-      if (titleEl) {
-        const raw = titleEl.textContent || '';
-        const m = raw.match(/^(\p{Extended_Pictographic}️?)\s*/u);
-        if (m) {
-          const icon = document.createElement('span');
-          icon.className = 'driver-title-icon';
-          icon.textContent = m[1];
-          titleEl.textContent = raw.slice(m[0].length);
-          titleEl.parentElement?.insertBefore(icon, titleEl);
+      // ── Emoji icon bubble ──
+      try {
+        const titleEl = popover.title;
+        if (titleEl) {
+          const raw = titleEl.textContent || '';
+          const cp = raw.codePointAt(0) || 0;
+          if (cp > 0x1F000) {
+            const emoji = String.fromCodePoint(cp);
+            const icon = document.createElement('span');
+            icon.className = 'driver-title-icon';
+            icon.textContent = emoji;
+            // strip emoji + optional variation selector + space
+            titleEl.textContent = raw.slice(emoji.length).replace(/^[️\s]+/, '');
+            if (titleEl.parentElement && !titleEl.parentElement.querySelector('.driver-title-icon')) {
+              titleEl.parentElement.insertBefore(icon, titleEl);
+            }
+          }
         }
-      }
+      } catch (_) {}
 
-      // ── Footer restructure: [progress | skip ···spacer··· prev next] ──
-      const footer = popover.footer;
-      footer.querySelector('.driver-skip-btn')?.remove();
-      footer.querySelector('.driver-footer-sep')?.remove();
-      footer.querySelector('.driver-footer-spacer')?.remove();
+      // ── Footer: progress | skip  ···spacer···  prev  next → ──
+      try {
+        const footer = popover.footer;
+        footer.querySelector('.driver-skip-btn')?.remove();
+        footer.querySelector('.driver-footer-sep')?.remove();
+        footer.querySelector('.driver-footer-spacer')?.remove();
 
-      const progressEl = footer.querySelector('.driver-popover-progress-text');
+        const sep = document.createElement('span');
+        sep.className = 'driver-footer-sep';
+        sep.textContent = '|';
 
-      const sep = document.createElement('span');
-      sep.className = 'driver-footer-sep';
-      sep.textContent = '|';
+        const skipBtn = document.createElement('button');
+        skipBtn.textContent = window.__t('tour_btn_skip');
+        skipBtn.className = 'driver-skip-btn';
+        skipBtn.addEventListener('click', () => driverObj.destroy());
 
-      const skipBtn = document.createElement('button');
-      skipBtn.textContent = window.__t('tour_btn_skip');
-      skipBtn.className = 'driver-skip-btn';
-      skipBtn.addEventListener('click', () => driverObj.destroy());
+        const spacer = document.createElement('span');
+        spacer.className = 'driver-footer-spacer';
 
-      const spacer = document.createElement('span');
-      spacer.className = 'driver-footer-spacer';
+        // Use popover.footerButtons as anchor if available, else fall back
+        const anchor = popover.footerButtons || footer.querySelector('.driver-popover-prev-btn');
+        if (anchor) {
+          footer.insertBefore(spacer, anchor);
+          footer.insertBefore(skipBtn, spacer);
+          footer.insertBefore(sep, skipBtn);
+        }
 
-      if (progressEl) {
-        progressEl.after(sep, skipBtn, spacer);
-      } else {
-        footer.prepend(spacer, skipBtn, sep);
-      }
-
-      // Add → arrow to next button
-      const nextBtn = footer.querySelector('.driver-popover-next-btn');
-      if (nextBtn && !nextBtn.textContent.includes('→')) {
-        nextBtn.textContent = nextBtn.textContent.trim() + ' →';
-      }
+        const nextBtn = footer.querySelector('.driver-popover-next-btn');
+        if (nextBtn && !nextBtn.textContent.includes('→')) {
+          nextBtn.textContent = nextBtn.textContent.trim() + ' →';
+        }
+      } catch (_) {}
     },
     onDestroyStarted: () => {
       driverObj.destroy();
