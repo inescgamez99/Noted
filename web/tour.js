@@ -415,7 +415,7 @@ window.startTour = function () {
         }
 
         const nextBtn = footer.querySelector('.driver-popover-next-btn');
-        if (nextBtn && !nextBtn.textContent.includes('→')) {
+        if (nextBtn && !nextBtn.classList.contains('driver-popover-done-btn') && !nextBtn.textContent.includes('→')) {
           nextBtn.textContent = nextBtn.textContent.trim() + ' →';
         }
       } catch (_) {}
