@@ -1,8 +1,8 @@
 """Integración Semantic Layer (OntoForge).
 
 Genera el "input de ontología" (CSV entidad/relación) de una reunión llamando a
-la skill EXTERNA `ontoforge-meetings` de Claude Code (instalada en
-~/.claude/skills, NO embebida en la app) vía `claude -p`.
+la skill `knowledge-capture` vía `claude -p`. El SKILL.md está bundled en el repo
+(exporters/semantic_layer/knowledge-capture/); no requiere instalación extra.
 
 Todo lo relativo a esta integración vive aquí. `app_window.AppAPI` solo delega:
     from exporters import semantic_layer as semantic
@@ -207,7 +207,7 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
                 "absolute path of the generated `*_ontology_input.csv`."
             )
 
-            add_dirs = set()
+            add_dirs = {str(md_path.parent)}  # siempre incluir la carpeta de minutas
             for p in (transcript_file, audio_file, *extra_files):
                 if p:
                     add_dirs.add(str(p.parent))
@@ -225,10 +225,11 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
             state['stage'] = 'processing'
             state['pct'] = 15
             env = clean_env()
+            cwd = data_path if data_path else str(md_path.parent)
             proc = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, encoding='utf-8', cwd=str(Path(data_path) if data_path else sdir.parent), env=env,
+                text=True, encoding='utf-8', cwd=cwd, env=env,
                 creationflags=0x08000000 if os.name == 'nt' else 0,
             )
             try:
@@ -264,16 +265,20 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
             if csv_path:
                 try:
                     src_csv = Path(csv_path)
-                    mid = src_csv.name.replace('_ontology_input.csv', '')
-                    src_record = src_csv.parent / f"{mid}_transcript.txt"
+                    mid = src_csv.stem.removesuffix('_ontology_input')
                     inputs_dir = str(src_csv.parent / 'inputs')
                     dest_csv = md_path.with_name(f"{md_path.stem}_ontology_input.csv")
                     shutil.copy2(src_csv, dest_csv)
                     local_csv = str(dest_csv)
-                    if src_record.exists():
-                        dest_record = md_path.with_name(f"{md_path.stem}_ontology_record.txt")
-                        shutil.copy2(src_record, dest_record)
-                        local_record = str(dest_record)
+                    # busca el Word doc generado por el skill (preferencia: .docx, fallback: .html)
+                    for rec_name in (f"{mid}_record.docx", f"{mid}_record.html"):
+                        src_record = src_csv.parent / rec_name
+                        if src_record.exists():
+                            ext = src_record.suffix
+                            dest_record = md_path.with_name(f"{md_path.stem}_ontology_record{ext}")
+                            shutil.copy2(src_record, dest_record)
+                            local_record = str(dest_record)
+                            break
                 except Exception as e:
                     log.warning(f"semantic_layer: copiar outputs: {e}")
 

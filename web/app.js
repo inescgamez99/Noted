@@ -192,6 +192,7 @@ const T = {
     semantic_started: 'Generando capa semántica… puede tardar unos minutos',
     semantic_done: 'Capa semántica generada',
     semantic_error: 'Error al generar la capa semántica',
+    semantic_timeout: 'La capa semántica tardó demasiado — inténtalo de nuevo',
     semantic_no_transcript: 'No hay transcripción para esta reunión',
     semantic_no_skill: 'Skill knowledge-capture no encontrada — sincroniza los team skills primero',
     semantic_no_claude: 'Claude CLI no encontrado en el PATH',
@@ -471,6 +472,7 @@ const T = {
     semantic_started: 'Generating semantic layer… this can take a few minutes',
     semantic_done: 'Semantic layer generated',
     semantic_error: 'Failed to generate the semantic layer',
+    semantic_timeout: 'Semantic layer timed out — please try again',
     semantic_no_transcript: 'No transcript available for this meeting',
     semantic_no_skill: 'knowledge-capture skill not found — sync team skills first',
     semantic_no_claude: 'Claude CLI not found in PATH',
@@ -749,6 +751,7 @@ const T = {
     semantic_started: 'Generant la capa semàntica… pot trigar uns minuts',
     semantic_done: 'Capa semàntica generada',
     semantic_error: 'Error en generar la capa semàntica',
+    semantic_timeout: 'La capa semàntica ha trigat massa — torna-ho a intentar',
     semantic_no_transcript: 'No hi ha transcripció per a aquesta reunió',
     semantic_no_skill: 'Skill knowledge-capture no trobada — sincronitza els team skills primer',
     semantic_no_claude: 'Claude CLI no trobat al PATH',
@@ -4335,15 +4338,20 @@ async function runSemanticLayer(path, title, extraDocs) {
     if (!st || !st.done) return;
 
     clearInterval(poll);
-    if (st.error) { showToast(t('semantic_error')); return; }
+    if (st.error) {
+      showToast(st.error === 'timeout' ? t('semantic_timeout') : t('semantic_error'));
+      return;
+    }
 
     showToast(t('semantic_done'));
     // La pestaña Semantic Layer solo se renderiza si existe el sidecar. Tras generar,
     // si la reunión sigue abierta, re-renderiza el detalle (para que aparezca la pestaña)
     // y salta a ella.
     if (typeof currentPath !== 'undefined' && currentPath === path) {
-      await openMeeting(path);
-      document.getElementById('tab-semantic')?.click();
+      try {
+        await openMeeting(path);
+        document.getElementById('tab-semantic')?.click();
+      } catch (_) {}
     }
   }, 3000);
 }
@@ -5118,6 +5126,17 @@ function togglePipelinePanel() {
   if (panel) panel.classList.toggle('open', _pipelinePanelOpen);
   if (tab)   tab.classList.toggle('panel-open', _pipelinePanelOpen);
 }
+
+document.addEventListener('click', e => {
+  if (!_pipelinePanelOpen) return;
+  const panel = document.getElementById('pipeline-panel');
+  const tab   = document.getElementById('pipeline-tab');
+  if (panel && !panel.contains(e.target) && tab && !tab.contains(e.target)) {
+    _pipelinePanelOpen = false;
+    panel.classList.remove('open');
+    tab.classList.remove('panel-open');
+  }
+});
 
 // ── Editar notas (editor visual WYSIWYG) ──────────────────────────────────────
 
