@@ -30,7 +30,7 @@ _bs(f"  sys.path={sys.path!r}")
 # ─────────────────────────────────────────────────────────────────────────────
 
 _bs("importing config…")
-from config import PROJECT_DIR, LOG_FILE, CLI_CONTROL_FILE, TEAMS_POLL_INTERVAL
+from config import PROJECT_DIR, LOG_FILE, CLI_CONTROL_FILE
 _bs(f"config OK  PROJECT_DIR={PROJECT_DIR!r}  LOG_FILE={LOG_FILE!r}")
 
 # Logging

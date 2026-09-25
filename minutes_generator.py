@@ -5,7 +5,7 @@ import subprocess
 import threading
 from pathlib import Path
 
-from config import PROJECT_DIR, CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env
+from config import CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env
 
 log = logging.getLogger(__name__)
 

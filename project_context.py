@@ -3,7 +3,7 @@ import logging
 import re
 from pathlib import Path
 
-from config import PROJECT_DIR, MINUTES_DIR
+from config import PROJECT_DIR
 
 log = logging.getLogger(__name__)
 

@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from config import PROJECT_DIR
 

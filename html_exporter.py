@@ -1,7 +1,6 @@
 import html as _html
 import os
 import re
-import shutil
 from datetime import datetime
 from pathlib import Path
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from config import CLI_CONTROL_FILE, LOG_FILE, PROJECT_DIR
+from config import CLI_CONTROL_FILE
 from storage import ensure_directories, get_recording_path, get_transcript_path, get_minutes_path
 
 logging.basicConfig(
