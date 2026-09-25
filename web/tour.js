@@ -379,7 +379,7 @@ window.startTour = function () {
 
   const driverObj = window.driver.js.driver({
     showProgress: true,
-    allowClose: true,
+    allowClose: false,
     nextBtnText: window.__t('tour_btn_next'),
     prevBtnText: window.__t('tour_btn_prev'),
     doneBtnText: window.__t('tour_btn_done'),
