@@ -201,7 +201,7 @@ def cierre_aislado(monkeypatch, tr_dirs):
     registro = {'minutas_de': None, 'guardadas': None}
 
     def generate_falso(transcript, wav_path, extra_context=None, language='auto',
-                       context_dir=None):
+                       context_dir=None, participants=None):
         registro['minutas_de'] = transcript
         registro['contexto'] = extra_context
         return 'TITULO: Comite Semanal\n\n## Resumen\n\ngenerado'
