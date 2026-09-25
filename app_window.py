@@ -987,43 +987,6 @@ class AppAPI:
 
 
 
-    def move_to_panel(self, path: str, index: int) -> bool:
-
-        """Marca una acción como 'en panel' para que aparezca en el panel global."""
-
-        from actions_enricher import get_actions_path
-
-        md_path = Path(path)
-
-        ap = get_actions_path(md_path)
-
-        if not ap.exists():
-
-            return False
-
-        try:
-
-            data = json.loads(ap.read_text(encoding='utf-8'))
-
-            for a in data.get('actions', []):
-
-                if a['index'] == index:
-
-                    a['in_panel'] = True
-
-                    break
-
-            ap.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
-
-            return True
-
-        except Exception as e:
-
-            log.error(f"move_to_panel: {e}")
-
-            return False
-
-
 
     # ── Task board ────────────────────────────────────────────────────────────
 
@@ -1073,13 +1036,6 @@ class AppAPI:
 
         }
 
-
-
-    def get_buckets(self) -> list:
-
-        from buckets_store import get_buckets as _get
-
-        return _get()
 
 
 
@@ -1383,29 +1339,6 @@ class AppAPI:
 
             return False
 
-
-
-    def reenrich_all_meetings(self) -> int:
-
-        """Re-enriquece todas las minutas. Devuelve el número de minutas lanzadas."""
-
-        from actions_enricher import enrich_and_save, get_actions_path
-
-        count = 0
-
-        for md in sorted(MINUTES_DIR.glob('*.md'), key=lambda p: p.stat().st_mtime, reverse=True):
-
-            ap = get_actions_path(md)
-
-            if ap.exists():
-
-                ap.unlink()
-
-            enrich_and_save(md, PROJECT_DIR.parent)
-
-            count += 1
-
-        return count
 
 
 
@@ -2004,36 +1937,6 @@ class AppAPI:
             return ''
 
 
-
-    def get_minutes_text(self, path: str) -> str:
-
-        """Devuelve el texto markdown raw de las minutas."""
-
-        try:
-
-            return Path(path).read_text(encoding='utf-8')
-
-        except Exception as e:
-
-            return ''
-
-
-
-    def save_minutes_text(self, path: str, content: str) -> bool:
-
-        """Guarda el texto markdown editado en el fichero de minutas."""
-
-        try:
-
-            Path(path).write_text(content, encoding='utf-8')
-
-            return True
-
-        except Exception as e:
-
-            log.error(f"save_minutes_text: {e}")
-
-            return False
 
 
 
@@ -4025,65 +3928,6 @@ class AppAPI:
 
 
 
-    def get_all_pending_actions(self) -> list:
-
-        """Devuelve las acciones marcadas explícitamente con in_panel=True."""
-
-        result = []
-
-        for actions_json in MINUTES_DIR.glob('*_actions.json'):
-
-            try:
-
-                data = json.loads(actions_json.read_text(encoding='utf-8'))
-
-                minutes_path = data.get('minutes', '')
-
-                md = Path(minutes_path) if minutes_path else actions_json.with_suffix('.md').with_name(
-
-                    actions_json.stem.replace('_actions', '') + '.md'
-
-                )
-
-                meta = _parse_stem(md.stem) if md.exists() else {'title': actions_json.stem, 'date': '', 'time': ''}
-
-                meeting_project_id = data.get('project_id')
-
-                for a in data.get('actions', []):
-
-                    if not a.get('in_panel', False):
-
-                        continue
-
-                    claude_executable = a.get('claude_executable', a.get('type') not in ('human',))
-
-                    result.append({
-
-                        **a,
-
-                        'claude_executable':  claude_executable,
-
-                        'minutes_path':       str(md),
-
-                        'minutes_path_key':   re.sub(r'[^a-z0-9]', '_', str(md).lower())[:40],
-
-                        'meeting_title':      meta['title'],
-
-                        'meeting_date':       meta['date'],
-
-                        'created_at':         a.get('created_at') or meta['date'],
-
-                        'meeting_project_id': meeting_project_id or 'none',
-
-                    })
-
-            except Exception:
-
-                pass
-
-        result.sort(key=lambda a: (a.get('executed', False), a.get('meeting_date', '')))
-
-        return result
 
 
 
