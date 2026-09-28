@@ -1928,6 +1928,23 @@ class AppAPI:
 
         jobs.extend(semantic.pipeline_jobs())
 
+        # Regen jobs activos (regeneración de minutas en curso)
+        for regen_path, state in _regen_runs.items():
+            if state.get('done'):
+                continue
+            stem = Path(regen_path).stem
+            m = re.match(r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_(.+)', stem)
+            title = m.group(1).replace('_', ' ') if m else stem
+            jobs.append({
+                'stage':     'processing',
+                'kind':      'regen',
+                'label':     'Regenerar notas',
+                'stage_key': state.get('stage', ''),
+                'subtitle':  title,
+                'pct':       state.get('pct', 0),
+                'path':      regen_path,
+            })
+
         return {'jobs': jobs}
 
 

@@ -4938,13 +4938,13 @@ async function confirmRegen(path) {
         }
       } catch (_) {}
     } else {
-      // Bar detached — just poll status, no UI updates
+      // Bar detached (user navigated away) — poll silently; don't force navigation
       try {
         const s = await pywebview.api.get_regen_status(path);
         if (s.done) {
           _regenPath = null;
           showToast(s.error ? t('regen_stage_error') + ': ' + s.error : t('toast_regen_done'));
-          if (!s.error) await openMeeting(path);
+          if (!s.error && path === currentPath) await openMeeting(path);
           return;
         }
       } catch (_) {}
@@ -5099,9 +5099,15 @@ async function updatePipelineFooter() {
       : '';
 
     const isSemantic = j.kind === 'semantic';
-    const mainLine = isSemantic ? (currentLang === 'en' ? 'Export to Semantic Layer' : 'Exportar a Semantic Layer') : titleText;
-    const subLine = (isSemantic && j.subtitle)
+    const isRegen    = j.kind === 'regen';
+    const mainLine = isSemantic ? (L ? 'Export to Semantic Layer' : 'Exportar a Semantic Layer')
+                   : isRegen    ? (L ? 'Regenerating notes' : 'Regenerando notas')
+                   : titleText;
+    const subLine = ((isSemantic || isRegen) && j.subtitle)
       ? `<div class="pipeline-job-subtitle" style="font-size:11px;color:var(--muted);margin:1px 0 0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(j.subtitle)}</div>`
+      : '';
+    const regenStageLine = (isRegen && j.stage_key)
+      ? `<div style="font-size:11px;color:var(--muted);margin:3px 0 0 16px">${escHtml(_regenStageLabel(j.stage_key))}</div>`
       : '';
 
     return `
@@ -5114,6 +5120,7 @@ async function updatePipelineFooter() {
           ${cancelHtml}
         </div>
         ${subLine}
+        ${regenStageLine}
         ${stepsHtml}
         ${progHtml}
       </div>`;
