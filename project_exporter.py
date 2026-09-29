@@ -87,7 +87,7 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
         transcripts_dir.mkdir(parents=True, exist_ok=True)
 
         if transcript_txt is None:
-            tc = minutes_path.with_name(slug + '_transcript.txt')
+            tc = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
             if tc.exists():
                 try:
                     transcript_txt = tc.read_text(encoding='utf-8')

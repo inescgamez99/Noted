@@ -18,6 +18,13 @@ pytestmark = pytest.mark.unit
 STEM = '20260917_1616_Comite_Semanal'
 
 
+@pytest.fixture(autouse=True)
+def _blank_me_name(monkeypatch):
+    """Aísla los tests de ME_NAME real del usuario: sin prefijo en el slug."""
+    import config
+    monkeypatch.setattr(config, 'ME_NAME', '', raising=False)
+
+
 @pytest.fixture
 def reunion(tr_dirs):
     """Una reunion con sus artefactos y un proyecto con carpeta configurada."""

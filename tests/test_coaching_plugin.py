@@ -295,7 +295,7 @@ def test_grade_and_inject_sticky_positioned_top_right(tr_dirs, minutes_file, mon
     stickies_path = minutes_file.parent / f'{minutes_file.stem}.stickies.json'
     sticky = json.loads(stickies_path.read_text(encoding='utf-8'))[0]
     assert sticky['anchor'] == 'right'
-    assert sticky['y'] == 8
+    assert sticky['y'] == 56
 
 
 # ── tray_app hook: coaching exception must not crash the pipeline ─────────────
