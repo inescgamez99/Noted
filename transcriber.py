@@ -268,13 +268,15 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
     return '\n'.join(lines), (detected or 'es')
 
 
-def _transcribe_with_speakers(model, audio_path: Path) -> tuple[str, str]:
+def _transcribe_with_speakers(model, audio_path: Path, on_progress=None,
+                              should_cancel=None) -> tuple[str, str]:
     """Two-pass speaker-tagged transcription using .mic.wav / .loop.wav companion files.
 
     Mic track  → segments labelled [Tú]
     Loop track → segments labelled [Otros]
     Both lists are merged by start timestamp so the final transcript reads
     chronologically even though the two passes run sequentially.
+    Progress: mic pass = 0-50%, loop pass = 50-100%.
     """
     mic_path = audio_path.with_suffix('.mic.wav')
     loop_path = audio_path.with_suffix('.loop.wav')
@@ -283,14 +285,18 @@ def _transcribe_with_speakers(model, audio_path: Path) -> tuple[str, str]:
     mic_segs_raw, mic_info = model.transcribe(str(mic_path), **_TRANSCRIBE_ARGS)
     detected = _remap(getattr(mic_info, 'language', None))
     log.info(f"Idioma detectado (diarización): {detected}")
+    duration = getattr(mic_info, 'duration', None)
 
     me_label = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
     others_label = '[Otros]'
     mic_segments: list[tuple[float, str, str]] = []
     for seg in mic_segs_raw:
+        _check_cancel(should_cancel)
         t = seg.text.strip()
         if t:
             mic_segments.append((seg.start, me_label, t))
+        if on_progress and duration:
+            on_progress(min(int(seg.end / duration * 50), 50))
 
     log.info("Diarizando: transcribiendo track de Teams (otros)...")
     loop_args = dict(_TRANSCRIBE_ARGS)
@@ -299,9 +305,12 @@ def _transcribe_with_speakers(model, audio_path: Path) -> tuple[str, str]:
     loop_segs_raw, _ = model.transcribe(str(loop_path), **loop_args)
     loop_segments: list[tuple[float, str, str]] = []
     for seg in loop_segs_raw:
+        _check_cancel(should_cancel)
         t = seg.text.strip()
         if t:
             loop_segments.append((seg.start, others_label, t))
+        if on_progress and duration:
+            on_progress(min(50 + int(seg.end / duration * 50), 100))
 
     all_segments = sorted(mic_segments + loop_segments, key=lambda x: x[0])
     lines = [f"{_format_time(ts)} {speaker}: {text}" for ts, speaker, text in all_segments]
@@ -344,7 +353,9 @@ def _transcribe_local(audio_path: Path, on_progress=None, on_segment=None,
             _check_cancel(should_cancel)
             model = _get_model(name)
             if use_speakers and not chunked:
-                return _transcribe_with_speakers(model, audio_path)
+                return _transcribe_with_speakers(model, audio_path,
+                                                 on_progress=on_progress,
+                                                 should_cancel=should_cancel)
             if use_speakers and chunked:
                 mic_path.unlink(missing_ok=True)
                 loop_path.unlink(missing_ok=True)
