@@ -63,9 +63,15 @@ def _check_window_titles(pids: list[int]) -> tuple[bool, bool, str | None, list[
                     return
                 title_lower = raw.lower()
 
-                # Teams classic: keyword match — very reliable
+                # Teams classic: keyword match — very reliable.
+                # Guard: if the first pipe-segment is a generic page name
+                # (e.g. "Chat | Teams meeting | ..."), the keyword comes from
+                # a tab label, not a live call — skip classic_match so the
+                # detector falls through to the teams2 path (requires audio).
                 if any(kw in title_lower for kw in CALL_TITLE_KEYWORDS):
-                    classic_match = True
+                    _first = raw.split('|')[0].strip().lower() if '|' in raw else None
+                    if _first is None or _first not in _TEAMS_GENERIC_PAGES:
+                        classic_match = True
                     if '|' in raw:
                         candidate = raw.split('|')[0].strip()
                         if candidate.lower() not in _TEAMS_GENERIC_PAGES:
