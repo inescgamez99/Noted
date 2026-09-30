@@ -62,6 +62,10 @@ _STR = {
         disk_full='Disco lleno: la grabación se ha interrumpido. Libera espacio.',
         cancel_job='Descartar esta reunion (papelera)',
         job_cancelled='Reunion descartada: el audio y lo generado se han movido a la papelera.',
+        ctx_title='Contexto / objetivo de la reunion',
+        ctx_subtitle='Se usara al generar las minutas',
+        ctx_save='Guardar',
+        ctx_cancel='Cancelar',
     ),
     'en': dict(
         record_now='Record now', stop='Stop recording',
@@ -81,6 +85,10 @@ _STR = {
         disk_full='Disk full: the recording has stopped. Free up some space.',
         cancel_job='Discard this meeting (bin)',
         job_cancelled='Meeting discarded: the audio and generated files were moved to the bin.',
+        ctx_title='Meeting context / goal',
+        ctx_subtitle='Will be used when generating the minutes',
+        ctx_save='Save',
+        ctx_cancel='Cancel',
     ),
 }
 
@@ -888,6 +896,7 @@ class TrayApp:
 
         BG = '#1e1e2e'; CARD = '#313244'; FG = '#cdd6f4'; MUTED = '#a6adc8'
         BORDER = '#585b70'; BTN = '#89b4fa'
+        s = _STR.get(get_ui_language(), _STR['en'])
 
         def _create():
             root = get_root()
@@ -904,9 +913,9 @@ class TrayApp:
             frame = tk.Frame(top, bg=BG, padx=14, pady=10)
             frame.pack(fill='both', expand=True, padx=1, pady=1)
 
-            tk.Label(frame, text="Contexto / objetivo de la reunion",
+            tk.Label(frame, text=s['ctx_title'],
                      font=('Segoe UI', 10, 'bold'), fg=FG, bg=BG).pack(anchor='w')
-            tk.Label(frame, text="Se usara al generar las minutas",
+            tk.Label(frame, text=s['ctx_subtitle'],
                      font=('Segoe UI', 8), fg=MUTED, bg=BG).pack(anchor='w', pady=(2, 6))
 
             entry = tk.Entry(frame, font=('Segoe UI', 9), bg=CARD, fg=FG,
@@ -929,10 +938,10 @@ class TrayApp:
 
             btn_f = tk.Frame(frame, bg=BG)
             btn_f.pack(fill='x', pady=(8, 0))
-            tk.Button(btn_f, text="Guardar", font=('Segoe UI', 9, 'bold'),
+            tk.Button(btn_f, text=s['ctx_save'], font=('Segoe UI', 9, 'bold'),
                       bg=BTN, fg=BG, relief='flat', cursor='hand2',
                       command=save).pack(side='left', padx=(0, 8))
-            tk.Button(btn_f, text="Cancelar", font=('Segoe UI', 9),
+            tk.Button(btn_f, text=s['ctx_cancel'], font=('Segoe UI', 9),
                       bg='#45475a', fg=FG, relief='flat', cursor='hand2',
                       command=top.destroy).pack(side='left')
 
