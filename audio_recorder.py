@@ -288,10 +288,15 @@ class AudioRecorder:
             # stderr capturado, no descartado: el worker explica ahí por qué no
             # pudo abrir el loopback y antes ese motivo se perdía, dejando el
             # fallo invisible en el log.
+            _si = subprocess.STARTUPINFO()
+            _si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            _CREATE_NO_WINDOW = 0x08000000 if os.name == 'nt' else 0
             proc = subprocess.Popen(
                 [sys.executable, _LOOPBACK_WORKER],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                startupinfo=_si if os.name == 'nt' else None,
+                creationflags=_CREATE_NO_WINDOW,
             )
             # Leer header con timeout para evitar deadlock si el worker se cuelga
             header_result = [b'']
