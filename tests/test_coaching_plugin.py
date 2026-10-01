@@ -145,12 +145,12 @@ def fake_popen(monkeypatch):
         return state['proc']
 
     monkeypatch.setattr(cp.subprocess, 'Popen', fake_popen_fn)
-    monkeypatch.setattr(config, 'CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(config, 'get_claude_bin', lambda: 'claude')
     return state
 
 
 def test_call_claude_returns_none_when_no_bin(monkeypatch):
-    monkeypatch.setattr(config, 'CLAUDE_BIN', None)
+    monkeypatch.setattr(config, 'get_claude_bin', lambda: None)
     assert cp._call_claude('transcript') is None
 
 
@@ -188,7 +188,7 @@ def test_call_claude_uses_noninteractive_flag(fake_popen):
 
 
 def test_call_claude_returns_none_on_popen_exception(monkeypatch):
-    monkeypatch.setattr(config, 'CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(config, 'get_claude_bin', lambda: 'claude')
 
     def boom(*_a, **_k):
         raise OSError('cannot launch')

@@ -11,7 +11,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_DIR))
 
-from config import CLAUDE_BIN as _CLAUDE_BIN, clean_env
+from config import get_claude_bin as _get_claude_bin, clean_env
 
 # El email va a equipos que han clonado el repo en rutas distintas, asi que no
 # puede llevar un comando con la ruta fija: a quien no clono en Documents le
@@ -81,11 +81,12 @@ def send_update_email(commits_text: str) -> bool:
 
 def _generate_html(commits_text: str) -> str:
     """Intenta resumen IA en HTML; si falla, devuelve HTML manual."""
-    if _CLAUDE_BIN:
+    _claude_bin = _get_claude_bin()
+    if _claude_bin:
         prompt = _PROMPT_TEMPLATE.format(commits=commits_text, update_html=_UPDATE_HTML)
         try:
             result = subprocess.run(
-                [_CLAUDE_BIN, '-p'],
+                [_claude_bin, '-p'],
                 input=prompt,
                 capture_output=True,
                 text=True,

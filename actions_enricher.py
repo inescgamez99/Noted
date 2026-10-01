@@ -10,7 +10,7 @@ from config import PROJECT_DIR
 
 log = logging.getLogger(__name__)
 
-from config import CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env
+from config import get_claude_bin as _get_claude_bin, clean_env as _clean_env
 
 _CLAUDE_TYPES = {'instruction', 'code_change', 'document_change'}
 
@@ -100,7 +100,8 @@ def _run_enrichment(minutes_path: Path, projects_dir: Path, on_done=None):
         enriched_map = {}
 
         # Only enrich claude-type actions (human ones already have all the info they need)
-        if claude_actions and _CLAUDE_BIN:
+        _claude_bin = _get_claude_bin()
+        if claude_actions and _claude_bin:
             # Resúmenes de proyectos
             project_summaries = []
             if projects_dir and projects_dir.exists():
@@ -153,7 +154,7 @@ def _run_enrichment(minutes_path: Path, projects_dir: Path, on_done=None):
                     CREATE_NO_WINDOW = 0
 
                 result = subprocess.run(
-                    [_CLAUDE_BIN, '-p'],
+                    [_claude_bin, '-p'],
                     input=prompt, capture_output=True, text=True,
                     encoding='utf-8', timeout=120, env=env,
                     startupinfo=si if os.name == 'nt' else None,
@@ -186,7 +187,8 @@ def _run_enrichment(minutes_path: Path, projects_dir: Path, on_done=None):
 
 def _detect_and_save_project(minutes_path: Path, projects_dir: Path):
     """Ask Claude to identify which project this meeting belongs to."""
-    if not _CLAUDE_BIN:
+    _claude_bin = _get_claude_bin()
+    if not _claude_bin:
         return
     # Load projects
     from config import PROJECT_DIR
@@ -246,7 +248,7 @@ No explanation, just the id or "none"."""
             si = None
             CREATE_NO_WINDOW = 0
         result = subprocess.run(
-            [_CLAUDE_BIN, '-p'],
+            [_claude_bin, '-p'],
             input=prompt, capture_output=True, text=True,
             encoding='utf-8', timeout=60, env=env,
             startupinfo=si if os.name == 'nt' else None,

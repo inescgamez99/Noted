@@ -148,7 +148,7 @@ def cli_falso(monkeypatch):
         return estado['proc']
 
     monkeypatch.setattr(mg.subprocess, 'Popen', popen_falso)
-    monkeypatch.setattr(mg, '_CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(mg, '_get_claude_bin', lambda: 'claude')
     estado['llamadas'] = llamadas
     estado['ProcFalso'] = ProcFalso
     return estado
@@ -157,7 +157,7 @@ def cli_falso(monkeypatch):
 def test_sin_el_cli_de_claude_devuelve_none(monkeypatch, tr_dirs):
     """No hay excepcion: el pipeline sigue y avisa. La transcripcion ya esta
     guardada, que es lo caro."""
-    monkeypatch.setattr(mg, '_CLAUDE_BIN', None)
+    monkeypatch.setattr(mg, '_get_claude_bin', lambda: None)
     assert mg._generate_via_cli('t', tr_dirs / 'x.wav') is None
 
 
@@ -209,7 +209,7 @@ def test_el_timeout_es_generoso(cli_falso, tr_dirs):
 
 
 def test_una_excepcion_al_lanzar_el_cli_devuelve_none(monkeypatch, tr_dirs):
-    monkeypatch.setattr(mg, '_CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(mg, '_get_claude_bin', lambda: 'claude')
 
     def popen_que_revienta(*_a, **_k):
         raise OSError('no se pudo lanzar')

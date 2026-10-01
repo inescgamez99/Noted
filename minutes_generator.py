@@ -5,7 +5,7 @@ import subprocess
 import threading
 from pathlib import Path
 
-from config import CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env
+from config import get_claude_bin as _get_claude_bin, clean_env as _clean_env
 
 log = logging.getLogger(__name__)
 
@@ -291,7 +291,8 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
 def _generate_via_cli(transcript: str, recording_path: Path, extra_context: str | None = None,
                       language: str = 'auto', context_dir: str | None = None,
                       participants: list | None = None) -> str | None:
-    if not _CLAUDE_BIN:
+    _claude_bin = _get_claude_bin()
+    if not _claude_bin:
         log.error("claude CLI no encontrado en PATH")
         return None
 
@@ -305,7 +306,7 @@ def _generate_via_cli(transcript: str, recording_path: Path, extra_context: str 
                                 participants=participants)
     system_prompt = _get_system_prompt(language).replace('```', '~~~')
 
-    cmd = [_CLAUDE_BIN, '-p']
+    cmd = [_claude_bin, '-p']
     if context_dir:
         cmd += ['--add-dir', context_dir, '--allowedTools', 'Read', 'Grep', 'Glob']
         agentic_note = (
@@ -368,7 +369,8 @@ def regenerate_actions_section(transcript: str, current_actions_md: str,
                                instruction: str, language: str = 'auto') -> str | None:
     """Reescribe SOLO la sección de Acciones Pendientes según la instrucción del usuario.
     Devuelve el markdown de la nueva sección (empezando por '## ...') o None."""
-    if not _CLAUDE_BIN:
+    _claude_bin = _get_claude_bin()
+    if not _claude_bin:
         log.error("claude CLI no encontrado en PATH")
         return None
 
@@ -417,7 +419,7 @@ No incluyas ninguna otra seccion, ni el titulo de la reunion, ni texto extra. Re
             CREATE_NO_WINDOW = 0
 
         proc = subprocess.Popen(
-            [_CLAUDE_BIN, '-p'],
+            [_claude_bin, '-p'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=True, encoding='utf-8', env=_clean_env(),
             startupinfo=si if os.name == 'nt' else None,

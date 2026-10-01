@@ -72,7 +72,7 @@ def cli_falso(monkeypatch):
                               'stdout': estado['salida'], 'stderr': ''})()
 
     monkeypatch.setattr(ae.subprocess, 'run', run_falso)
-    monkeypatch.setattr(ae, '_CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(ae, '_get_claude_bin', lambda: 'claude')
     # _detect_and_save_project usa el mismo subprocess; se neutraliza para
     # aislar cada test.
     monkeypatch.setattr(ae, '_detect_and_save_project', lambda *a, **k: None)
@@ -124,7 +124,7 @@ def test_si_el_cli_falla_las_acciones_se_guardan_sin_enriquecer(minuta, proyecto
 
 
 def test_sin_el_cli_instalado_tambien_se_guardan(minuta, proyectos, monkeypatch):
-    monkeypatch.setattr(ae, '_CLAUDE_BIN', None)
+    monkeypatch.setattr(ae, '_get_claude_bin', lambda: None)
     monkeypatch.setattr(ae, '_detect_and_save_project', lambda *a, **k: None)
 
     ae._run_enrichment(minuta, proyectos)
@@ -134,7 +134,7 @@ def test_sin_el_cli_instalado_tambien_se_guardan(minuta, proyectos, monkeypatch)
 
 def test_una_excepcion_del_subproceso_no_pierde_las_acciones(minuta, proyectos,
                                                              monkeypatch):
-    monkeypatch.setattr(ae, '_CLAUDE_BIN', 'claude')
+    monkeypatch.setattr(ae, '_get_claude_bin', lambda: 'claude')
     monkeypatch.setattr(ae, '_detect_and_save_project', lambda *a, **k: None)
     monkeypatch.setattr(ae.subprocess, 'run',
                         lambda *a, **k: (_ for _ in ()).throw(OSError('boom')))

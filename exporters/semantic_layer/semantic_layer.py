@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from config import RECORDINGS_DIR, CLAUDE_BIN, clean_env
+from config import RECORDINGS_DIR, get_claude_bin, clean_env
 
 log = logging.getLogger(__name__)
 
@@ -85,7 +85,8 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
     `extra_docs` es una lista opcional de rutas a documentos adicionales que el usuario
     quiere incluir en la captura (además de la transcripción). Devuelve {ok, run_id}
     para hacer polling con get_status, o {ok: False, error} si no se puede empezar."""
-    if not CLAUDE_BIN:
+    _claude_bin = get_claude_bin()
+    if not _claude_bin:
         return {'ok': False, 'error': 'no_claude'}
 
     sdir = skill_dir()
@@ -218,7 +219,7 @@ def start_run(path: str, transcript_text: str, title: str = '', extra_docs=None)
             if scripts_path:
                 add_dirs.add(scripts_path)
 
-            cmd = [CLAUDE_BIN, '-p', '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep']
+            cmd = [_claude_bin, '-p', '--allowedTools', 'Read,Write,Edit,Bash,Glob,Grep']
             for d in add_dirs:
                 cmd += ['--add-dir', d]
 

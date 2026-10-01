@@ -48,11 +48,12 @@ def _build_prompt(transcript: str) -> str:
 
 def _call_claude(transcript: str) -> dict | None:
     try:
-        from config import CLAUDE_BIN, clean_env
+        from config import get_claude_bin, clean_env
     except ImportError:
         log.warning("coaching_plugin: config not importable")
         return None
-    if not CLAUDE_BIN:
+    _claude_bin = get_claude_bin()
+    if not _claude_bin:
         return None
 
     prompt = _build_prompt(transcript)
@@ -67,7 +68,7 @@ def _call_claude(transcript: str) -> dict | None:
             flags = 0x08000000
 
         proc = subprocess.Popen(
-            [CLAUDE_BIN, '-p'],
+            [_claude_bin, '-p'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

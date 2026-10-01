@@ -22,7 +22,7 @@ from pathlib import Path
 
 
 
-from config import MINUTES_DIR, PROJECT_DIR, RECORDINGS_DIR, CLAUDE_BIN as _CLAUDE_BIN, clean_env as _clean_env_panel
+from config import MINUTES_DIR, PROJECT_DIR, RECORDINGS_DIR, get_claude_bin as _get_claude_bin, clean_env as _clean_env_panel
 from exporters import semantic_layer as semantic
 
 
@@ -3412,7 +3412,8 @@ class AppAPI:
 
         """Ejecuta una acción con Claude en el panel interno. Devuelve run_id para polling."""
 
-        if not _CLAUDE_BIN:
+        _claude_bin = _get_claude_bin()
+        if not _claude_bin:
 
             return ''  # Sin claude en PATH: JS hace fallback a terminal
 
@@ -3518,7 +3519,7 @@ class AppAPI:
 
                 proc = subprocess.Popen(
 
-                    [_CLAUDE_BIN, '-p', '--allowedTools', 'Edit,Write,Read,Bash,Glob,Grep'],
+                    [_claude_bin, '-p', '--allowedTools', 'Edit,Write,Read,Bash,Glob,Grep'],
 
                     stdin=subprocess.PIPE,
 
@@ -3636,7 +3637,8 @@ class AppAPI:
 
         from actions_enricher import get_actions_path
 
-        from config import CLAUDE_BIN as _cb
+        from config import get_claude_bin as _get_cb
+        _cb = _get_cb()
 
 
 
@@ -3794,7 +3796,8 @@ class AppAPI:
 
         """Re-ejecuta con contexto adicional. Devuelve nuevo run_id."""
 
-        if not _CLAUDE_BIN:
+        _claude_bin = _get_claude_bin()
+        if not _claude_bin:
 
             return ''
 
@@ -3856,7 +3859,7 @@ class AppAPI:
 
                 proc = subprocess.Popen(
 
-                    [_CLAUDE_BIN, '-p', '--allowedTools', 'Edit,Write,Read,Bash,Glob,Grep'],
+                    [_claude_bin, '-p', '--allowedTools', 'Edit,Write,Read,Bash,Glob,Grep'],
 
                     stdin=subprocess.PIPE,
 

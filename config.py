@@ -38,26 +38,48 @@ CLAUDE_MAX_TOKENS = 8192
 
 def _find_claude_bin() -> str | None:
     import re as _re
-    # Preferir siempre el exe directo (no el wrapper CMD que se cuelga sin consola)
-    # Buscar via which — si es .cmd/.bat, leer el wrapper para extraer el exe real
+
+    def _resolve_cmd(p: Path) -> str:
+        # Preferir el .exe real al wrapper .cmd para evitar cuelgues sin consola
+        try:
+            content = p.read_text(encoding='utf-8', errors='ignore')
+            cmd_dir = str(p.parent)
+            content_resolved = _re.sub(r'%dp0%', cmd_dir.replace('\\', '\\\\'), content, flags=_re.IGNORECASE)
+            m = _re.search(r'"([^"]+\.exe)"', content_resolved, _re.IGNORECASE)
+            if m:
+                exe = Path(m.group(1))
+                if exe.exists():
+                    return str(exe)
+        except Exception:
+            pass
+        return str(p)
+
+    # 1. PATH heredado (cubre lanzadas desde terminal)
     cmd_path = shutil.which('claude')
     if cmd_path:
         p = Path(cmd_path)
-        if p.suffix.lower() in ('.cmd', '.bat'):
-            try:
-                content = p.read_text(encoding='utf-8', errors='ignore')
-                # Resolver %dp0% (directorio del CMD) y buscar rutas a .exe
-                cmd_dir = str(p.parent)
-                content_resolved = _re.sub(r'%dp0%', cmd_dir.replace('\\', '\\\\'), content, flags=_re.IGNORECASE)
-                m = _re.search(r'"([^"]+\.exe)"', content_resolved, _re.IGNORECASE)
-                if m:
-                    exe = Path(m.group(1))
-                    if exe.exists():
-                        return str(exe)
-            except Exception:
-                pass
-        return cmd_path
+        return _resolve_cmd(p) if p.suffix.lower() in ('.cmd', '.bat') else cmd_path
+
+    # 2. Rutas habituales de instalación (cubre Task Scheduler y PATH limitado)
+    appdata = os.environ.get('APPDATA', '')
+    localappdata = os.environ.get('LOCALAPPDATA', '')
+    candidates: list[Path] = []
+    if appdata:
+        npm = Path(appdata) / 'npm'
+        candidates += [npm / 'claude.cmd', npm / 'claude.exe', npm / 'claude']
+    if localappdata:
+        candidates.append(Path(localappdata) / 'AnthropicClaude' / 'claude.exe')
+    for c in candidates:
+        if c.exists():
+            return _resolve_cmd(c) if c.suffix.lower() in ('.cmd', '.bat') else str(c)
+
     return None
+
+
+def get_claude_bin() -> str | None:
+    """Resuelve la ruta del CLI de claude en cada llamada — sobrevive auto-actualizaciones y PATH limitado."""
+    return _find_claude_bin()
+
 
 CLAUDE_BIN: str | None = _find_claude_bin()
 
