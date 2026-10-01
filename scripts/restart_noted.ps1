@@ -3,7 +3,8 @@
 # los metodos Win32_Process.Create disparan alertas de seguridad en entornos corporativos.
 
 $root = Split-Path $PSScriptRoot -Parent
-$venv = Join-Path $root ".venv\Scripts\python.exe"
+$venvPython = Join-Path $root ".venv\Scripts\python.exe"
+$venv = if (Test-Path $venvPython) { $venvPython } else { (Get-Command python -ErrorAction Stop).Source }
 $main = Join-Path $root "main.py"
 
 # ── GUARDRAIL: no reiniciar si hay una grabacion activa ──────────────────────
