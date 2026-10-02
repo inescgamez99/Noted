@@ -526,7 +526,11 @@
 
       </div>
 
-      <div style="display:flex;justify-content:flex-end;padding:16px 0 0">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0 0">
+        <button class="btn btn-ghost btn-sm" onclick="openPrivacyDrawer()" id="btn-privacy">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span data-i18n="privacy_btn">Privacidad & Compliance</span>
+        </button>
         <button class="btn btn-ghost btn-sm" onclick="window.resetTour()" id="btn-restart-tour" data-i18n="restart_tour">Repetir tour de bienvenida</button>
       </div>
 
@@ -699,6 +703,66 @@
 
 
 <div class="toast" id="toast"></div>
+
+
+
+<!-- Privacy & Compliance drawer -->
+
+<div class="task-drawer-backdrop" id="privacy-drawer-backdrop" onclick="closePrivacyDrawer()"></div>
+
+<div class="task-detail-drawer" id="privacy-drawer">
+
+  <div class="task-detail-header">
+
+    <span style="font-size:13px;font-weight:700;color:var(--text)" data-i18n="privacy_btn">Privacidad & Compliance</span>
+
+    <button class="runs-panel-close" onclick="closePrivacyDrawer()" style="margin-left:auto">×</button>
+
+  </div>
+
+  <div class="task-detail-body" style="gap:20px">
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_ai_title">Servicios de IA que procesan tus datos</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6">
+        <p style="margin:0 0 6px"><strong>Whisper</strong> — transcripción de audio. Se ejecuta <strong>localmente</strong> en tu equipo. El audio nunca sale de tu máquina.</p>
+        <p style="margin:0"><strong>Claude (Anthropic)</strong> — generación de minutas y enriquecimiento de acciones. El texto de la transcripción se envía a la API de Anthropic para su procesamiento.</p>
+      </div>
+    </div>
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_training_title">Uso para entrenamiento de modelos</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6" data-i18n="privacy_training_body">Anthropic no usa los datos enviados a través de la API para entrenar sus modelos. Los datos de API están sujetos a la política de privacidad de Anthropic para clientes empresariales.</div>
+    </div>
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_retention_title">Tiempos de retención</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6">
+        <p style="margin:0 0 4px" data-i18n="privacy_retention_audio">Grabaciones de audio (WAV): <strong>10 días</strong>, borrado automático.</p>
+        <p style="margin:0" data-i18n="privacy_retention_minutes">Minutas y transcripciones: <strong>90 días</strong> por defecto, configurable en <code style="font-size:11px;background:var(--surface);padding:1px 4px;border-radius:3px">settings.json</code>.</p>
+      </div>
+    </div>
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_access_title">Acceso a los datos</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6" data-i18n="privacy_access_body">Noted es una aplicación 100% local. Los datos se almacenan únicamente en tu equipo. No existe sincronización en la nube, acceso remoto ni mecanismo de compartir con otros usuarios.</div>
+    </div>
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_biometrics_title">Biometría</div>
+      <div style="font-size:13px;color:var(--text);line-height:1.6" data-i18n="privacy_biometrics_body">Las grabaciones de voz se usan exclusivamente para transcripción. No se aplica ningún análisis biométrico, identificación de voz ni creación de perfiles de hablante.</div>
+    </div>
+
+    <div class="drawer-field">
+      <div class="drawer-field-label" data-i18n="privacy_links_title">Referencias</div>
+      <div style="font-size:12px;line-height:1.6">
+        <a href="https://www.anthropic.com/legal/privacy" target="_blank" style="color:var(--accent);text-decoration:none" data-i18n="privacy_anthropic_link">Política de privacidad de Anthropic</a>
+      </div>
+    </div>
+
+  </div>
+
+</div>
 
 
 

@@ -5566,3 +5566,14 @@ function _saveStickies() {
 }
 
 
+
+// ── Privacy & Compliance drawer ──────────────────────────────────────────────
+function openPrivacyDrawer() {
+  document.getElementById('privacy-drawer')?.classList.add('open');
+  document.getElementById('privacy-drawer-backdrop')?.classList.add('open');
+}
+
+function closePrivacyDrawer() {
+  document.getElementById('privacy-drawer')?.classList.remove('open');
+  document.getElementById('privacy-drawer-backdrop')?.classList.remove('open');
+}
