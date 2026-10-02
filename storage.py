@@ -56,7 +56,7 @@ def list_recordings(limit: int = 10) -> list[Path]:
     return files[:limit]
 
 
-def cleanup_old_recordings(days: int = 15):
+def cleanup_old_recordings(days: int = 10):
     cutoff = datetime.now() - timedelta(days=days)
     audio_patterns = ('*.wav', '*.mp3')
     aux_patterns   = ('*.lang', '*.partial', '*.context')
