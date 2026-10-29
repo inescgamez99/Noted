@@ -201,6 +201,14 @@ _TRANSCRIBE_ARGS = dict(
 )
 
 
+# Con dos pistas, el micro decide el idioma solo si quien graba habla lo bastante.
+# 29/10/2026: en una reunion en castellano en la que no hablo, faster-whisper
+# adivino 'en' (51 %) sobre el micro en silencio, se le impuso a la pista de los
+# demas y el transcript salio traducido al ingles. Entonces decide la pista de
+# los demas, que se transcribe detectando su propio idioma.
+_LANG_MIN_VOICE_S = 30.0
+
+
 def _targs(hotwords: str | None = None, **overrides) -> dict:
     """Argumentos de transcribe(), con las pistas del glosario si las hay.
 
@@ -303,7 +311,10 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None,
     log.info("Diarizando: transcribiendo track de micrófono...")
     mic_segs_raw, mic_info = model.transcribe(str(mic_path), **_targs(hotwords))
     detected = _remap(getattr(mic_info, 'language', None))
-    log.info(f"Idioma detectado (diarización): {detected}")
+    mic_voice = getattr(mic_info, 'duration_after_vad', None)
+    mic_decides = mic_voice is None or mic_voice >= _LANG_MIN_VOICE_S
+    log.info(f"Idioma detectado (diarización): {detected}"
+             + ('' if mic_decides else f" — el micro tiene {mic_voice:.0f}s de voz; decide la otra pista"))
     duration = getattr(mic_info, 'duration', None)
 
     me_label = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
@@ -318,9 +329,15 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None,
             on_progress(min(int(seg.end / duration * 50), 50))
 
     log.info("Diarizando: transcribiendo track de Teams (otros)...")
-    loop_args = _targs(hotwords, language=detected)
-    loop_args.pop('language_detection_segments', None)
-    loop_segs_raw, _ = model.transcribe(str(loop_path), **loop_args)
+    if mic_decides:
+        loop_args = _targs(hotwords, language=detected)
+        loop_args.pop('language_detection_segments', None)
+    else:
+        loop_args = _targs(hotwords)
+    loop_segs_raw, loop_info = model.transcribe(str(loop_path), **loop_args)
+    if not mic_decides and (getattr(loop_info, 'duration_after_vad', 0) or 0) > mic_voice:
+        detected = _remap(getattr(loop_info, 'language', None))
+        log.info(f"Idioma de la reunión (pista de Teams): {detected}")
     loop_segments: list[tuple[float, str, str]] = []
     for seg in loop_segs_raw:
         _check_cancel(should_cancel)
