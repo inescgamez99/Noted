@@ -186,6 +186,13 @@ def tr_dirs(tmp_path, monkeypatch):
         if mod is not None:
             monkeypatch.setattr(mod, 'ME_NAME', '', raising=False)
 
+    # El idioma de la UI tambien sale del settings.json REAL, cargado al importar
+    # config: con la app en ingles, los tests que esperan los textos en espanol
+    # fallaban solo en la maquina de quien los ejecuta (30/10/2026).
+    cfg = sys.modules.get('config')
+    if cfg is not None:
+        monkeypatch.setattr(cfg, '_settings', {}, raising=False)
+
     # Red de seguridad: toda ruta debe caer DENTRO de la raiz de este test.
     # Se comprueba asi, y no como "fuera del repo", porque --basetemp cuelga de
     # .pytest_tmp/ dentro del propio repo (ver el comentario en pyproject.toml).
