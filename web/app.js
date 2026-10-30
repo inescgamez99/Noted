@@ -269,10 +269,11 @@ const T = {
     live_waiting_memory: 'Sin memoria libre para transcribir ahora: el transcript se hará al colgar. Cerrar apps que no uses ayuda.',
     bg_waiting_disk: 'Poco espacio en disco: la grabación sigue, y la transcripción se hará al colgar. Libera espacio.',
     live_waiting_disk: 'Poco espacio en disco: la grabación sigue, y el transcript se hará al colgar. Libera espacio.',
-    live_switch: 'Activar en vivo',
+    live_switch: 'Tiempo real',
+    live_switch_tip: 'Transcribe al momento, mientras se habla, con un modelo más rápido. Usa más CPU durante la llamada.',
     live_switch_sent: 'Activando el transcript en vivo…',
     live_switch_failed: 'No se pudo activar el transcript en vivo',
-    live_bg_hint: 'Se transcribe en segundo plano con el modelo completo, así que va con retraso. Para verlo al momento, pulsa «Activar en vivo».',
+    live_bg_hint: 'Se transcribe en segundo plano con el modelo completo, así que va con retraso. Para verlo al momento, pulsa «Tiempo real».',
     live_final_label: 'En modo en vivo, guardar el transcript en vivo como definitivo',
     live_final_desc: 'El transcript queda listo segundos después de colgar, pero con la calidad del modelo rápido (small): falla más, sobre todo en términos en inglés. Apagado, lo que se hizo en vivo se rehace con el modelo de arriba.',
     minutes_mode_label: 'Minutas al terminar la reunión',
@@ -695,10 +696,11 @@ const T = {
     live_waiting_memory: 'Not enough free memory to transcribe now: the transcript will be made after the call. Closing apps you are not using helps.',
     bg_waiting_disk: 'Low disk space: the recording continues, and the transcription will be done after the call. Free up some space.',
     live_waiting_disk: 'Low disk space: the recording continues, and the transcript will be made after the call. Free up some space.',
-    live_switch: 'Go live',
+    live_switch: 'Real time',
+    live_switch_tip: 'Transcribes as people speak, with a faster model. Uses more CPU during the call.',
     live_switch_sent: 'Turning on the live transcript…',
     live_switch_failed: 'Could not turn on the live transcript',
-    live_bg_hint: 'It is being transcribed in the background with the full model, so it lags behind. To see it as it happens, press “Go live”.',
+    live_bg_hint: 'It is being transcribed in the background with the full model, so it lags behind. To see it as it happens, press “Real time”.',
     live_final_label: 'In live mode, save the live transcript as the final one',
     live_final_desc: 'The transcript is ready seconds after hanging up, but with the faster model’s quality (small): more mistakes, especially on English terms. When off, what was done live is redone with the model above.',
     minutes_mode_label: 'Minutes when the meeting ends',
@@ -1120,10 +1122,11 @@ const T = {
     live_waiting_memory: 'Sense memòria lliure per transcriure ara: el transcript es farà en penjar. Tancar apps que no facis servir ajuda.',
     bg_waiting_disk: 'Poc espai al disc: la gravació continua, i la transcripció es farà en penjar. Allibera espai.',
     live_waiting_disk: 'Poc espai al disc: la gravació continua, i el transcript es farà en penjar. Allibera espai.',
-    live_switch: 'Activar en directe',
+    live_switch: 'Temps real',
+    live_switch_tip: 'Transcriu al moment, mentre es parla, amb un model més ràpid. Fa servir més CPU durant la trucada.',
     live_switch_sent: 'Activant el transcript en directe…',
     live_switch_failed: 'No s\'ha pogut activar el transcript en directe',
-    live_bg_hint: 'Es transcriu en segon pla amb el model complet, així que va amb retard. Per veure-ho al moment, prem «Activar en directe».',
+    live_bg_hint: 'Es transcriu en segon pla amb el model complet, així que va amb retard. Per veure-ho al moment, prem «Temps real».',
     live_final_label: 'En mode en directe, desar el transcript en directe com a definitiu',
     live_final_desc: 'El transcript queda llest uns segons després de penjar, però amb la qualitat del model ràpid (small): s\'equivoca més, sobretot en termes en anglès. Desactivat, el que es va fer en directe es refà amb el model de dalt.',
     minutes_mode_label: 'Actes en acabar la reunió',
@@ -5824,16 +5827,20 @@ async function updatePipelineFooter() {
       : '';
 
     // Transcript durante la reunión (tray_app._write_status): "Ver" cuando hay
-    // proceso transcribiendo (live_stem), en los dos modos; "Activar en vivo"
-    // mientras la grabación va en modo de fondo.
+    // proceso transcribiendo (live_stem), en los dos modos; "Tiempo real"
+    // mientras la grabación va en modo de fondo, salvo que esté aplazada por falta
+    // de recursos: el modelo rápido tampoco los tendría, y el botón contradecía el
+    // aviso de que se transcribe al colgar (29/10/2026).
     let liveHtml = '';
     if (j.stage === 'recording') {
       if (j.live_stem) {
         liveHtml += `<button class="btn btn-ghost btn-sm pipeline-job-live" data-stem="${escHtml(j.live_stem)}"
                  onclick="openLiveModal(this.dataset.stem)">${escHtml(t(j.mode === 'live' ? 'live_open' : 'live_open_bg'))}</button>`;
       }
-      if (j.mode && j.mode !== 'live' && j.rec_stem) {
+      const liveDeferred = ['waiting_memory', 'waiting_disk'].includes(j.live_state);
+      if (j.mode && j.mode !== 'live' && j.rec_stem && !liveDeferred) {
         liveHtml += `<button class="btn btn-ghost btn-sm pipeline-job-live" data-stem="${escHtml(j.rec_stem)}"
+                 title="${escHtml(t('live_switch_tip'))}"
                  onclick="switchLive(this.dataset.stem)">${escHtml(t('live_switch'))}</button>`;
       }
     }

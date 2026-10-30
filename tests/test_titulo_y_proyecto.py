@@ -207,6 +207,36 @@ def test_sin_outlook_no_hay_asunto():
     assert os_mod.find_meeting_subject(AHORA) is None
 
 
+def test_descartar_la_grabacion_borra_su_titulo(tray):
+    """Una grabacion descartada no llega al cierre, que es quien recoge el .title:
+    el 29/10/2026 se quedo uno suelto en recordings/."""
+    wav = ta.RECORDINGS_DIR / f'{STEM}.wav'
+    titulo = wav.with_suffix('.title')
+    titulo.write_text('Revision semanal', encoding='utf-8')
+    tray._recorder = type('R', (), {'is_recording': True, 'cancel': lambda self: None})()
+    tray._recording_path = wav
+    tray._cancel_recording()
+    assert not titulo.exists()
+
+
+def test_descartar_no_falla_si_el_titulo_esta_bloqueado(tray, monkeypatch):
+    """Un .title abierto por otro proceso no impide descartar la grabacion."""
+    wav = ta.RECORDINGS_DIR / f'{STEM}.wav'
+    wav.with_suffix('.title').write_text('Revision semanal', encoding='utf-8')
+    unlink = Path.unlink
+
+    def bloqueado(self, *a, **k):
+        if self.suffix == '.title':
+            raise PermissionError(13, 'en uso por otro proceso')
+        return unlink(self, *a, **k)
+
+    monkeypatch.setattr(Path, 'unlink', bloqueado)
+    tray._recorder = type('R', (), {'is_recording': True, 'cancel': lambda self: None})()
+    tray._recording_path = wav
+    tray._cancel_recording()
+    assert tray._recording_path is None
+
+
 # ── 2. El proyecto sin Claude ────────────────────────────────────────────────
 
 @pytest.mark.parametrize('titulo, proyecto', [
