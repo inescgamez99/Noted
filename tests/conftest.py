@@ -295,6 +295,7 @@ def tray_factory(tr_dirs):
         app._recording_start = None
         app._recording_path = None
         app._ticker_stop = threading.Event()
+        app._status_lock = threading.Lock()
         app._processing_msg = ''
         app._current_job = {}
         app._session = None

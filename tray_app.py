@@ -220,6 +220,7 @@ class TrayApp:
         self._recording_start: float | None = None
         self._recording_path: Path | None = None
         self._ticker_stop = threading.Event()
+        self._status_lock = threading.Lock()     # ver _write_status
         self._processing_msg: str = ''
         self._current_job: dict = {}
 
@@ -306,6 +307,16 @@ class TrayApp:
         self._icon.run()
 
     def _write_status(self):
+        """.pipeline_status.json lo escriben el ticker y quien cambia de estado,
+        desde hilos distintos. Sin el lock, la ultima escritura del ticker podia
+        llegar despues de la de set_recording(False) y dejar "grabando" hasta el
+        siguiente cambio: el 29/10/2026, al descartar una grabacion, el panel y la
+        puerta de reinicio la siguieron viendo en curso. Con el lock, quien
+        escribe el ultimo lee el estado de ese momento."""
+        with self._status_lock:
+            self._write_status_now()
+
+    def _write_status_now(self):
         import json as _json
         import re as _re
         from config import PROJECT_DIR
