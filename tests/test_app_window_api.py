@@ -207,30 +207,30 @@ def sin_deteccion(monkeypatch):
 
 
 def test_crear_un_proyecto_genera_un_id_desde_el_nombre(api, tr_dirs, sin_deteccion):
-    api.save_project({'name': 'Aramco Agentic AI'})
-    assert [p['id'] for p in api.get_projects()] == ['aramco-agentic-ai']
+    api.save_project({'name': 'Contoso Agentic AI'})
+    assert [p['id'] for p in api.get_projects()] == ['contoso-agentic-ai']
 
 
 def test_dos_proyectos_con_el_mismo_nombre_no_colisionan(api, tr_dirs, sin_deteccion):
-    api.save_project({'name': 'Aramco'})
-    api.save_project({'name': 'Aramco'})
+    api.save_project({'name': 'Contoso'})
+    api.save_project({'name': 'Contoso'})
 
     ids = [p['id'] for p in api.get_projects()]
-    assert ids == ['aramco', 'aramco-2']
+    assert ids == ['contoso', 'contoso-2']
 
 
 def test_guardar_con_un_id_existente_actualiza_en_vez_de_duplicar(api, tr_dirs,
                                                                   sin_deteccion):
-    api.save_project({'name': 'Aramco'})
-    api.save_project({'id': 'aramco', 'name': 'Aramco Fase 2'})
+    api.save_project({'name': 'Contoso'})
+    api.save_project({'id': 'contoso', 'name': 'Contoso Fase 2'})
 
     proyectos = api.get_projects()
     assert len(proyectos) == 1
-    assert proyectos[0]['name'] == 'Aramco Fase 2'
+    assert proyectos[0]['name'] == 'Contoso Fase 2'
 
 
 def test_borrar_un_proyecto_inexistente_no_toca_el_fichero(api, tr_dirs, sin_deteccion):
-    api.save_project({'name': 'Aramco'})
+    api.save_project({'name': 'Contoso'})
     antes = (tr_dirs / 'projects.json').read_bytes()
 
     api.delete_project('no-existe')

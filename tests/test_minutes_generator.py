@@ -62,8 +62,8 @@ def test_un_texto_vacio_no_revienta():
 
 
 def test_un_titulo_con_dos_puntos_dentro_se_conserva_entero():
-    titulo, _ = mg.extract_title_from_minutes('TITULO: Aramco: fase 2\n\ncuerpo')
-    assert titulo == 'Aramco: fase 2'
+    titulo, _ = mg.extract_title_from_minutes('TITULO: Contoso: fase 2\n\ncuerpo')
+    assert titulo == 'Contoso: fase 2'
 
 
 # ── Guardar las minutas ──────────────────────────────────────────────────
@@ -144,8 +144,8 @@ def test_el_prompt_incluye_el_transcript(tr_dirs):
 def test_el_prompt_incluye_el_contexto_extra_si_lo_hay(tr_dirs):
     """Es lo que el usuario escribe en 'Anadir contexto a grabacion'."""
     p = mg._build_prompt('transcript', tr_dirs / 'recordings' / 'x.wav',
-                         extra_context='hablamos del presupuesto de Aramco')
-    assert 'Aramco' in p
+                         extra_context='hablamos del presupuesto de Contoso')
+    assert 'Contoso' in p
 
 
 def test_la_regla_de_atribucion_esta_en_el_prompt():

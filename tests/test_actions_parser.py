@@ -124,15 +124,15 @@ def test_un_bloque_de_codigo_sin_codigo_no_anade_la_seccion_de_referencia():
 # ── Sugerencia de proyecto ───────────────────────────────────────────────
 
 def test_sugiere_el_proyecto_cuyo_nombre_aparece_en_el_texto(tmp_path):
-    (tmp_path / 'aramco').mkdir()
+    (tmp_path / 'contoso').mkdir()
     (tmp_path / 'otro-proyecto').mkdir()
 
-    md = "~~~instruction-for-claude\nActualizar el plan de Aramco\n~~~"
-    assert parse_actions(md, projects_dir=tmp_path)[0].suggested_project == 'aramco'
+    md = "~~~instruction-for-claude\nActualizar el plan de Contoso\n~~~"
+    assert parse_actions(md, projects_dir=tmp_path)[0].suggested_project == 'contoso'
 
 
 def test_sin_directorio_de_proyectos_no_sugiere_nada():
-    md = "~~~instruction-for-claude\nAlgo de aramco\n~~~"
+    md = "~~~instruction-for-claude\nAlgo de contoso\n~~~"
     assert parse_actions(md)[0].suggested_project is None
 
 

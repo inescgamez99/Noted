@@ -2,7 +2,7 @@
 
 Hay una herramienta FUERA de este repo que lee lo que produce la app:
 
-    ~/.claude/projects/Aramco Agentic AI Project/tools/scan_meetings.py
+    ~/.claude/projects/<proyecto>/tools/scan_meetings.py
 
 y depende de cinco cosas. Si cualquiera cambia sin avisar, ese consumidor deja
 de ver las reuniones y nadie se entera desde aqui:
@@ -102,15 +102,15 @@ def test_el_md_es_la_prueba_de_que_la_reunion_ocurrio(tr_dirs):
 @pytest.fixture
 def reunion_archivada(tr_dirs):
     (tr_dirs / 'projects.json').write_text(json.dumps({'projects': [
-        {'id': 'aramco-agentic-ai', 'name': 'Aramco Agentic AI'},
+        {'id': 'contoso-agentic-ai', 'name': 'Contoso Agentic AI'},
     ]}), encoding='utf-8')
 
-    stem = '20260917_1616_Aramco_Kickoff'
+    stem = '20260917_1616_Contoso_Kickoff'
     md = pc.MINUTES_DIR / f'{stem}.md'
-    md.write_text('TITULO: Aramco Kickoff\n\n## Resumen Ejecutivo\n\nArrancamos.\n',
+    md.write_text('TITULO: Contoso Kickoff\n\n## Resumen Ejecutivo\n\nArrancamos.\n',
                   encoding='utf-8')
     (pc.MINUTES_DIR / f'{stem}_actions.json').write_text(
-        json.dumps({'project_id': 'aramco-agentic-ai', 'actions': []}), encoding='utf-8')
+        json.dumps({'project_id': 'contoso-agentic-ai', 'actions': []}), encoding='utf-8')
 
     pc.sync_meeting_summary(md)
     return {'stem': stem, 'md': md, 'root': tr_dirs}
@@ -118,7 +118,7 @@ def reunion_archivada(tr_dirs):
 
 def test_la_pertenencia_se_marca_en_project_docs_id_meetings(reunion_archivada):
     """Ruta exacta que el consumidor recorre: project_docs/<id>/meetings/"""
-    esperada = (reunion_archivada['root'] / 'project_docs' / 'aramco-agentic-ai'
+    esperada = (reunion_archivada['root'] / 'project_docs' / 'contoso-agentic-ai'
                 / 'meetings' / f"{reunion_archivada['stem']}.txt")
     assert esperada.exists(), "el consumidor no vera esta reunion como del proyecto"
 
@@ -137,7 +137,7 @@ def test_el_id_de_proyecto_de_la_ruta_existe_en_projects_json(reunion_archivada)
 def test_el_nombre_del_fichero_archivado_es_el_stem_de_la_minuta(reunion_archivada):
     """Es lo que permite al consumidor cruzar la carpeta del proyecto con
     minutes/*.md."""
-    archivados = list((reunion_archivada['root'] / 'project_docs' / 'aramco-agentic-ai'
+    archivados = list((reunion_archivada['root'] / 'project_docs' / 'contoso-agentic-ai'
                        / 'meetings').iterdir())
     assert [p.stem for p in archivados] == [reunion_archivada['stem']]
 
@@ -175,12 +175,13 @@ def test_cada_proyecto_declara_al_menos_id_y_name(tr_dirs):
 
 # ── Comprobacion opcional contra el consumidor real ──────────────────────
 
-CONSUMIDOR = (Path.home() / '.claude' / 'projects' / 'Aramco Agentic AI Project'
-              / 'tools' / 'scan_meetings.py')
+# Se busca en cualquier proyecto: el repo es publico y no nombra el del cliente.
+_CANDIDATOS = sorted((Path.home() / '.claude' / 'projects').glob('*/tools/scan_meetings.py'))
+CONSUMIDOR = _CANDIDATOS[0] if _CANDIDATOS else None
 
 
 @pytest.mark.integration
-@pytest.mark.skipif(not CONSUMIDOR.exists(),
+@pytest.mark.skipif(CONSUMIDOR is None,
                     reason='el consumidor externo no esta en esta maquina')
 def test_el_consumidor_real_sigue_esperando_lo_mismo():
     """Lee el codigo del consumidor y comprueba que las cinco piezas del

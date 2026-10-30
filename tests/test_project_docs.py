@@ -192,7 +192,7 @@ def test_la_recoleccion_se_puede_cancelar(tr_dirs):
 
 @pytest.fixture
 def proyecto(tr_dirs, carpeta_con_documentos):
-    return {'id': 'aramco', 'name': 'Aramco',
+    return {'id': 'contoso', 'name': 'Contoso',
             'context_dirs': [str(carpeta_con_documentos)]}
 
 
@@ -200,13 +200,13 @@ def test_sincronizar_convierte_cada_documento_a_texto(proyecto, tr_dirs):
     n = pc.sync_project_docs(proyecto)
 
     assert n == 2
-    convertidos = {p.name for p in (pc.project_docs_dir('aramco') / 'docs').iterdir()}
+    convertidos = {p.name for p in (pc.project_docs_dir('contoso') / 'docs').iterdir()}
     assert convertidos == {'uno.txt', 'dos.txt'}
 
 
 def test_el_texto_convertido_lleva_el_contenido(proyecto):
     pc.sync_project_docs(proyecto)
-    texto = (pc.project_docs_dir('aramco') / 'docs' / 'uno.txt').read_text(
+    texto = (pc.project_docs_dir('contoso') / 'docs' / 'uno.txt').read_text(
         encoding='utf-8')
     assert 'uno' in texto
 
@@ -231,7 +231,7 @@ def test_sincronizar_dos_veces_no_duplica(proyecto):
     pc.sync_project_docs(proyecto)
     pc.sync_project_docs(proyecto)
 
-    convertidos = list((pc.project_docs_dir('aramco') / 'docs').iterdir())
+    convertidos = list((pc.project_docs_dir('contoso') / 'docs').iterdir())
     assert len(convertidos) == 2
 
 
@@ -246,16 +246,16 @@ def test_sin_proyectos_no_hay_contexto(tr_dirs):
 def test_con_un_proyecto_detectado_se_devuelve_su_carpeta(tr_dirs):
     import json
     (tr_dirs / 'projects.json').write_text(json.dumps({'projects': [
-        {'id': 'aramco', 'name': 'Aramco'},
+        {'id': 'contoso', 'name': 'Contoso'},
     ]}), encoding='utf-8')
-    docs = pc.project_docs_dir('aramco')
+    docs = pc.project_docs_dir('contoso')
     (docs / 'docs').mkdir(parents=True)
     (docs / 'docs' / 'x.txt').write_text('contexto', encoding='utf-8')
 
     proyecto, directorio = pc.prepare_context(
-        'hablamos del proyecto Aramco y sus fases', 'Aramco Kickoff')
+        'hablamos del proyecto Contoso y sus fases', 'Contoso Kickoff')
 
-    assert proyecto is not None and proyecto['id'] == 'aramco'
+    assert proyecto is not None and proyecto['id'] == 'contoso'
     assert directorio == str(docs)
 
 
@@ -263,23 +263,23 @@ def test_un_proyecto_sin_documentos_no_da_carpeta_de_contexto(tr_dirs):
     """Pasarle al modelo una carpeta vacia solo gasta tokens."""
     import json
     (tr_dirs / 'projects.json').write_text(json.dumps({'projects': [
-        {'id': 'aramco', 'name': 'Aramco'},
+        {'id': 'contoso', 'name': 'Contoso'},
     ]}), encoding='utf-8')
 
-    proyecto, directorio = pc.prepare_context('proyecto Aramco', 'Aramco')
+    proyecto, directorio = pc.prepare_context('proyecto Contoso', 'Contoso')
 
     assert directorio is None
 
 
 # ── Detectar el proyecto por palabras clave ──────────────────────────────
 
-PROYECTOS = [{'id': 'aramco', 'name': 'Aramco Agentic AI'},
+PROYECTOS = [{'id': 'contoso', 'name': 'Contoso Agentic AI'},
              {'id': 'campo', 'name': 'Campo App'}]
 
 
 def test_detecta_el_proyecto_por_su_nombre():
-    p = pc.detect_project('hablamos del avance de Aramco Agentic AI', '', PROYECTOS)
-    assert p['id'] == 'aramco'
+    p = pc.detect_project('hablamos del avance de Contoso Agentic AI', '', PROYECTOS)
+    assert p['id'] == 'contoso'
 
 
 def test_detecta_el_proyecto_por_el_nombre_de_la_reunion():
@@ -292,11 +292,11 @@ def test_sin_coincidencia_no_detecta_nada():
 
 
 def test_sin_proyectos_no_detecta_nada():
-    assert pc.detect_project('Aramco', '', []) is None
+    assert pc.detect_project('Contoso', '', []) is None
 
 
 def test_norm_pone_en_minusculas_y_conserva_los_espacios():
     """Distinto de tray_app._norm_key, que si los quita. Aqui se conservan
     porque la deteccion busca el nombre del proyecto como frase dentro del
     transcript."""
-    assert pc._norm('Aramco-Agentic AI!') == 'aramco agentic ai'
+    assert pc._norm('Contoso-Agentic AI!') == 'contoso agentic ai'

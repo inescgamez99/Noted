@@ -56,7 +56,7 @@ def test_dos_titulos_largos_con_el_mismo_prefijo_colisionan():
     """Documenta una consecuencia del truncado a 60: si dos reuniones solo se
     diferencian DESPUES del caracter 60, producen el mismo slug. Hoy las salva
     el timestamp del nombre de fichero, no el slug."""
-    prefijo = 'Comite de Seguimiento Semanal del Proyecto Aramco Agentic AI'
+    prefijo = 'Comite de Seguimiento Semanal del Proyecto Contoso Agentic AI'
     assert len(prefijo) >= 60, "el prefijo debe llegar al corte"
 
     a = storage._slugify(f'{prefijo} Fase Uno')
@@ -108,7 +108,7 @@ def test_get_transcript_path_aplicado_dos_veces_duplica_el_sufijo(tr_dirs):
 
 def test_get_minutes_path_produce_el_stem_del_contrato(tr_dirs):
     """YYYYMMDD_HHMM_Titulo_Con_Underscores: de este formato depende el
-    consumidor externo scan_meetings.py del proyecto Aramco."""
+    consumidor externo scan_meetings.py del proyecto Contoso."""
     wav = storage.RECORDINGS_DIR / '2026-09-17_16-16_manual.wav'
     md = storage.get_minutes_path(wav, 'Revision Deck Sales')
     assert md.name == '20260917_1616_Revision_Deck_Sales.md'

@@ -83,10 +83,10 @@ def test_DEFECTO_un_json_valido_sin_clave_tasks_rompe_al_crear(tr_dirs):
 # ── Crear tareas ─────────────────────────────────────────────────────────
 
 def test_crear_una_tarea_devuelve_todos_sus_campos(tr_dirs):
-    t = ts.create_task(project_id='aramco', title='Enviar propuesta')
+    t = ts.create_task(project_id='contoso', title='Enviar propuesta')
 
     assert t['title'] == 'Enviar propuesta'
-    assert t['project_id'] == 'aramco'
+    assert t['project_id'] == 'contoso'
     assert uuid.UUID(t['id'])                   # id valido
     assert t['created_at'].endswith('+00:00'), "created_at deberia llevar zona"
 
