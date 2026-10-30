@@ -202,6 +202,28 @@ def test_la_reunion_anterior_que_sigue_en_curso_no_da_nombre(fake_outlook):
     assert [p['email'] for p in os_mod.find_meeting_participants(AHORA)] == ['ines@x.com']
 
 
+def test_los_participantes_son_los_de_la_cita_que_nombra_teams(tray, fake_outlook):
+    """30/10/2026: una grabacion 'manual' se emparejaba solo por hora, y con dos
+    citas a las 11:00 ganaba la de 55 invitados en vez de la reunion real."""
+    cafe = CitaFalsa('Team Breathe & Coffe Break', AHORA)
+    cafe.Recipients = [type('R', (), {'Name': f'P{i}', 'Address': f'p{i}@x.com'})() for i in range(55)]
+    real = CitaFalsa('FW: IBP Central Workstream', AHORA, fin=AHORA + timedelta(hours=1))
+    fake_outlook.appointments = [cafe, real]
+
+    wav = ta.RECORDINGS_DIR / f'{STEM}.wav'
+    wav.with_suffix('.title').write_text('IBP Central Workstream', encoding='utf-8')
+
+    nombre = tray._recording_meeting_name(wav)
+    assert nombre == 'IBP Central Workstream'
+    participantes = os_mod.find_meeting_participants(AHORA, meeting_name=nombre)
+    assert [p['email'] for p in participantes] == ['ines@x.com']
+    assert participantes[0]['meeting_subject'] == 'FW: IBP Central Workstream'
+
+
+def test_sin_titulo_de_teams_la_grabacion_manual_no_tiene_nombre(tray):
+    assert tray._recording_meeting_name(ta.RECORDINGS_DIR / f'{STEM}.wav') is None
+
+
 def test_sin_outlook_no_hay_asunto():
     """conftest: Outlook no disponible."""
     assert os_mod.find_meeting_subject(AHORA) is None
