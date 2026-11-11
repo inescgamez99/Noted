@@ -705,22 +705,27 @@ def _step(track: _Track, model, lang: str | None, args: dict, vad, vad_opts, wav
     segments, detected, chunk_lang = [], None, lang
     t_asr = time.perf_counter()
     if voiced > 0:
-        segs, info = model.transcribe(np.ascontiguousarray(chunk * gain), language=lang, **args)
+        import transcriber
+        audio = np.ascontiguousarray(chunk * gain)
+        segs, info = model.transcribe(audio, language=lang, **args)
         offset = track.buf_start / SR
+        done = []
         for s in segs:
             if abort is not None and abort():
                 log.info(f"live: {track.name} trozo abandonado a mitad (el daemon lo pidio)")
                 return False, None
             text = s.text.strip()
             if text:
-                segments.append([round(offset + s.start, 2), text])
+                done.append((s.start, s.end, text))
         if lang is None:
-            import transcriber
             chunk_lang = transcriber._remap(getattr(info, 'language', None))
             # Solo se fija con confianza alta: fijarlo con los primeros segundos de
             # charla impondria un idioma dudoso a toda la reunion.
             if getattr(info, 'language_probability', 0) >= LANG_LOCK_PROB:
                 detected = chunk_lang
+        done = transcriber._redo_echoes(model, done, transcriber._Audio(audio, SR),
+                                        dict(args, language=chunk_lang))
+        segments = [[round(offset + s, 2), text] for s, _e, text in done]
     t_asr = time.perf_counter() - t_asr
     _append_record(wav, {
         'track': track.name, 'start_frame': track.buf_start,
@@ -1332,14 +1337,19 @@ def _finish_live(wav: Path, on_progress=None, should_cancel=None,
                         block = f.read(end - pos, dtype='float32', always_2d=False)
                         if not len(block):
                             break
-                        segs, info = model.transcribe(np.ascontiguousarray(block), language=lang, **args)
+                        block = np.ascontiguousarray(block)
+                        segs, info = model.transcribe(block, language=lang, **args)
                         if lang is None:
                             lang = transcriber._remap(getattr(info, 'language', None))
-                        offset, new = pos / SR, []
+                        got = []
                         for s in transcriber._paced(segs, should_pause, should_cancel):
                             text = s.text.strip()
                             if text:
-                                new.append([round(offset + s.start, 2), text])
+                                got.append((s.start, s.end, text))
+                        got = transcriber._redo_echoes(model, got, transcriber._Audio(block, SR),
+                                                       dict(args, language=lang))
+                        offset = pos / SR
+                        new = [[round(offset + s, 2), text] for s, _e, text in got]
                         _append_record(wav, {'track': name, 'start_frame': pos, 'end_frame': end,
                                              'segments': new, 'lang': lang, 'model': model_name})
                         by_track[name] += [(t, txt) for t, txt in new]

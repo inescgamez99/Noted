@@ -268,6 +268,112 @@ def _targs(hotwords: str | None = None, **overrides) -> dict:
     return args
 
 
+# Pistas que se cuelan. Cuando Whisper duda con una ventana, a veces no la
+# transcribe: devuelve el texto de las pistas. El 11/11/2026, en una reunion de
+# 24 min, 18 lineas con los nombres de los invitados y el asunto de la cita
+# taparon hasta 14,5 de los ~16,5 min con voz de la pista de los demas.
+# Esos mismos tramos, transcritos sin pistas, salen enteros: se rehacen asi.
+_ECHO_MIN_WORDS = 2
+_ECHO_SHARE = 0.8
+
+
+def _words(text: str) -> list[str]:
+    import unicodedata
+    folded = unicodedata.normalize('NFKD', text.lower())
+    return re.findall(r'\w+', ''.join(c for c in folded if not unicodedata.combining(c)))
+
+
+def is_hotword_echo(text: str, hotwords: str | None) -> bool:
+    """Si la linea es Whisper repitiendo las pistas en vez de transcribir: casi
+    todas sus palabras son de las pistas. Una frase que nombra a un invitado
+    ("¿lo ves, Miguel?") tiene palabras propias. Un falso positivo solo cuesta
+    rehacer ese tramo sin pistas."""
+    if not hotwords:
+        return False
+    words = _words(text)
+    if len(words) < _ECHO_MIN_WORDS:
+        return False
+    vocab = set(_words(hotwords))
+    return sum(w in vocab for w in words) >= _ECHO_SHARE * len(words)
+
+
+class _Audio:
+    """Una pista, la mezcla o un trozo ya en memoria, a 16 kHz y en mono, que es lo
+    que espera Whisper. De un fichero se lee solo el tramo que se pide: una
+    reunion de 2 h son ~460 MB en float32."""
+
+    def __init__(self, source, sr: int = 16000):
+        self.source, self.sr = source, sr
+        self._whole = None
+
+    def _is_file(self) -> bool:
+        return isinstance(self.source, (str, Path))
+
+    @property
+    def total(self) -> float:
+        if self._is_file():
+            import soundfile as sf
+            return float(sf.info(str(self.source)).duration)
+        return len(self.source) / self.sr
+
+    def read(self, a: float, b: float):
+        import numpy as np
+        if not self._is_file():
+            return np.ascontiguousarray(self.source[int(a * self.sr):int(b * self.sr)])
+        import soundfile as sf
+        rate = sf.info(str(self.source)).samplerate
+        if rate != 16000:
+            # Los WAV del grabador son de 16 kHz; otro se decodifica entero, una vez.
+            if self._whole is None:
+                from faster_whisper import decode_audio
+                self._whole = decode_audio(str(self.source), sampling_rate=16000)
+            return np.ascontiguousarray(self._whole[int(a * 16000):int(b * 16000)])
+        audio, _ = sf.read(str(self.source), start=int(a * rate), stop=int(b * rate),
+                           dtype='float32', always_2d=False)
+        return np.ascontiguousarray(audio.mean(axis=1) if audio.ndim > 1 else audio)
+
+
+def _redo_spans(model, segments: list, audio: _Audio, args: dict, bad, why: str) -> list:
+    """Rehace con args los segmentos que marca bad(segmento).
+
+    segments: [(inicio, fin, texto)] en segundos de audio, que solo se lee si
+    hay algo que rehacer. Cada tramo va del final del segmento bueno anterior al
+    inicio del siguiente, y los marcados seguidos son un solo tramo: el texto
+    malo ocupa el sitio de lo que se dijo, y sus marcas de tiempo no son fiables.
+    """
+    if not any(bad(s) for s in segments):
+        return segments
+    out, i, redone = [], 0, 0.0
+    while i < len(segments):
+        if not bad(segments[i]):
+            out.append(segments[i])
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(segments) and bad(segments[j + 1]):
+            j += 1
+        a = min(segments[i][0], out[-1][1]) if out else segments[i][0]
+        b = segments[j + 1][0] if j + 1 < len(segments) else audio.total
+        window = audio.read(a, b) if b > a else ()
+        if len(window):
+            segs, _info = model.transcribe(window, **args)
+            out += [(a + s.start, a + s.end, s.text.strip()) for s in segs if s.text.strip()]
+        redone += max(0.0, b - a)
+        i = j + 1
+    log.info(f"{why}: {redone:.0f}s rehechos")
+    return out
+
+
+def _redo_echoes(model, segments: list, audio: _Audio, args: dict) -> list:
+    """Rehace sin pistas los tramos que salieron como eco de ellas."""
+    hotwords = args.get('hotwords')
+    if not hotwords:
+        return segments
+    plain = {k: v for k, v in args.items() if k != 'hotwords'}
+    return _redo_spans(model, segments, audio, plain, lambda s: is_hotword_echo(s[2], hotwords),
+                       "Pistas coladas en la transcripcion, sin ellas")
+
+
 def _transcribe_whole(model, audio_path: Path, on_progress=None, on_segment=None,
                       should_cancel=None, should_pause=None, hotwords: str | None = None):
     _wait_if_paused(should_pause, should_cancel)
@@ -275,19 +381,22 @@ def _transcribe_whole(model, audio_path: Path, on_progress=None, on_segment=None
     detected = _remap(getattr(info, 'language', None))
     log.info(f"Idioma de la reunión: {detected}")
 
-    lines = []
+    done = []
     duration = getattr(info, 'duration', None)
     for seg in _paced(segments, should_pause, should_cancel):
         # faster-whisper devuelve un generador perezoso: salir del bucle corta
         # el trabajo de verdad, no solo descarta el resultado.
         _check_cancel(should_cancel)
-        line = f"{_format_time(seg.start)} {seg.text.strip()}"
-        lines.append(line)
+        done.append((seg.start, seg.end, seg.text.strip()))
+        # El .partial puede llevar un eco de las pistas: solo sirve para reanudar,
+        # y el texto que se devuelve ya va sin el.
         if on_segment:
-            on_segment(line)
+            on_segment(f"{_format_time(seg.start)} {seg.text.strip()}")
         if on_progress and duration:
             on_progress(min(int(seg.end / duration * 100), 100))
-    return '\n'.join(lines), detected
+    done = _redo_echoes(model, done, _Audio(audio_path),
+                        _targs(hotwords, language=detected))
+    return '\n'.join(f"{_format_time(s)} {t}" for s, _e, t in done), detected
 
 
 def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=None,
@@ -321,17 +430,24 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
                 detected = _remap(getattr(cinfo, 'language', None))
                 log.info(f"Idioma de la reunión: {detected}")
             offset = pos / sr
+            done = []
             for seg in _paced(segments, should_pause, should_cancel):
                 _check_cancel(should_cancel)
-                line = f"{_format_time(offset + seg.start)} {seg.text.strip()}"
-                lines.append(line)
-                if on_segment:
-                    on_segment(line)
+                done.append((seg.start, seg.end, seg.text.strip()))
                 # Progreso por segmento y no solo por trozo: con trozos de 300s
                 # la barra se quedaba clavada varios minutos entre saltos de
                 # 13,6% y parecía colgada aunque estuviera transcribiendo.
                 if on_progress and duration:
                     on_progress(min(int((offset + seg.end) / duration * 100), 100))
+            # Las lineas salen por trozo, ya sin ecos de las pistas: van al .partial,
+            # y un eco ahi se conservaria al reanudar.
+            done = _redo_echoes(model, done, _Audio(block, sr),
+                                _targs(hotwords, language=detected))
+            for start, _end, text in done:
+                line = f"{_format_time(offset + start)} {text}"
+                lines.append(line)
+                if on_segment:
+                    on_segment(line)
             pos += len(block)
             del block
             gc.collect()
@@ -378,24 +494,29 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
 
     me_label = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
     others_label = '[Otros]'
-    mic_segments: list[tuple[float, str, str]] = []
+    mic_done = []
     for seg in _paced(mic_segs_raw, should_pause, should_cancel):
         t = seg.text.strip()
         if t:
-            mic_segments.append((seg.start, me_label, t))
+            mic_done.append((seg.start, seg.end, t))
         progress(seg.end)
+    mic_done = _redo_echoes(model, mic_done, _Audio(mic_path),
+                            _targs(hotwords, language=detected))
+    mic_segments = [(s, me_label, t) for s, _e, t in mic_done]
 
     _wait_if_paused(should_pause, should_cancel)
     log.info("Diarizando: transcribiendo track de Teams (otros)...")
     loop_args = _targs(hotwords, language=detected)
     loop_args.pop('language_detection_segments', None)
     loop_segs_raw, _ = model.transcribe(str(loop_path), **loop_args)
-    loop_segments: list[tuple[float, str, str]] = []
+    loop_done = []
     for seg in _paced(loop_segs_raw, should_pause, should_cancel):
         t = seg.text.strip()
         if t:
-            loop_segments.append((seg.start, others_label, t))
+            loop_done.append((seg.start, seg.end, t))
         progress(mic_secs + seg.end)
+    loop_done = _redo_echoes(model, loop_done, _Audio(loop_path), loop_args)
+    loop_segments = [(s, others_label, t) for s, _e, t in loop_done]
 
     all_segments = sorted(mic_segments + loop_segments, key=lambda x: x[0])
     lines = [f"{_format_time(ts)} {speaker}: {text}" for ts, speaker, text in all_segments]
