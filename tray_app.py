@@ -105,6 +105,12 @@ _STR = {
         ctx_subtitle='Se usara al generar las minutas',
         ctx_save='Guardar',
         ctx_cancel='Cancelar',
+        cap_menu='Capturar pantalla de Teams',
+        cap_saved='Captura guardada en el minuto {time}.',
+        cap_no_window='No encuentro la ventana de la reunion de Teams: no se ha guardado nada.',
+        cap_minimized='La ventana de Teams esta minimizada: abrela y vuelve a capturar.',
+        cap_blocked='Teams no deja capturar esta reunion: no se ha guardado nada.',
+        cap_failed='No se pudo guardar la captura (el detalle esta en noted.log).',
     ),
     'en': dict(
         record_now='Record now', stop='Stop recording',
@@ -155,6 +161,12 @@ _STR = {
         ctx_subtitle='Will be used when generating the minutes',
         ctx_save='Save',
         ctx_cancel='Cancel',
+        cap_menu='Capture Teams screen',
+        cap_saved='Screenshot saved at {time}.',
+        cap_no_window='Teams meeting window not found: nothing was saved.',
+        cap_minimized='The Teams window is minimized: restore it and capture again.',
+        cap_blocked='Teams blocks screenshots in this meeting: nothing was saved.',
+        cap_failed='The screenshot could not be saved (details in noted.log).',
     ),
 }
 
@@ -288,6 +300,9 @@ class TrayApp:
                                                         and self._rec_mode != 'live')),
                 pystray.MenuItem(s['add_context'],
                                  self._add_context,
+                                 visible=lambda _: bool(self._recorder.is_recording)),
+                pystray.MenuItem(s['cap_menu'],
+                                 self._capture_screen,
                                  visible=lambda _: bool(self._recorder.is_recording)),
                 pystray.MenuItem(lambda _: (s['cancel_recording'] if self._recorder.is_recording
                                             else s['cancel_job']),
@@ -911,6 +926,7 @@ class TrayApp:
                 if folder.exists():
                     candidates.extend(folder.glob(f"{pat}.*"))
                     candidates.extend(folder.glob(f"{pat}_transcript.*"))
+                    candidates.extend(folder.glob(f"{pat}_screenshot_*"))
             if minutes_path:
                 candidates += [
                     minutes_path,
@@ -918,6 +934,7 @@ class TrayApp:
                     minutes_path.parent / f"{minutes_path.stem}_actions.json",
                     minutes_path.parent / f"{minutes_path.stem}_transcript.txt",
                 ]
+                candidates += sorted(minutes_path.parent.glob(f"{glob.escape(minutes_path.stem)}_screenshot*"))
 
             files_meta = []
             for f in dict.fromkeys(candidates):        # sin duplicados, orden estable
@@ -1590,6 +1607,16 @@ class TrayApp:
         except Exception as e:
             log.warning(f"No se pudo copiar transcript a minutes: {e}")
 
+        # Las capturas, junto a las minutas y con su nombre: asi las enlaza a la
+        # reunion quien lee minutes/ (screen_capture, test_consumer_contract).
+        try:
+            import screen_capture
+            filed = screen_capture.file_for_minutes(parts, minutes_path)
+            if filed:
+                log.info(f"Capturas de {minutes_path.stem}: {len(filed)}")
+        except Exception as e:
+            log.warning(f"No se pudieron mover las capturas a minutes: {e}")
+
         self._move_to_processed(wav_path, transcript_path)
         for extra in parts[1:]:
             try:
@@ -1941,6 +1968,11 @@ class TrayApp:
             self._stop_live(wait=True)
             if path is not None:
                 try:
+                    import screen_capture
+                    screen_capture.discard(path)
+                except Exception as e:
+                    log.warning(f"No se pudieron borrar las capturas descartadas: {e}")
+                try:
                     import live_transcriber
                     live_transcriber.discard_artifacts(path, parts=True)
                     if not any(live_transcriber.part_path(path, t).exists() for t in live_transcriber.TRACKS):
@@ -1954,6 +1986,42 @@ class TrayApp:
             self.cancel_job(stem)
             s = _STR.get(get_ui_language(), _STR['en'])
             self._notify('Noted', s['job_cancelled'])
+
+    def _capture_screen(self):
+        rec_path, started = self._recording_path, self._recording_start
+        if not rec_path:
+            return
+        threading.Thread(target=lambda: self._take_screenshot(rec_path, started),
+                         daemon=True, name='Screenshot').start()
+
+    def _take_screenshot(self, rec_path: Path, started: float | None) -> Path | None:
+        """Captura la ventana de la reunion, la guarda junto a la grabacion con su
+        minuto (screen_capture) y avisa de lo que paso: sin aviso, el usuario no
+        sabe si se guardo."""
+        import screen_capture
+        import teams_detector
+        s = _STR.get(get_ui_language(), _STR['en'])
+        name = self._recording_meeting_name(rec_path)
+        hwnd = teams_detector.find_meeting_window(name)
+        if not hwnd:
+            log.info(f"Captura de {rec_path.name}: no hay ventana de reunion de Teams")
+            self._notify('Noted ⚠', s['cap_no_window'])
+            return None
+        try:
+            img = screen_capture.capture(hwnd)
+            seconds = time.time() - started if started else 0
+            png = screen_capture.save(img, rec_path, seconds, name)
+        except screen_capture.CaptureError as e:
+            log.info(f"Captura de {rec_path.name} no guardada: {e.reason}")
+            self._notify('Noted ⚠', s[f'cap_{e.reason}'])
+            return None
+        except Exception as e:
+            log.warning(f"Captura de {rec_path.name} fallida: {e}")
+            self._notify('Noted ⚠', s['cap_failed'])
+            return None
+        log.info(f"Captura guardada: {png.name}")
+        self._notify('Noted', s['cap_saved'].format(time=screen_capture.stamp(seconds).replace('-', ':')))
+        return png
 
     def _add_context(self):
         rec_path = self._recording_path

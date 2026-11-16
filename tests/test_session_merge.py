@@ -387,6 +387,34 @@ def test_el_contexto_tambien_se_busca_en_processed(tray, cierre_aislado, tr_dirs
     assert cierre_aislado['contexto'] == 'contexto guardado'
 
 
+def test_las_capturas_de_la_reunion_quedan_junto_a_sus_minutas(tray, cierre_aislado, tr_dirs,
+                                                               wav_factory):
+    """Con el nombre de las minutas: es lo que las enlaza a la reunion (screen_capture)."""
+    import screen_capture
+    from PIL import Image
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), a, 65, 'Comite Semanal')
+
+    tray._finalize_session(_sesion(tray, [a], ['texto']))
+
+    md = cierre_aislado['guardadas']
+    assert (md.parent / f'{md.stem}_screenshot_01-05.png').exists()
+    assert (md.parent / f'{md.stem}_screenshots.json').exists()
+
+
+def test_si_mover_las_capturas_falla_la_reunion_se_cierra_igual(tray, cierre_aislado, tr_dirs,
+                                                                wav_factory, monkeypatch):
+    import screen_capture
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+
+    def rota(_parts, _md):
+        raise OSError('disco lleno')
+
+    monkeypatch.setattr(screen_capture, 'file_for_minutes', rota)
+    tray._finalize_session(_sesion(tray, [a], ['texto']))
+    assert cierre_aislado['guardadas'] is not None and cierre_aislado['guardadas'].exists()
+
+
 def test_un_contexto_vacio_no_se_pasa_como_contexto(tray, cierre_aislado, tr_dirs,
                                                     wav_factory):
     a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)

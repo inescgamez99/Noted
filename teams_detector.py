@@ -34,6 +34,66 @@ def _teams_pids() -> list[int]:
         return []
 
 
+def _title_kind(raw: str) -> tuple[str | None, str | None]:
+    """('classic' | 'teams2' | None, nombre de la reunion o None) de un titulo de
+    ventana de Teams. Las reglas, en un solo sitio: las usan la deteccion de la
+    llamada y la busqueda de la ventana que se captura (find_meeting_window)."""
+    if any(kw in raw.lower() for kw in CALL_TITLE_KEYWORDS):
+        # Teams classic: keyword match — very reliable.
+        # Guard: if the first pipe-segment is a generic page name
+        # (e.g. "Chat | Teams meeting | ..."), the keyword comes from
+        # a tab label, not a live call — no match, and no fall through to the
+        # teams2 path either (as before).
+        if '|' not in raw:
+            return 'classic', None
+        first = raw.split('|')[0].strip()
+        if first.lower() in _TEAMS_GENERIC_PAGES:
+            return None, None
+        return 'classic', first
+    # Teams 2.0: "<Meeting> | Microsoft Teams" (1 pipe, reuniones rápidas/personales)
+    # o "<Meeting> | <Org> [| email] | Microsoft Teams" (2+ pipes, reuniones formales).
+    # Propenso a falsos positivos con tabs de apps — el caller exige audio activo.
+    if raw.endswith('Microsoft Teams') and '|' in raw:
+        first = raw.split('|')[0].strip()
+        if first.lower() not in _TEAMS_GENERIC_PAGES:
+            return 'teams2', first
+    return None, None
+
+
+def find_meeting_window(name: str | None = None) -> int | None:
+    """La ventana de la reunion, para capturarla: la que lleva su nombre si se
+    sabe; si no, la ventana de reunion visible que este mas arriba."""
+    pids = _teams_pids()
+    if not pids:
+        return None
+    try:
+        import win32gui
+        import win32process
+    except ImportError:
+        return None
+    found: list[tuple[int, str | None]] = []
+
+    def cb(hwnd, _):
+        try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            if pid not in pids:
+                return
+            kind, title = _title_kind(win32gui.GetWindowText(hwnd) or '')
+            if kind:
+                found.append((hwnd, title))
+        except Exception:
+            pass
+
+    win32gui.EnumWindows(cb, None)      # en orden Z: la primera es la de arriba
+    if name:
+        for hwnd, title in found:
+            if title and title.strip().lower() == name.strip().lower():
+                return hwnd
+    return found[0][0] if found else None
+
+
 def _check_window_titles(pids: list[int]) -> tuple[bool, bool, str | None, list[str]]:
     """Returns (classic_match, teams2_match, meeting_name, candidates).
     classic_match: keyword found ('in a call', etc.) — reliable alone.
@@ -61,37 +121,19 @@ def _check_window_titles(pids: list[int]) -> tuple[bool, bool, str | None, list[
                 raw = win32gui.GetWindowText(hwnd)
                 if not raw:
                     return
-                title_lower = raw.lower()
-
-                # Teams classic: keyword match — very reliable.
-                # Guard: if the first pipe-segment is a generic page name
-                # (e.g. "Chat | Teams meeting | ..."), the keyword comes from
-                # a tab label, not a live call — skip classic_match so the
-                # detector falls through to the teams2 path (requires audio).
-                if any(kw in title_lower for kw in CALL_TITLE_KEYWORDS):
-                    _first = raw.split('|')[0].strip().lower() if '|' in raw else None
-                    if _first is None or _first not in _TEAMS_GENERIC_PAGES:
-                        classic_match = True
-                    if '|' in raw:
-                        candidate = raw.split('|')[0].strip()
-                        if candidate.lower() not in _TEAMS_GENERIC_PAGES:
-                            meeting_name = candidate
-                            if candidate not in candidates:
-                                candidates.append(candidate)
-                    return
-
-                # Teams 2.0: "<Meeting> | Microsoft Teams" (1 pipe, reuniones rápidas/personales)
-                # o "<Meeting> | <Org> [| email] | Microsoft Teams" (2+ pipes, reuniones formales).
-                # Propenso a falsos positivos con tabs de apps — el caller exige audio activo.
-                if raw.endswith('Microsoft Teams') and raw.count('|') >= 1:
-                    parts = [p.strip() for p in raw.split('|')]
-                    first = parts[0].strip()
-                    if first.lower() not in _TEAMS_GENERIC_PAGES:
-                        teams2_match = True
-                        if first not in candidates:
-                            candidates.append(first)
-                        if meeting_name is None:
-                            meeting_name = first
+                kind, name = _title_kind(raw)
+                if kind == 'classic':
+                    classic_match = True
+                    if name:
+                        meeting_name = name
+                        if name not in candidates:
+                            candidates.append(name)
+                elif kind == 'teams2':
+                    teams2_match = True
+                    if name not in candidates:
+                        candidates.append(name)
+                    if meeting_name is None:
+                        meeting_name = name
             except Exception:
                 pass
 

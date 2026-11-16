@@ -12,6 +12,10 @@ de ver las reuniones y nadie se entera desde aqui:
   3. el stem es `YYYYMMDD_HHMM_Titulo_Con_Underscores`
   4. `project_docs/<project-id>/meetings/` marca la pertenencia a un proyecto
   5. el `_actions.json` hermano, localizado por el mismo stem
+  6. las capturas de pantalla de una reunion: `<stem>_screenshot_MM-SS.png`
+     (`_pN_MM-SS` desde la segunda parte de la reunion) y su manifiesto
+     `<stem>_screenshots.json`, en el mismo `minutes/` plano. El consumidor las
+     enlaza a la reunion por el stem, como enlaza el audio por fecha y minuto
 
 El brief original decia que tambien dependia de `projects.json`. Medido el
 18/09/2026 sobre el codigo real: NO. Lleva el id hardcodeado en una constante
@@ -153,6 +157,29 @@ def test_una_reunion_sin_proyecto_no_deja_rastro_en_project_docs(tr_dirs):
 
     docs = tr_dirs / 'project_docs'
     assert not docs.exists() or not any(docs.rglob('20260917_1616_Sin_Proyecto.txt'))
+
+
+# ── 6. Las capturas de pantalla ──────────────────────────────────────────
+
+CAPTURA = re.compile(r'^(?P<stem>\d{8}_\d{4}_[^/\\]+?)_screenshot_(p\d+_)?\d{2,}-\d{2}(_\d+)?\.png$')
+
+
+def test_las_capturas_llevan_el_stem_de_su_reunion_y_van_en_minutes(tr_dirs):
+    import screen_capture
+    from PIL import Image
+    wav = storage.RECORDINGS_DIR / '2026-09-17_16-16_manual.wav'
+    md = storage.get_minutes_path(wav, 'Revision Deck')
+    screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), wav, 125, 'Revision Deck')
+
+    [entrada] = screen_capture.file_for_minutes([wav], md)
+
+    png = storage.MINUTES_DIR / entrada['file']
+    m = CAPTURA.match(png.name)
+    assert png.exists() and png.parent == storage.MINUTES_DIR
+    assert m and m['stem'] == md.stem, png.name
+    datos = json.loads((storage.MINUTES_DIR / f'{md.stem}_screenshots.json').read_text(encoding='utf-8'))
+    assert datos['meeting'] == md.stem
+    assert {'file', 'offset_s', 'taken_at', 'sha256', 'part'} <= set(datos['screenshots'][0])
 
 
 # ── 5. projects.json ─────────────────────────────────────────────────────
