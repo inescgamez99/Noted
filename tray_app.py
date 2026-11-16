@@ -102,9 +102,13 @@ _STR = {
         cancel_job='Descartar esta reunion (papelera)',
         job_cancelled='Reunion descartada: el audio y lo generado se han movido a la papelera.',
         ctx_title='Contexto / objetivo de la reunion',
-        ctx_subtitle='Se usara al generar las minutas',
+        ctx_subtitle='Entra en el transcript en el minuto {time}; puedes añadir varias',
         ctx_save='Guardar',
         ctx_cancel='Cancelar',
+        ctx_saved='Nota guardada en el minuto {time}: entrara en el transcript.',
+        ctx_save_failed='No se pudo guardar la nota (el detalle esta en noted.log).',
+        ctx_note_label='Nota de {name}',
+        ctx_note_label_anon='Nota',
     ),
     'en': dict(
         record_now='Record now', stop='Stop recording',
@@ -152,9 +156,13 @@ _STR = {
         cancel_job='Discard this meeting (bin)',
         job_cancelled='Meeting discarded: the audio and generated files were moved to the bin.',
         ctx_title='Meeting context / goal',
-        ctx_subtitle='Will be used when generating the minutes',
+        ctx_subtitle='Goes into the transcript at {time}; you can add several',
         ctx_save='Save',
         ctx_cancel='Cancel',
+        ctx_saved='Note saved at {time}: it will go into the transcript.',
+        ctx_save_failed='The note could not be saved (details in noted.log).',
+        ctx_note_label='Note by {name}',
+        ctx_note_label_anon='Note',
     ),
 }
 
@@ -1124,8 +1132,38 @@ class TrayApp:
 
             transcript_path.write_text(transcript_text, encoding='utf-8')
 
+        transcript_text = self._merge_notes(wav_path, transcript_path, transcript_text)
         self._discard_live_files(wav_path)
         self._register_part(wav_path, transcript_text, detected_language)
+
+    def _context_path(self, wav_path: Path) -> Path:
+        """<stem>.context junto al WAV o, si ya se movio, en processed/."""
+        here = wav_path.with_suffix('.context')
+        if here.exists():
+            return here
+        return RECORDINGS_DIR / 'processed' / here.name
+
+    def _merge_notes(self, wav_path: Path, transcript_path: Path, text: str) -> str:
+        """Las notas de la grabacion entran en su transcript, cada una en su minuto
+        (meeting_notes). Asi las usan las minutas, el boton del panel y "Preguntar",
+        tambien con las minutas a mano. El .context lo consume el cierre, como antes."""
+        import meeting_notes
+        from transcriber import ME_NAME
+        notes = meeting_notes.read_notes(self._context_path(wav_path))
+        if not notes:
+            return text
+        s = _STR.get(get_ui_language(), _STR['en'])
+        label = s['ctx_note_label'].format(name=ME_NAME) if ME_NAME else s['ctx_note_label_anon']
+        merged = meeting_notes.merge(text, notes, label)
+        if merged == text:
+            return text
+        try:
+            transcript_path.write_text(merged, encoding='utf-8')
+        except OSError as e:
+            log.warning(f"Notas no añadidas al transcript de {wav_path.name}: {e}")
+            return text
+        log.info(f"Notas añadidas al transcript de {wav_path.name}: {len(notes)}")
+        return merged
 
     def _use_live_transcript(self, wav_path: Path, transcript_path: Path, lang_path: Path):
         """Cierra el transcript con lo hecho durante la reunion y lo deja donde
@@ -1453,13 +1491,17 @@ class TrayApp:
                 except Exception:
                     pass
 
+        # Se consume: si se quedara, se colaria en otra reunion con el mismo nombre.
+        # Las notas ya van en el transcript (_merge_notes); como contexto aparte solo
+        # va lo que no este en el, para no repetirlo.
         extra_context = None
-        context_path = wav_path.with_suffix('.context')
-        if not context_path.exists():
-            context_path = RECORDINGS_DIR / 'processed' / wav_path.with_suffix('.context').name
+        context_path = self._context_path(wav_path)
         if context_path.exists():
             try:
-                extra_context = context_path.read_text(encoding='utf-8').strip() or None
+                import meeting_notes
+                raw = context_path.read_text(encoding='utf-8').strip()
+                if raw and not meeting_notes.all_in(transcript_text, meeting_notes.read_notes(context_path)):
+                    extra_context = raw
                 context_path.unlink()
             except Exception:
                 pass
@@ -1956,18 +1998,38 @@ class TrayApp:
             self._notify('Noted', s['job_cancelled'])
 
     def _add_context(self):
-        rec_path = self._recording_path
+        rec_path, started = self._recording_path, self._recording_start
         if not rec_path:
             return
-        threading.Thread(target=lambda: self._show_context_dialog(rec_path), daemon=True).start()
+        threading.Thread(target=lambda: self._show_context_dialog(rec_path, started),
+                         daemon=True).start()
 
-    def _show_context_dialog(self, rec_path: Path):
+    def _save_note(self, rec_path: Path, started: float | None, text: str) -> str | None:
+        """Añade la nota a <stem>.context con el minuto de la grabacion y avisa: sin
+        aviso, el usuario no sabia si se habia guardado (meeting_notes)."""
+        import meeting_notes
+        s = _STR.get(get_ui_language(), _STR['en'])
+        try:
+            stamp = meeting_notes.add_note(rec_path.with_suffix('.context'),
+                                           time.time() - started if started else 0, text)
+        except OSError as e:
+            log.warning(f"No se pudo guardar la nota de {rec_path.name}: {e}")
+            self._notify('Noted ⚠', s['ctx_save_failed'])
+            return None
+        if stamp:
+            log.info(f"Nota guardada para {rec_path.name} en {stamp}")
+            self._notify('Noted', s['ctx_saved'].format(time=stamp.strip('[]')))
+        return stamp
+
+    def _show_context_dialog(self, rec_path: Path, started: float | None = None):
         import tkinter as tk
         from tk_thread import get_root, run_in_tk
 
         BG = '#1e1e2e'; CARD = '#313244'; FG = '#cdd6f4'; MUTED = '#a6adc8'
         BORDER = '#585b70'; BTN = '#89b4fa'
         s = _STR.get(get_ui_language(), _STR['en'])
+        elapsed = int(time.time() - started) if started else 0
+        now = f"{elapsed // 60:02d}:{elapsed % 60:02d}"
 
         def _create():
             root = get_root()
@@ -1986,7 +2048,7 @@ class TrayApp:
 
             tk.Label(frame, text=s['ctx_title'],
                      font=('Segoe UI', 10, 'bold'), fg=FG, bg=BG).pack(anchor='w')
-            tk.Label(frame, text=s['ctx_subtitle'],
+            tk.Label(frame, text=s['ctx_subtitle'].format(time=now),
                      font=('Segoe UI', 8), fg=MUTED, bg=BG).pack(anchor='w', pady=(2, 6))
 
             entry = tk.Entry(frame, font=('Segoe UI', 9), bg=CARD, fg=FG,
@@ -1995,14 +2057,10 @@ class TrayApp:
             entry.focus_set()
 
             def save():
-                ctx = entry.get().strip()
-                if ctx:
-                    try:
-                        rec_path.with_suffix('.context').write_text(ctx, encoding='utf-8')
-                        log.info(f"Contexto guardado para {rec_path.name}")
-                    except Exception as e:
-                        log.warning(f"No se pudo guardar contexto: {e}")
+                text = entry.get()
                 top.destroy()
+                threading.Thread(target=lambda: self._save_note(rec_path, started, text),
+                                 daemon=True).start()
 
             entry.bind('<Return>', lambda _: save())
             entry.bind('<Escape>', lambda _: top.destroy())
