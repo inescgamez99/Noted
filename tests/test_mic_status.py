@@ -174,7 +174,7 @@ def test_micro_activo_deja_el_icono_normal(bandeja, monkeypatch):
     lector(monkeypatch, ACTIVE)
     bandeja._mic_poll_once()
     assert bandeja._icon.icon is ta._ICON_IDLE
-    assert bandeja._icon.title == 'Noted'
+    assert bandeja._icon.title == f'Noted · {ACTIVE.name}', "el tooltip dice que micro graba"
 
 
 def test_al_activarlo_se_quita_la_marca(bandeja, monkeypatch):
@@ -182,7 +182,7 @@ def test_al_activarlo_se_quita_la_marca(bandeja, monkeypatch):
     bandeja._mic_poll_once()
     bandeja._mic_poll_once()
     assert bandeja._icon.icon is ta._ICON_IDLE
-    assert bandeja._icon.title == 'Noted'
+    assert cadenas()['mic_tip_muted'] not in bandeja._icon.title
 
 
 def test_la_marca_sobrevive_cuando_el_icono_cambia_de_estado(bandeja, monkeypatch):
@@ -210,7 +210,8 @@ def test_si_no_se_puede_leer_no_cambia_nada(bandeja, monkeypatch):
     lector(monkeypatch, None)
     bandeja._mic_poll_once()
     assert not bandeja._mic_muted()
-    assert bandeja._mic_menu_label() == ''
+    assert bandeja._mic_decorated_title('Noted') == 'Noted'
+    assert opcion_micro(bandeja).visible is False
 
 
 def test_un_error_del_lector_no_rompe_nada(bandeja, monkeypatch):
@@ -223,14 +224,21 @@ def test_un_error_del_lector_no_rompe_nada(bandeja, monkeypatch):
 
 # ── El menu ───────────────────────────────────────────────────────────────
 
-def test_el_menu_dice_silenciado_y_como_activarlo(bandeja):
+def opcion_micro(bandeja):
+    """La opcion del micro en el menu de verdad (pystray), sin pintar nada."""
+    from types import SimpleNamespace
+    bandeja._recorder = bandeja._recorder or SimpleNamespace(is_recording=False)
+    return next(i for i in bandeja._build_menu().items if i.text == cadenas()['mic_mute'])
+
+
+def test_silenciado_el_menu_lo_marca(bandeja):
     bandeja._mic_state = MUTED
-    assert bandeja._mic_menu_label() == cadenas()['mic_menu_muted'].format(name=MUTED.name)
+    assert opcion_micro(bandeja).checked is True
 
 
-def test_el_menu_dice_activo(bandeja):
+def test_activo_el_menu_no_lo_marca(bandeja):
     bandeja._mic_state = ACTIVE
-    assert bandeja._mic_menu_label() == cadenas()['mic_menu_active'].format(name=ACTIVE.name)
+    assert opcion_micro(bandeja).checked is False
 
 
 def test_el_clic_invierte_el_silencio(bandeja, monkeypatch):
@@ -289,7 +297,7 @@ def test_grabar_ahora_lanza_la_comprobacion(tray_factory, monkeypatch):
     llamado = threading.Event()
     monkeypatch.setattr(app, 'warn_if_mic_muted', llamado.set)
     try:
-        app._toggle_recording()
+        app._record_now()
         assert llamado.wait(5), "Grabar ahora no comprobo el micro"
     finally:
         app._ticker_stop.set()
@@ -297,8 +305,7 @@ def test_grabar_ahora_lanza_la_comprobacion(tray_factory, monkeypatch):
 
 # ── Textos ────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize('clave', ['mic_menu_muted', 'mic_menu_active',
-                                   'mic_tip_muted', 'mic_muted_warning'])
+@pytest.mark.parametrize('clave', ['mic_mute', 'mic_tip_muted', 'mic_muted_warning'])
 @pytest.mark.parametrize('idioma', sorted(ta._STR))
 def test_textos_del_micro_en_todos_los_idiomas(idioma, clave):
     assert ta._STR[idioma].get(clave), f"falta {clave} en '{idioma}'"

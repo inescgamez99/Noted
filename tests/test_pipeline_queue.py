@@ -343,7 +343,7 @@ def test_grabar_ahora_arranca_con_el_nombre_manual(tray_factory, monkeypatch, tr
     app = tray_factory(recorder=rec)
     monkeypatch.setattr(ta.TrayApp, 'set_recording', lambda self, a, p=None, mode=None: None)
 
-    app._toggle_recording()
+    app._record_now()
 
     assert len(rec.started) == 1
     assert rec.started[0].stem.endswith('_manual')
@@ -356,7 +356,7 @@ def test_parar_detiene_la_grabacion(tray_factory, monkeypatch, tr_dirs):
     monkeypatch.setattr(ta.TrayApp, 'set_recording',
                         lambda self, a, p=None: estados.append(a))
 
-    app._toggle_recording()
+    app._stop_recording()
 
     assert rec.stopped == 1
     assert estados == [False]
