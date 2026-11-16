@@ -202,6 +202,27 @@ def _release_model():
     gc.collect()
 
 
+# Mas hilos no es mas rapido. Medido el 16/11/2026 en un Core Ultra 7 165U (12 nucleos fisicos: 2 de
+# rendimiento, 8 eficientes y 2 de bajo consumo), 'medium' sobre los mismos 90 s de voz: 4 hilos 80,6 s,
+# 6 hilos 62,0 s, 8 hilos 55,6 s y 12 hilos 70,0 s, con el modo de energia "Maximo rendimiento"; en
+# "Equilibrado", 12 hilos 98,8 s, mas que el propio audio. Con un hilo por nucleo fisico el trabajo cae
+# tambien en los nucleos lentos, y cada paso espera al mas lento. settings.json "whisper_threads" manda.
+MAX_THREADS = 8
+
+
+def _threads() -> int:
+    from config import whisper_threads
+    fixed = whisper_threads()
+    if fixed:
+        return fixed
+    try:
+        import psutil
+        physical = psutil.cpu_count(logical=False) or os.cpu_count() or 4
+    except Exception:
+        physical = os.cpu_count() or 4
+    return min(physical, MAX_THREADS)
+
+
 def _get_model(name: str | None = None):
     global _model, _model_name
     name = name or WHISPER_MODEL
@@ -216,11 +237,7 @@ def _get_model(name: str | None = None):
             if not win_power.opt_out_of_efficiency_mode():
                 log.info("No se pudo sacar el proceso del modo de eficiencia de Windows")
             from faster_whisper import WhisperModel
-            try:
-                import psutil
-                threads = psutil.cpu_count(logical=False) or os.cpu_count() or 4
-            except Exception:
-                threads = os.cpu_count() or 4
+            threads = _threads()
             log.info(f"Cargando modelo Whisper '{name}' (cpu_threads={threads})...")
             _model = WhisperModel(
                 name, device='auto', compute_type='int8', cpu_threads=threads,
@@ -340,6 +357,14 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
     return '\n'.join(lines), (detected or 'es')
 
 
+def _log_pace(what: str, audio_secs: float, started: float) -> None:
+    """Cuanto tardo una pasada, contando sus pausas: es lo que dice si la transcripcion se queda
+    atras de las reuniones (hilos, CPU, modo de energia)."""
+    took = time.monotonic() - started
+    pace = f" ({took / audio_secs:.2f} veces su duracion)" if audio_secs else ""
+    log.info(f"{what}: {audio_secs / 60:.1f} min de audio en {took / 60:.1f} min{pace}")
+
+
 def _track_seconds(path: Path) -> float:
     try:
         import soundfile as sf
@@ -372,6 +397,7 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
 
     _wait_if_paused(should_pause, should_cancel)
     log.info("Diarizando: transcribiendo track de micrófono...")
+    started = time.monotonic()
     mic_segs_raw, mic_info = model.transcribe(str(mic_path), **_targs(hotwords))
     detected = _remap(getattr(mic_info, 'language', None))
     log.info(f"Idioma detectado (diarización): {detected}")
@@ -384,9 +410,11 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         if t:
             mic_segments.append((seg.start, me_label, t))
         progress(seg.end)
+    _log_pace("Track de micrófono", mic_secs, started)
 
     _wait_if_paused(should_pause, should_cancel)
     log.info("Diarizando: transcribiendo track de Teams (otros)...")
+    started = time.monotonic()
     loop_args = _targs(hotwords, language=detected)
     loop_args.pop('language_detection_segments', None)
     loop_segs_raw, _ = model.transcribe(str(loop_path), **loop_args)
@@ -396,6 +424,7 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         if t:
             loop_segments.append((seg.start, others_label, t))
         progress(mic_secs + seg.end)
+    _log_pace("Track de Teams", loop_secs, started)
 
     all_segments = sorted(mic_segments + loop_segments, key=lambda x: x[0])
     lines = [f"{_format_time(ts)} {speaker}: {text}" for ts, speaker, text in all_segments]
