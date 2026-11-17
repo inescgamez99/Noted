@@ -15,7 +15,9 @@ de ver las reuniones y nadie se entera desde aqui:
   6. las capturas de pantalla de una reunion: `<stem>_screenshot_MM-SS.png`
      (`_pN_MM-SS` desde la segunda parte de la reunion) y su manifiesto
      `<stem>_screenshots.json`, en el mismo `minutes/` plano. El consumidor las
-     enlaza a la reunion por el stem, como enlaza el audio por fecha y minuto
+     enlaza a la reunion por el stem, como enlaza el audio por fecha y minuto.
+     El transcript nombra cada una en su minuto, como una nota:
+     `[MM:SS] [Captura]: <stem>_screenshot_MM-SS.png`, con ese mismo nombre
 
 El brief original decia que tambien dependia de `projects.json`. Medido el
 18/09/2026 sobre el codigo real: NO. Lleva el id hardcodeado en una constante
@@ -180,6 +182,30 @@ def test_las_capturas_llevan_el_stem_de_su_reunion_y_van_en_minutes(tr_dirs):
     datos = json.loads((storage.MINUTES_DIR / f'{md.stem}_screenshots.json').read_text(encoding='utf-8'))
     assert datos['meeting'] == md.stem
     assert {'file', 'offset_s', 'taken_at', 'sha256', 'part'} <= set(datos['screenshots'][0])
+
+
+LINEA_CAPTURA = re.compile(r'^\[(\d+):(\d{2})\] \[[^\]]+\]: (?P<file>\S+_screenshot_\S+\.png)$', re.M)
+
+
+def test_el_transcript_nombra_cada_captura_con_el_nombre_que_tiene_en_minutes(tr_dirs):
+    """La linea entra con el nombre de la grabacion (al transcribir) y relink le pone
+    el de minutes/ al cerrar: el consumidor la encuentra junto al transcript."""
+    import meeting_notes
+    import screen_capture
+    from PIL import Image
+    wav = storage.RECORDINGS_DIR / '2026-09-17_16-16_manual.wav'
+    md = storage.get_minutes_path(wav, 'Revision Deck')
+    screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), wav, 125, 'Revision Deck')
+    parte = meeting_notes.merge('[02:00] [Otros]: mirad esta slide',
+                                screen_capture.transcript_items(wav), 'Captura')
+
+    screen_capture.file_for_minutes([wav], md)
+    final = screen_capture.relink(parte, md)
+
+    [m] = LINEA_CAPTURA.finditer(final)
+    assert (int(m[1]), int(m[2])) == (2, 5)
+    assert CAPTURA.match(m['file'])['stem'] == md.stem
+    assert (storage.MINUTES_DIR / m['file']).exists()
 
 
 # ── 5. projects.json ─────────────────────────────────────────────────────

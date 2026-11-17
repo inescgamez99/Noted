@@ -2,14 +2,18 @@
 
 Noted captura, guarda y enlaza cada captura a su reunion por el nombre; quien
 las cura es el consumidor de minutes/ (contrato en tests/test_consumer_contract.py).
-No van al transcript: el transcript sigue siendo la fuente tal cual, y la imagen
-original queda localizable.
+La imagen no entra en el transcript, pero si una linea que la nombra en su
+minuto, como las notas: "[MM:SS] [Captura]: <archivo>.png". La app la abre al
+pulsarla, y quien lee minutes/ la encuentra al lado del transcript.
 
 - Durante la llamada: recordings/<grabacion>_screenshot_MM-SS.png y una linea
   por captura en recordings/<grabacion>.screenshots.jsonl.
+- Al transcribir cada parte (transcript_items): la linea de cada captura, con el
+  nombre que tiene en recordings/.
 - Al cerrar la reunion (file_for_minutes): minutes/<stem>_screenshot_MM-SS.png,
   y minutes/<stem>_screenshots.json con lo que dice cada una. Una reunion en
   varias partes lleva la parte en el nombre a partir de la segunda (_p2_MM-SS).
+  relink cambia en el transcript el nombre de la grabacion por el de las minutas.
 
 La captura: PrintWindow con PW_RENDERFULLCONTENT, que captura la ventana aunque
 este tapada o en otra pantalla; si sale negra, lo que se ve en pantalla en ese
@@ -191,9 +195,18 @@ def read_log(rec_path: Path) -> list[dict]:
     return out
 
 
+def transcript_items(rec_path: Path) -> list[tuple[int, str]]:
+    """(segundo, archivo) de cada captura de la grabacion que sigue en su sitio: lo
+    que entra en su transcript, como las notas (meeting_notes.merge)."""
+    return [(int(entry.get('offset_s') or 0), entry['file']) for entry in read_log(rec_path)
+            if rec_path.with_name(entry['file']).exists()]
+
+
 def file_for_minutes(parts: list[Path], minutes_path: Path) -> list[dict]:
     """Mueve las capturas de las partes de una reunion junto a sus minutas, con el
-    nombre de las minutas, y escribe su manifiesto. Lo ya movido no se repite."""
+    nombre de las minutas, y escribe su manifiesto. Lo ya movido no se repite.
+    'recorded_as' guarda el nombre que tenia en recordings/: es el que lleva el
+    transcript de su parte, y el que relink cambia."""
     stem, entries = minutes_path.stem, []
     for k, part in enumerate(parts):
         for entry in read_log(part):
@@ -203,7 +216,8 @@ def file_for_minutes(parts: list[Path], minutes_path: Path) -> list[dict]:
             prefix = f"p{k + 1}_" if k else ''
             dst = _unique(minutes_path.with_name(f"{stem}{SUFFIX}{prefix}{stamp(entry['offset_s'])}.png"))
             shutil.move(str(src), str(dst))
-            entries.append({**entry, 'file': dst.name, 'part': k + 1, 'recording': part.stem})
+            entries.append({**entry, 'file': dst.name, 'recorded_as': src.name,
+                            'part': k + 1, 'recording': part.stem})
         part.with_suffix(LOG_SUFFIX).unlink(missing_ok=True)
     if entries:
         manifest = minutes_path.with_name(f"{stem}{MANIFEST_SUFFIX}")
@@ -212,6 +226,22 @@ def file_for_minutes(parts: list[Path], minutes_path: Path) -> list[dict]:
         manifest.write_text(json.dumps({'meeting': stem, 'screenshots': previous + entries},
                                        ensure_ascii=False, indent=2), encoding='utf-8')
     return entries
+
+
+def relink(text: str, minutes_path: Path) -> str:
+    """El transcript con cada captura por el nombre que tiene ya junto a las minutas:
+    entro con el de la grabacion. Lee el manifiesto entero, asi un segundo cierre
+    (una reconexion) corrige tambien las capturas que movio el primero."""
+    manifest = minutes_path.with_name(f"{minutes_path.stem}{MANIFEST_SUFFIX}")
+    try:
+        shots = json.loads(manifest.read_text(encoding='utf-8')).get('screenshots', [])
+    except (OSError, ValueError, AttributeError):
+        return text
+    for shot in shots:
+        old, new = shot.get('recorded_as'), shot.get('file')
+        if old and new:
+            text = text.replace(old, new)
+    return text
 
 
 def discard(rec_path: Path) -> int:

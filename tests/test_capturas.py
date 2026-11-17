@@ -320,6 +320,78 @@ def test_una_captura_que_ya_no_esta_se_salta(tr_dirs):
     assert not (ta.MINUTES_DIR / f'{STEM}_screenshots.json').exists()
 
 
+# ── En el transcript, como las notas ────────────────────────────────────────
+
+def test_al_transcript_van_las_capturas_que_siguen_ahi_con_su_segundo(tr_dirs):
+    wav = ta.RECORDINGS_DIR / f'{REC}.wav'
+    a = sc.save(imagen(), wav, 30.6, 't')
+    b = sc.save(imagen(), wav, 95.2, 't')
+    sc.save(imagen(), wav, 120, 't').unlink()
+    assert sc.transcript_items(wav) == [(30, a.name), (95, b.name)]
+    assert sc.transcript_items(ta.RECORDINGS_DIR / 'otra.wav') == []
+
+
+def test_el_manifiesto_guarda_el_nombre_con_que_se_grabo(tr_dirs):
+    wav = ta.RECORDINGS_DIR / f'{REC}.wav'
+    png = sc.save(imagen(), wav, 5, 't')
+    [e] = sc.file_for_minutes([wav], ta.MINUTES_DIR / f'{STEM}.md')
+    assert (e['recorded_as'], e['file']) == (png.name, f'{STEM}_screenshot_00-05.png')
+
+
+def test_relink_pone_el_nombre_de_minutes_tambien_en_un_segundo_cierre(tr_dirs):
+    """Una reconexion cierra otra vez la reunion: el transcript se rehace con los
+    nombres de la grabacion, tambien los de capturas que ya movio el primer cierre."""
+    wav = ta.RECORDINGS_DIR / f'{REC}.wav'
+    md = ta.MINUTES_DIR / f'{STEM}.md'
+    a = sc.save(imagen(), wav, 5, 't')
+    sc.file_for_minutes([wav], md)
+    b = sc.save(imagen(), wav, 9, 't')
+    sc.file_for_minutes([wav], md)
+    texto = f'[00:05] [Captura]: {a.name}\n[00:09] [Captura]: {b.name}'
+    assert sc.relink(texto, md) == (f'[00:05] [Captura]: {STEM}_screenshot_00-05.png\n'
+                                    f'[00:09] [Captura]: {STEM}_screenshot_00-09.png')
+
+
+def test_relink_sin_manifiesto_o_roto_no_toca_el_texto(tr_dirs):
+    md = ta.MINUTES_DIR / f'{STEM}.md'
+    assert sc.relink('[00:05] hola', md) == '[00:05] hola'
+    (ta.MINUTES_DIR / f'{STEM}_screenshots.json').write_text('[roto', encoding='utf-8')
+    assert sc.relink('[00:05] hola', md) == '[00:05] hola'
+    (ta.MINUTES_DIR / f'{STEM}_screenshots.json').write_text('[]', encoding='utf-8')
+    assert sc.relink('[00:05] hola', md) == '[00:05] hola'
+
+
+def test_la_parte_lleva_sus_capturas_en_su_minuto_una_sola_vez(tray, tr_dirs, monkeypatch):
+    monkeypatch.setattr(ta, 'get_ui_language', lambda: 'es')
+    wav = ta.RECORDINGS_DIR / f'{REC}.wav'
+    txt = ta.RECORDINGS_DIR / f'{REC}_transcript.txt'
+    png = sc.save(imagen(), wav, 30.6, 't')
+    texto = '[00:10] [Otros]: hola\n[00:40] [Otros]: mirad esta slide'
+
+    una = tray._merge_screenshots(wav, txt, texto)
+
+    assert una.splitlines() == ['[00:10] [Otros]: hola', f'[00:30] [Captura]: {png.name}',
+                                '[00:40] [Otros]: mirad esta slide']
+    assert txt.read_text(encoding='utf-8') == una
+    assert tray._merge_screenshots(wav, txt, una) == una, "el pipeline puede pasar dos veces"
+    assert tray._merge_screenshots(ta.RECORDINGS_DIR / 'sin.wav', txt, texto) == texto
+
+
+def test_si_no_se_puede_escribir_el_transcript_sigue_sin_las_capturas(tray, tr_dirs, monkeypatch):
+    wav = ta.RECORDINGS_DIR / f'{REC}.wav'
+    sc.save(imagen(), wav, 5, 't')
+    txt = ta.RECORDINGS_DIR / f'{REC}_transcript.txt'
+    original = type(txt).write_text
+
+    def lleno(self, *a, **k):
+        if self == txt:
+            raise OSError('disco lleno')
+        return original(self, *a, **k)
+
+    monkeypatch.setattr(type(txt), 'write_text', lleno)
+    assert tray._merge_screenshots(wav, txt, '[00:01] [Otros]: hola') == '[00:01] [Otros]: hola'
+
+
 def test_la_retencion_las_borra_con_su_grabacion_y_con_sus_minutas(tr_dirs, monkeypatch):
     import os
     import time

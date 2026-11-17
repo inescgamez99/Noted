@@ -402,6 +402,21 @@ def test_las_capturas_de_la_reunion_quedan_junto_a_sus_minutas(tray, cierre_aisl
     assert (md.parent / f'{md.stem}_screenshots.json').exists()
 
 
+def test_el_transcript_de_minutes_nombra_cada_captura_como_se_llama_alli(tray, cierre_aislado,
+                                                                         tr_dirs, wav_factory):
+    """La parte la nombra como en recordings/; junto a las minutas se llama distinto."""
+    import screen_capture
+    from PIL import Image
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    png = screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), a, 65, 'Comite Semanal')
+
+    tray._finalize_session(_sesion(tray, [a], [f'[01:05] [Captura]: {png.name}']))
+
+    md = cierre_aislado['guardadas']
+    texto = md.with_name(f'{md.stem}_transcript.txt').read_text(encoding='utf-8')
+    assert texto == f'[01:05] [Captura]: {md.stem}_screenshot_01-05.png'
+
+
 def test_si_mover_las_capturas_falla_la_reunion_se_cierra_igual(tray, cierre_aislado, tr_dirs,
                                                                 wav_factory, monkeypatch):
     import screen_capture

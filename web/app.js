@@ -1974,7 +1974,7 @@ async function openMeeting(path) {
       </div>
       <div class="transcript-section hidden" id="section-transcript">
         ${transcriptText ? '<div id="meeting-ask"></div>' : ''}
-        <div class="transcript-content">${transcriptText ? escHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
+        <div class="transcript-content">${transcriptText ? transcriptHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
       </div>
       ${hasSemantic ? `<div class="semantic-section hidden" id="section-semantic" data-path="${escHtml(path)}"></div>` : ''}
       <div id="sticky-layer" class="sticky-layer"></div>
@@ -2031,6 +2031,13 @@ async function openMeeting(path) {
     document.getElementById('action-menu').classList.toggle('hidden');
   });
   document.addEventListener('click', () => document.getElementById('action-menu')?.classList.add('hidden'));
+
+  document.querySelector('.transcript-content')?.addEventListener('click', (e) => {
+    const shot = e.target.closest('.tx-shot');
+    if (!shot) return;
+    e.preventDefault();
+    pywebview.api.open_screenshot(path, shot.dataset.file);
+  });
 
   // Context-aware copy
   document.getElementById('btn-copy').addEventListener('click', async () => {
@@ -5341,6 +5348,13 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+// Las capturas que nombra el transcript ("[00:30] [Captura]: <archivo>.png") son
+// enlaces: estan junto a las minutas, y la app las abre (open_screenshot).
+const _SHOT_RE = /([^\s<>"'\\/:]+_screenshot_(?:p\d+_)?\d{2,}-\d{2}(?:_\d+)?\.png)/g;
+function transcriptHtml(text) {
+  return escHtml(text).replace(_SHOT_RE, '<a href="#" class="tx-shot" data-file="$1">$1</a>');
 }
 
 function showToast(msg) {

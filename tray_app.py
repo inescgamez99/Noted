@@ -112,6 +112,7 @@ _STR = {
         cap_covered='Otra ventana tapa la de la reunion: pon la reunion delante y vuelve a capturar.',
         cap_blocked='Teams no deja capturar esta reunion: no se ha guardado nada.',
         cap_failed='No se pudo guardar la captura (el detalle esta en noted.log).',
+        cap_line_label='Captura',
         ctx_saved='Nota guardada en el minuto {time}: entrara en el transcript.',
         ctx_save_failed='No se pudo guardar la nota (el detalle esta en noted.log).',
         ctx_note_label='Nota de {name}',
@@ -173,6 +174,7 @@ _STR = {
         cap_covered='Another window covers the meeting: bring the meeting to the front and capture again.',
         cap_blocked='Teams blocks screenshots in this meeting: nothing was saved.',
         cap_failed='The screenshot could not be saved (details in noted.log).',
+        cap_line_label='Screenshot',
         ctx_saved='Note saved at {time}: it will go into the transcript.',
         ctx_save_failed='The note could not be saved (details in noted.log).',
         ctx_note_label='Note by {name}',
@@ -1152,6 +1154,7 @@ class TrayApp:
             transcript_path.write_text(transcript_text, encoding='utf-8')
 
         transcript_text = self._merge_notes(wav_path, transcript_path, transcript_text)
+        transcript_text = self._merge_screenshots(wav_path, transcript_path, transcript_text)
         self._discard_live_files(wav_path)
         self._register_part(wav_path, transcript_text, detected_language)
 
@@ -1182,6 +1185,28 @@ class TrayApp:
             log.warning(f"Notas no añadidas al transcript de {wav_path.name}: {e}")
             return text
         log.info(f"Notas añadidas al transcript de {wav_path.name}: {len(notes)}")
+        return merged
+
+    def _merge_screenshots(self, wav_path: Path, transcript_path: Path, text: str) -> str:
+        """Cada captura de la grabacion entra en su transcript como una nota: una
+        linea en su minuto con el nombre del archivo, que la app abre al pulsarlo.
+        Al cerrar la reunion, screen_capture.relink le pone el nombre que tiene ya
+        junto a las minutas."""
+        import meeting_notes
+        import screen_capture
+        shots = screen_capture.transcript_items(wav_path)
+        if not shots:
+            return text
+        s = _STR.get(get_ui_language(), _STR['en'])
+        merged = meeting_notes.merge(text, shots, s['cap_line_label'])
+        if merged == text:
+            return text
+        try:
+            transcript_path.write_text(merged, encoding='utf-8')
+        except OSError as e:
+            log.warning(f"Capturas no añadidas al transcript de {wav_path.name}: {e}")
+            return text
+        log.info(f"Capturas añadidas al transcript de {wav_path.name}: {len(shots)}")
         return merged
 
     def _use_live_transcript(self, wav_path: Path, transcript_path: Path, lang_path: Path):
@@ -1645,21 +1670,24 @@ class TrayApp:
         # elegir el contexto que se pasa al LLM. El proyecto definitivo lo decide
         # enrich_and_save más abajo, y el archivado ocurre en su callback.
 
-        try:
-            transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
-            transcript_copy.write_text(transcript_text, encoding='utf-8')
-        except Exception as e:
-            log.warning(f"No se pudo copiar transcript a minutes: {e}")
-
         # Las capturas, junto a las minutas y con su nombre: asi las enlaza a la
-        # reunion quien lee minutes/ (screen_capture, test_consumer_contract).
+        # reunion quien lee minutes/ (screen_capture, test_consumer_contract). Antes
+        # de copiar el transcript: sus lineas de captura pasan a ese nombre, tambien
+        # en la copia que se exporta al proyecto.
         try:
             import screen_capture
             filed = screen_capture.file_for_minutes(parts, minutes_path)
             if filed:
                 log.info(f"Capturas de {minutes_path.stem}: {len(filed)}")
+            transcript_text = screen_capture.relink(transcript_text, minutes_path)
         except Exception as e:
             log.warning(f"No se pudieron mover las capturas a minutes: {e}")
+
+        try:
+            transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
+            transcript_copy.write_text(transcript_text, encoding='utf-8')
+        except Exception as e:
+            log.warning(f"No se pudo copiar transcript a minutes: {e}")
 
         self._move_to_processed(wav_path, transcript_path)
         for extra in parts[1:]:

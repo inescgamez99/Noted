@@ -3490,6 +3490,20 @@ class AppAPI:
         """Abre un fichero con su app por defecto (delegado)."""
         return semantic.open_file(file_path)
 
+    def open_screenshot(self, md_path: str, file_name: str) -> bool:
+        """Abre una captura que nombra el transcript de una reunion. Solo un nombre de
+        captura, sin carpetas, que este junto a sus minutas: el nombre sale del texto
+        del transcript, y no puede servir para abrir otra cosa."""
+        name = (file_name or '').strip()
+        if not re.fullmatch(r'[^/\\:]+_screenshot_(p\d+_)?\d{2,}-\d{2}(_\d+)?\.png', name):
+            log.warning(f"open_screenshot: nombre no valido: {name[:80]}")
+            return False
+        path = Path(md_path).parent / name
+        if not path.is_file():
+            log.warning(f"open_screenshot: no esta junto a las minutas: {name}")
+            return False
+        return semantic.open_file(str(path))
+
     def open_url(self, url: str) -> bool:
         """Abre una URL http/https en el navegador por defecto."""
         import webbrowser
