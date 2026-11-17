@@ -13,9 +13,11 @@ original queda localizable.
 
 La captura: PrintWindow con PW_RENDERFULLCONTENT, que captura la ventana aunque
 este tapada o en otra pantalla; si sale negra, lo que se ve en pantalla en ese
-rectangulo (PIL.ImageGrab). Si tambien sale negra, Teams no deja capturar esa
-reunion ("Prevent screen capture"): se respeta y no se guarda nada. Sin
-dependencias nuevas: pywin32 y Pillow ya estaban.
+rectangulo (PIL.ImageGrab), pero solo si lo que se ve es la ventana de la
+reunion: si otra la tapa (el chat de Teams, por ejemplo), no se guarda nada y se
+avisa. Si tambien sale negra, Teams no deja capturar esa reunion ("Prevent
+screen capture"): se respeta y no se guarda nada. Sin dependencias nuevas:
+pywin32 y Pillow ya estaban.
 """
 import ctypes
 import hashlib
@@ -24,6 +26,7 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
+from typing import NamedTuple
 
 log = logging.getLogger(__name__)
 
@@ -32,10 +35,17 @@ LOG_SUFFIX = '.screenshots.jsonl'
 MANIFEST_SUFFIX = '_screenshots.json'
 _PW_RENDERFULLCONTENT = 0x2
 _DPI_PER_MONITOR_V2 = -4
+_GA_ROOT = 2
+
+
+class Shot(NamedTuple):
+    image: object
+    method: str     # 'window': PrintWindow, la ventana sola; 'screen': lo que se veia, que era ella
+    title: str      # el titulo de la ventana capturada, tal cual
 
 
 class CaptureError(Exception):
-    """reason: 'minimized' | 'blocked' | 'failed' (cada uno con su aviso)."""
+    """reason: 'minimized' | 'covered' | 'blocked' | 'failed' (cada uno con su aviso)."""
 
     def __init__(self, reason: str):
         super().__init__(reason)
@@ -97,13 +107,30 @@ def _screen_grab(box):
     return ImageGrab.grab(bbox=box, all_screens=True)
 
 
-def capture(hwnd: int):
-    """La ventana como imagen de Pillow, o CaptureError con el motivo."""
+def _shows_window(hwnd: int, box) -> bool:
+    """Lo que se ve en ese rectangulo es esta ventana: la que esta delante en el
+    centro y cerca de cada esquina tiene que ser ella. Sin esto, con PrintWindow en
+    negro, la pantalla copio el chat de Teams, que estaba delante de la reunion y
+    del mismo tamano (17/11/2026)."""
+    import win32gui
+    left, top, right, bottom = box
+    dx, dy = (right - left) // 5, (bottom - top) // 5
+    points = [((left + right) // 2, (top + bottom) // 2), (left + dx, top + dy), (right - dx, top + dy),
+              (left + dx, bottom - dy), (right - dx, bottom - dy)]
+    try:
+        return all(win32gui.GetAncestor(win32gui.WindowFromPoint(p), _GA_ROOT) == hwnd for p in points)
+    except Exception:       # ninguna ventana en ese punto, o se acaba de cerrar
+        return False
+
+
+def capture(hwnd: int) -> Shot:
+    """La ventana de la reunion, o CaptureError con el motivo. Nunca otra ventana."""
     import win32gui
     if win32gui.IsIconic(hwnd):
         raise CaptureError('minimized')
     previous = _thread_dpi_aware()
     try:
+        title = win32gui.GetWindowText(hwnd) or ''
         left, top, right, bottom = win32gui.GetWindowRect(hwnd)
         if right - left <= 0 or bottom - top <= 0:
             raise CaptureError('failed')
@@ -112,11 +139,15 @@ def capture(hwnd: int):
             img = _print_window(hwnd, right - left, bottom - top)
         except Exception as e:
             log.info(f"PrintWindow no pudo capturar la ventana ({e}); se prueba con la pantalla")
-        if img is None or is_black(img):
-            img = _screen_grab((left, top, right, bottom))
+        if img is not None and not is_black(img):
+            return Shot(img, 'window', title)
+        if not _shows_window(hwnd, (left, top, right, bottom)):
+            log.info("PrintWindow no dio la ventana y otra la tapa en pantalla: no se copia la pantalla")
+            raise CaptureError('covered')
+        img = _screen_grab((left, top, right, bottom))
         if is_black(img):
             raise CaptureError('blocked')
-        return img
+        return Shot(img, 'screen', title)
     finally:
         _restore_dpi(previous)
 
@@ -129,14 +160,15 @@ def _unique(path: Path) -> Path:
     return candidate
 
 
-def save(img, rec_path: Path, seconds: float, window_title: str | None) -> Path:
+def save(img, rec_path: Path, seconds: float, window_title: str | None, method: str | None = None) -> Path:
     """Guarda la captura junto a la grabacion y la apunta en su registro."""
     png = _unique(rec_path.with_name(f"{rec_path.stem}{SUFFIX}{stamp(seconds)}.png"))
     img.save(png, 'PNG')
     data = png.read_bytes()
     entry = {'file': png.name, 'offset_s': round(max(seconds, 0), 1),
              'taken_at': datetime.now().isoformat(timespec='seconds'),
-             'window_title': window_title or '', 'width': img.width, 'height': img.height,
+             'window_title': window_title or '', 'method': method,
+             'width': img.width, 'height': img.height,
              'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
     with open(rec_path.with_suffix(LOG_SUFFIX), 'a', encoding='utf-8') as f:
         f.write(json.dumps(entry, ensure_ascii=False) + '\n')

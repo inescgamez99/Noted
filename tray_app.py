@@ -109,6 +109,7 @@ _STR = {
         cap_saved='Captura guardada en el minuto {time}.',
         cap_no_window='No encuentro la ventana de la reunion de Teams: no se ha guardado nada.',
         cap_minimized='La ventana de Teams esta minimizada: abrela y vuelve a capturar.',
+        cap_covered='Otra ventana tapa la de la reunion: pon la reunion delante y vuelve a capturar.',
         cap_blocked='Teams no deja capturar esta reunion: no se ha guardado nada.',
         cap_failed='No se pudo guardar la captura (el detalle esta en noted.log).',
     ),
@@ -165,6 +166,7 @@ _STR = {
         cap_saved='Screenshot saved at {time}.',
         cap_no_window='Teams meeting window not found: nothing was saved.',
         cap_minimized='The Teams window is minimized: restore it and capture again.',
+        cap_covered='Another window covers the meeting: bring the meeting to the front and capture again.',
         cap_blocked='Teams blocks screenshots in this meeting: nothing was saved.',
         cap_failed='The screenshot could not be saved (details in noted.log).',
     ),
@@ -2008,9 +2010,9 @@ class TrayApp:
             self._notify('Noted ⚠', s['cap_no_window'])
             return None
         try:
-            img = screen_capture.capture(hwnd)
+            shot = screen_capture.capture(hwnd)
             seconds = time.time() - started if started else 0
-            png = screen_capture.save(img, rec_path, seconds, name)
+            png = screen_capture.save(shot.image, rec_path, seconds, shot.title or name, shot.method)
         except screen_capture.CaptureError as e:
             log.info(f"Captura de {rec_path.name} no guardada: {e.reason}")
             self._notify('Noted ⚠', s[f'cap_{e.reason}'])
@@ -2019,7 +2021,7 @@ class TrayApp:
             log.warning(f"Captura de {rec_path.name} fallida: {e}")
             self._notify('Noted ⚠', s['cap_failed'])
             return None
-        log.info(f"Captura guardada: {png.name}")
+        log.info(f"Captura guardada: {png.name} ({shot.method}, ventana «{shot.title}»)")
         self._notify('Noted', s['cap_saved'].format(time=screen_capture.stamp(seconds).replace('-', ':')))
         return png
 

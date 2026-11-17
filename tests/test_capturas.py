@@ -8,6 +8,9 @@ LO QUE PROTEGEN
    bloqueada por Teams, fallo).
 3. Teams bloqueando las capturas se respeta: una imagen negra no se guarda.
 4. Descartar la reunion se lleva sus capturas, y la retencion las borra.
+5. Nunca se guarda otra ventana: si PrintWindow no da la reunion, la pantalla
+   solo se copia si lo que se ve es la reunion. El 17/11/2026 se guardo el chat
+   de Teams, que estaba delante de la reunion y del mismo tamano.
 """
 import json
 import sys
@@ -166,27 +169,68 @@ def test_la_pantalla_se_lee_con_imagegrab(monkeypatch):
     assert sc._screen_grab((1, 2, 3, 4)).size == (40, 30)
     assert pedido == [((1, 2, 3, 4), True)]
 
+REUNION, CHAT = 1, 2
+TITULO = 'Comite Semanal | Microsoft Teams'
+
+
 @pytest.fixture
 def ventana(monkeypatch):
-    estado = {'minimizada': False}
+    """La ventana 1 es la reunion, en (100, 50, 140, 80). 'delante' dice que ventana
+    se ve en cada punto de la pantalla; WindowFromPoint devuelve una hija (x10),
+    como el WebView de Teams, y GetAncestor sube a su ventana principal."""
+    estado = {'minimizada': False, 'delante': lambda x, y: REUNION}
+
+    def ancestro(h, flag):
+        assert flag == sc._GA_ROOT
+        if not h:
+            raise OSError('Invalid window handle.')
+        return h // 10
+
     gui = types.SimpleNamespace(IsIconic=lambda h: estado['minimizada'],
-                                GetWindowRect=lambda h: (100, 50, 140, 80))
+                                GetWindowRect=lambda h: (100, 50, 140, 80),
+                                GetWindowText=lambda h: TITULO,
+                                WindowFromPoint=lambda p: estado['delante'](*p) * 10,
+                                GetAncestor=ancestro)
     monkeypatch.setitem(sys.modules, 'win32gui', gui)
     return estado
 
 
 def test_se_captura_la_ventana_aunque_este_tapada(ventana, monkeypatch):
+    ventana['delante'] = lambda x, y: CHAT
     monkeypatch.setattr(sc, '_print_window', lambda h, w, hh: imagen())
     monkeypatch.setattr(sc, '_screen_grab', lambda box: pytest.fail('no hacia falta la pantalla'))
-    assert sc.capture(1).size == (40, 30)
+    shot = sc.capture(REUNION)
+    assert shot.image.size == (40, 30) and (shot.method, shot.title) == ('window', TITULO)
 
 
 def test_si_sale_negra_se_prueba_con_la_pantalla(ventana, monkeypatch):
     cajas = []
     monkeypatch.setattr(sc, '_print_window', lambda h, w, hh: imagen((0, 0, 0)))
     monkeypatch.setattr(sc, '_screen_grab', lambda box: cajas.append(box) or imagen())
-    assert not sc.is_black(sc.capture(1))
+    shot = sc.capture(REUNION)
+    assert not sc.is_black(shot.image) and shot.method == 'screen'
     assert cajas == [(100, 50, 140, 80)]
+
+
+@pytest.mark.parametrize('delante', [
+    lambda x, y: CHAT,                                  # el chat de Teams, del mismo tamano, delante
+    lambda x, y: CHAT if (x, y) == (132, 74) else REUNION,  # solo tapa una esquina
+    lambda x, y: 0,                                     # ninguna ventana en esos puntos
+], ids=['tapada', 'una-esquina', 'sin-ventana'])
+def test_si_sale_negra_y_otra_la_tapa_no_se_copia_la_otra(ventana, monkeypatch, delante):
+    ventana['delante'] = delante
+    monkeypatch.setattr(sc, '_print_window', lambda h, w, hh: None)
+    monkeypatch.setattr(sc, '_screen_grab', lambda box: pytest.fail('copiaria la ventana de delante'))
+    with pytest.raises(sc.CaptureError) as e:
+        sc.capture(REUNION)
+    assert e.value.reason == 'covered'
+
+
+def test_se_mira_el_centro_y_cerca_de_cada_esquina(ventana):
+    mirados = []
+    ventana['delante'] = lambda x, y: mirados.append((x, y)) or REUNION
+    assert sc._shows_window(REUNION, (100, 50, 140, 80))
+    assert mirados == [(120, 65), (108, 56), (132, 56), (108, 74), (132, 74)]
 
 
 def test_si_printwindow_falla_tambien_se_prueba_con_la_pantalla(ventana, monkeypatch):
@@ -194,7 +238,7 @@ def test_si_printwindow_falla_tambien_se_prueba_con_la_pantalla(ventana, monkeyp
         raise OSError('sin DC')
     monkeypatch.setattr(sc, '_print_window', falla)
     monkeypatch.setattr(sc, '_screen_grab', lambda box: imagen())
-    assert sc.capture(1).size == (40, 30)
+    assert sc.capture(REUNION).method == 'screen'
 
 
 def test_si_teams_la_bloquea_no_se_guarda_nada(ventana, monkeypatch):
@@ -212,7 +256,7 @@ def test_minimizada_o_sin_tamano_no_se_captura(ventana, monkeypatch):
     assert e.value.reason == 'minimized'
     ventana['minimizada'] = False
     monkeypatch.setitem(sys.modules, 'win32gui', types.SimpleNamespace(
-        IsIconic=lambda h: False, GetWindowRect=lambda h: (0, 0, 0, 0)))
+        IsIconic=lambda h: False, GetWindowRect=lambda h: (0, 0, 0, 0), GetWindowText=lambda h: TITULO))
     with pytest.raises(sc.CaptureError) as e:
         sc.capture(1)
     assert e.value.reason == 'failed'
@@ -222,11 +266,12 @@ def test_minimizada_o_sin_tamano_no_se_captura(ventana, monkeypatch):
 
 def test_se_guarda_con_su_minuto_y_queda_apuntada(tr_dirs):
     wav = ta.RECORDINGS_DIR / f'{REC}.wav'
-    a = sc.save(imagen(), wav, 754.4, 'Comite Semanal')
-    b = sc.save(imagen(), wav, 754.9, 'Comite Semanal')
+    a = sc.save(imagen(), wav, 754.4, TITULO, 'screen')
+    b = sc.save(imagen(), wav, 754.9, TITULO)
     assert (a.name, b.name) == (f'{REC}_screenshot_12-34.png', f'{REC}_screenshot_12-34_2.png')
     [e1, e2] = sc.read_log(wav)
-    assert e1['file'] == a.name and e1['offset_s'] == 754.4 and e1['window_title'] == 'Comite Semanal'
+    assert e1['file'] == a.name and e1['offset_s'] == 754.4 and e1['window_title'] == TITULO
+    assert (e1['method'], e2['method']) == ('screen', None)
     assert len(e1['sha256']) == 64 and e1['bytes'] == a.stat().st_size and e2['file'] == b.name
 
 
@@ -330,7 +375,7 @@ def test_capturar_guarda_y_avisa_con_el_minuto(tray, avisos, tr_dirs, monkeypatc
     wav = ta.RECORDINGS_DIR / f'{REC}.wav'
     pedida = []
     monkeypatch.setattr(td, 'find_meeting_window', lambda name: pedida.append(name) or 7)
-    monkeypatch.setattr(sc, 'capture', lambda hwnd: imagen())
+    monkeypatch.setattr(sc, 'capture', lambda hwnd: sc.Shot(imagen(), 'window', TITULO))
     monkeypatch.setattr(ta.time, 'time', lambda: 1000.0 + 754)
 
     png = tray._take_screenshot(wav, 1000.0)
@@ -338,10 +383,14 @@ def test_capturar_guarda_y_avisa_con_el_minuto(tray, avisos, tr_dirs, monkeypatc
     assert png.name == f'{REC}_screenshot_12-34.png' and png.exists()
     assert pedida == ['Comite Semanal']
     assert avisos == [('Noted', 'Captura guardada en el minuto 12:34.')]
+    [entrada] = sc.read_log(wav)
+    assert (entrada['window_title'], entrada['method']) == (TITULO, 'window'), \
+        "se apunta la ventana que se capturo de verdad, no el nombre de la reunion"
 
 
 @pytest.mark.parametrize('motivo, aviso', [
     ('minimized', 'La ventana de Teams esta minimizada: abrela y vuelve a capturar.'),
+    ('covered', 'Otra ventana tapa la de la reunion: pon la reunion delante y vuelve a capturar.'),
     ('blocked', 'Teams no deja capturar esta reunion: no se ha guardado nada.'),
 ])
 def test_si_no_se_puede_capturar_se_dice_por_que(tray, avisos, tr_dirs, monkeypatch, motivo, aviso):
