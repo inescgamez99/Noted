@@ -415,6 +415,19 @@ def test_si_mover_las_capturas_falla_la_reunion_se_cierra_igual(tray, cierre_ais
     assert cierre_aislado['guardadas'] is not None and cierre_aislado['guardadas'].exists()
 
 
+def test_las_notas_que_ya_van_en_el_transcript_no_se_repiten_como_contexto(
+        tray, cierre_aislado, tr_dirs, wav_factory):
+    """_merge_notes ya las metio en el transcript de la parte."""
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    a.with_suffix('.context').write_text('[02:05] ojo con enero\n', encoding='utf-8')
+
+    tray._finalize_session(_sesion(tray, [a], ['[02:05] [Nota]: ojo con enero']))
+
+    assert cierre_aislado['contexto'] is None
+    assert 'ojo con enero' in cierre_aislado['minutas_de']
+    assert not a.with_suffix('.context').exists()
+
+
 def test_un_contexto_vacio_no_se_pasa_como_contexto(tray, cierre_aislado, tr_dirs,
                                                     wav_factory):
     a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
