@@ -286,6 +286,9 @@ def write_ctl(wav: Path, **fields) -> bool:
     return _write_json(ctl_path(wav), data)
 
 
+SUSPECT_VOICED_S = 30.0  # >= esto de voz y <= 1 linea por cada tanto -> aviso (150 s y 5 lineas avisa)
+
+
 def _append_record(wav: Path, record: dict) -> None:
     """Solo se añade, nunca se reescribe: un lector nunca ve el fichero a medias
     salvo la ultima linea, que read_records ignora si esta incompleta."""
@@ -749,7 +752,15 @@ def _step(track: _Track, model, lang: str | None, args: dict, vad, vad_opts, wav
         'track': track.name, 'start_frame': track.buf_start,
         'end_frame': track.buf_start + cut, 'segments': segments,
         'lang': chunk_lang if segments else (track.lang or lang), 'model': model_name,
+        'voiced': round(voiced, 1),
     })
+    if voiced >= SUSPECT_VOICED_S and len(segments) <= voiced / SUSPECT_VOICED_S:
+        # 18/11/2026: un trozo de la pista de Teams con 150 s de voz y 5 lineas (las
+        # pistas del glosario a Whisper, ya quitadas). Solo se mide: no cambia que
+        # se acepte ni que se rehaga.
+        log.warning(f"live: trozo sospechoso: mucha voz y casi sin texto | {track.name} "
+                    f"{track.buf_start / SR:.1f}-{(track.buf_start + cut) / SR:.1f}s "
+                    f"voz {voiced:.1f}s lineas {len(segments)}")
     # Una linea por trozo: es lo que permite saber, en una reunion real, si va al
     # dia o se esta quedando atras, y por que.
     behind = (track.total - (track.buf_start + cut)) / SR
