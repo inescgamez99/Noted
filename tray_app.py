@@ -1420,6 +1420,17 @@ class TrayApp:
                 return title
         return None
 
+    @staticmethod
+    def _is_imported(wav_path: Path) -> bool:
+        """Audio que entro por inbox/ (importado desde el panel o soltado a mano): no
+        lo grabo Noted, asi que ninguna cita de Outlook es la suya. La marca la pone
+        InboxWatcher y se queda junto al WAV, tambien en processed/ (un reintento de
+        minutas la sigue necesitando)."""
+        for folder in dict.fromkeys((wav_path.parent, RECORDINGS_DIR, RECORDINGS_DIR / 'processed')):
+            if (folder / f'{wav_path.stem}.imported').exists():
+                return True
+        return False
+
     def _fallback_title(self, parts: list, s: dict, use_outlook: bool = False) -> str:
         """El titulo de una reunion sin el de Claude, siempre uno que la distinga:
         el nombre de Teams de cualquiera de sus grabaciones (el del fichero o su
@@ -1589,6 +1600,10 @@ class TrayApp:
         # completas: con minutas breves no se pagan (recorrer documentos, Outlook).
         _proj, _ctx_dir = None, None
         participants = []
+        # Un audio importado no lo grabo Noted: ni invitados ni asunto de Outlook.
+        imported = any(self._is_imported(p) for p in parts)
+        if imported:
+            log.info("Audio importado: no se busca la reunion en Outlook")
         if minutes_mode == 'full':
             try:
                 from project_context import prepare_context
@@ -1604,7 +1619,7 @@ class TrayApp:
             try:
                 from outlook_sender import find_meeting_participants
                 _pm = re.match(r'(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})', wav_path.stem)
-                if _pm:
+                if _pm and not imported:
                     from datetime import datetime as _dt
                     _rec_time = _dt(int(_pm.group(1)), int(_pm.group(2)), int(_pm.group(3)),
                                     int(_pm.group(4)), int(_pm.group(5)))
@@ -1650,7 +1665,7 @@ class TrayApp:
                     self._notify('Noted ⚠', s[{'no_session': 'minutes_pending_session',
                                                'missing': 'minutes_pending_missing'}.get(reason, 'minutes_pending')])
                 raw = self._brief_minutes(transcript_text, wav_path, 'pending', detected_language, s,
-                                          title=user_title or self._fallback_title(parts, s, use_outlook=True),
+                                          title=user_title or self._fallback_title(parts, s, use_outlook=not imported),
                                           reason=reason)
                 minutes_mode = 'off'
         else:
@@ -1875,6 +1890,12 @@ class TrayApp:
                     aux.unlink()
                 except Exception:
                     pass
+        marker = wav_path.with_suffix('.imported')
+        if marker.exists():
+            try:
+                shutil.move(str(marker), str(dest / marker.name))
+            except Exception as e:
+                log.warning(f"No se pudo mover la marca de audio importado de {wav_path.name}: {e}")
 
     def _pending_minutes_of(self, stem: str) -> Path | None:
         """Las minutas 'pending' de esta grabacion, si las hay (ver brief_minutes)."""

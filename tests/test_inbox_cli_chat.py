@@ -271,6 +271,41 @@ def test_una_importacion_repetida_recibe_otro_stem(watcher, ffmpeg_falso, wav_fa
     assert listos[0].name == '2026-11-03_13-00_Comite__2.wav'
 
 
+def test_un_wav_sin_ffmpeg_queda_marcado_como_audio_externo(watcher, wav_factory):
+    """El pipeline no busca en Outlook para lo que no grabo Noted: la marca tiene que
+    existir ANTES de avisar, o podria procesarse sin ella."""
+    marcas = []
+    watcher._on_wav_ready = lambda wav: marcas.append(wav.with_suffix(iw.IMPORTED_SUFFIX).exists())
+
+    watcher._process(wav_factory(iw.INBOX_DIR / 'grabacion.wav', seconds=0.2))
+
+    assert marcas == [True]
+
+
+def test_un_audio_convertido_queda_marcado_como_audio_externo(watcher, ffmpeg_falso):
+    marcas = []
+    watcher._on_wav_ready = lambda wav: marcas.append(wav.with_suffix(iw.IMPORTED_SUFFIX).exists())
+    f = iw.INBOX_DIR / '2026-11-03_13-00_Comite.mp3'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)
+
+    assert marcas == [True]
+    assert (iw.RECORDINGS_DIR / '2026-11-03_13-00_Comite.imported').exists()
+
+
+def test_un_audio_que_no_se_convierte_no_deja_marca(watcher, monkeypatch):
+    monkeypatch.setattr(iw.subprocess, 'run',
+                        lambda cmd, **k: type('R', (), {'returncode': 1, 'stderr': b''})())
+    watcher._ffmpeg = 'ffmpeg-falso'
+    f = iw.INBOX_DIR / '2026-11-03_13-00_roto.mp4'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)
+
+    assert list(iw.RECORDINGS_DIR.glob('*.imported')) == []
+
+
 def test_el_tiempo_de_conversion_crece_con_el_tamano(tmp_path):
     chico = tmp_path / 'a.mp3'
     chico.write_bytes(b'x' * 1000)

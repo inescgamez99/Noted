@@ -109,3 +109,21 @@ def test_un_original_reciente_no_se_toca(tr_dirs):
     storage.cleanup_old_recordings()
     assert original.exists()
 
+
+def test_la_marca_de_audio_importado_se_borra_con_su_grabacion(tr_dirs):
+    """Si no, quedarian marcas sueltas para siempre en recordings/ y processed/."""
+    processed = storage.RECORDINGS_DIR / 'processed'
+    processed.mkdir(parents=True, exist_ok=True)
+    marcas = [envejecer(storage.RECORDINGS_DIR / f'{STEM}.imported'),
+              envejecer(processed / f'{STEM}.imported')]
+    con_minutas()
+    storage.cleanup_old_recordings()
+    assert not any(m.exists() for m in marcas)
+
+
+def test_la_marca_reciente_no_se_toca(tr_dirs):
+    marca = storage.RECORDINGS_DIR / f'{STEM}.imported'
+    marca.write_text('inbox', encoding='utf-8')
+    storage.cleanup_old_recordings()
+    assert marca.exists()
+

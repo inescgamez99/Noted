@@ -123,7 +123,7 @@ def cleanup_old_recordings(days: int = 10):
     # *_screenshot_*.png y *.screenshots.jsonl: capturas que no llegaron a minutes/
     # (screen_capture), con la misma regla que su grabacion.
     aux_patterns   = ('*.lang', '*.partial', '*.context', '*.part', '*.live.*', '*.live', '*.title',
-                      '*_screenshot_*.png', '*.screenshots.jsonl')
+                      '*_screenshot_*.png', '*.screenshots.jsonl', '*.imported')
     # originals/: el audio original (MP3, M4A, MP4, un WAV de otro equipo...) de lo que
     # se importo o se solto en inbox/, ya convertido (inbox_watcher). Misma retencion
     # y mismo respeto a lo que aun no tiene minutas que la grabacion que de el sale.

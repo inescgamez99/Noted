@@ -25,6 +25,11 @@ _DATED_NAME = re.compile(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_')
 # tomaria _recover_pending por una grabacion y lo procesaria otra vez.
 ORIGINALS_DIRNAME = 'originals'
 
+# <stem>.imported junto a la grabacion: el audio entro por inbox/ (importado desde el
+# panel o soltado a mano), no lo grabo Noted. Ninguna cita de Outlook es la suya: el
+# pipeline no busca invitados ni asunto para el (la hora del nombre es una etiqueta).
+IMPORTED_SUFFIX = '.imported'
+
 
 def _convert_timeout(f: Path) -> int:
     """Segundos que se le dan a ffmpeg: 5 min como minimo, y mas en ficheros grandes
@@ -143,6 +148,7 @@ class InboxWatcher:
                 except OSError:
                     pass
 
+            self._mark_external(wav_path)
             log.info(f"Inbox: {f.name} → {wav_path.name}")
             if self._on_wav_ready:
                 self._on_wav_ready(wav_path)
@@ -154,6 +160,14 @@ class InboxWatcher:
                 f.rename(f.parent / (f.name + '.error'))
             except Exception:
                 pass
+
+    @staticmethod
+    def _mark_external(wav_path: Path) -> None:
+        """Antes de avisar al pipeline: si no, podria procesarlo sin la marca."""
+        try:
+            wav_path.with_suffix(IMPORTED_SUFFIX).write_text('inbox', encoding='utf-8')
+        except OSError as e:
+            log.warning(f"No se pudo marcar {wav_path.name} como audio externo: {e}")
 
     @staticmethod
     def _discard_partial(wav_path: Path) -> None:
