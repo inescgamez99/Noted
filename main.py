@@ -244,6 +244,9 @@ def main():
                     except Exception as e:
                         log.error(f"No se pudo iniciar la grabación: {e}")
                         tray.warn_mic_unavailable(str(e))
+                        # La reconexion no existira: la sesion anterior no espera nada.
+                        if continuing:
+                            tray.cancel_continuation()
                         return
                     if started is False:
                         # Ya se grababa ("Grabar ahora" mientras salia este aviso).

@@ -211,3 +211,90 @@ def test_el_reintento_conserva_el_idioma_tras_mover_a_processed(cierre, monkeypa
     cierre._retry_pending_minutes()
 
     assert vistos[0]['lang'] == 'es'
+
+
+# ── A4: TrayApp.cancel_continuation ──────────────────────────────────────
+
+@pytest.fixture
+def sin_hilos(monkeypatch):
+    creados = []
+
+    class HiloFalso:
+        def __init__(self, target=None, args=(), **kwargs):
+            self.target, self.args, self.daemon = target, args, False
+            self.cancelado = False
+
+        def start(self):
+            creados.append(self)
+
+        def cancel(self):
+            self.cancelado = True
+
+    monkeypatch.setattr(ta.threading, 'Thread', HiloFalso)
+    monkeypatch.setattr(ta.threading, 'Timer', lambda _s, f, args=(): HiloFalso(f, args))
+    return creados
+
+
+def _sesion_en_espera(tray, wav, transcript='texto'):
+    sess = {'base_wav': wav, 'parts': [wav], 'transcripts': {wav.stem: transcript},
+            'lang': 'es', 'key': 'comite', 'awaiting': False, 'finalized': False,
+            'timer': None, 'last_at': time.time()}
+    tray._session = sess
+    tray.request_continuation()
+    assert sess['awaiting'] is True
+    return sess
+
+
+def test_cancelar_la_continuacion_reprograma_el_cierre(tray, sin_hilos, tr_dirs):
+    """Sin esto, la sesion se quedaba esperando una grabacion que no iba a llegar."""
+    sess = _sesion_en_espera(tray, ta.RECORDINGS_DIR / f'{STEM}.wav')
+    assert sin_hilos == []
+
+    tray.cancel_continuation()
+
+    assert sess['awaiting'] is False
+    [timer] = sin_hilos
+    assert timer.target == tray._finalize_session and timer.args == (sess,)
+    assert sess['timer'] is timer
+
+
+def test_cancelar_la_continuacion_con_una_parte_sin_transcribir_deja_el_cierre_a_register_part(
+        tray, sin_hilos, tr_dirs):
+    sess = _sesion_en_espera(tray, ta.RECORDINGS_DIR / f'{STEM}.wav', transcript=None)
+
+    tray.cancel_continuation()
+
+    assert sess['awaiting'] is False and sin_hilos == []
+
+
+def test_cancelar_sin_continuacion_pendiente_no_hace_nada(tray, sin_hilos, tr_dirs):
+    tray.cancel_continuation()                                  # sin sesion
+    sess = {'base_wav': None, 'parts': [], 'transcripts': {}, 'awaiting': False,
+            'finalized': False, 'timer': None}
+    tray._session = sess
+    tray.cancel_continuation()
+    assert sin_hilos == [] and sess['timer'] is None
+
+
+def test_descartar_la_grabacion_de_una_reconexion_deshace_la_espera(tray, sin_hilos, tr_dirs,
+                                                                    monkeypatch):
+    """Descartar la grabacion de la reconexion (_cancel_recording) la dejaba
+    esperando para siempre."""
+    sess = _sesion_en_espera(tray, ta.RECORDINGS_DIR / f'{STEM}.wav')
+
+    class Grabadora:
+        is_recording = True
+        is_saving = False
+
+        def cancel(self):
+            self.is_recording = False
+
+    tray._recorder = Grabadora()
+    tray._recording_path = ta.RECORDINGS_DIR / f'{STEM}_b.wav'
+    monkeypatch.setattr(ta.TrayApp, '_stop_live', lambda self, wait=False: None)
+    monkeypatch.setattr(ta.TrayApp, 'set_recording', lambda self, *a, **k: None)
+
+    tray._cancel_recording()
+
+    assert sess['awaiting'] is False
+    assert any(t.target == tray._finalize_session for t in sin_hilos)

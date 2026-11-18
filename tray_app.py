@@ -1488,6 +1488,24 @@ class TrayApp:
                     sess['timer'] = None
                 log.info("Reunión marcada para continuar (esperando la reconexión)")
 
+    def cancel_continuation(self):
+        """Deshace request_continuation cuando la grabacion de reconexion no llego a
+        existir (start fallo) o se descarto. Sin esto la sesion se quedaba
+        'esperando' para siempre: sin minutas hasta reiniciar, la siguiente
+        grabacion se unia a ella y _pipeline_idle() nunca era True. Si ya estaban
+        todas las partes transcritas, el cierre se reprograma como siempre; si
+        falta alguna, _register_part lo hara al terminar. No hace nada si la
+        sesion no esta esperando."""
+        with self._session_lock:
+            sess = self._session
+            if not sess or sess.get('finalized') or not sess.get('awaiting'):
+                return
+            sess['awaiting'] = False
+            sess['last_at'] = time.time()
+            log.info("Continuación cancelada: la sesión vuelve a cerrarse sola")
+            if all(v is not None for v in sess['transcripts'].values()):
+                self._schedule_finalize(sess)
+
     def finalize_pending_now(self):
         with self._session_lock:
             sess = self._session
@@ -2165,6 +2183,9 @@ class TrayApp:
                 except Exception as e:
                     log.warning(f"No se pudo limpiar la transcripcion en vivo descartada: {e}")
             self.set_recording(False)
+            # Si era la grabacion de una reconexion, la sesion anterior esperaba
+            # esta parte (awaiting): no va a llegar. No hace nada si no esperaba.
+            self.cancel_continuation()
             return
         stem = self._active_job_stem()
         if stem:

@@ -173,3 +173,47 @@ def test_la_guarda_de_un_aviso_no_libera_el_de_uno_posterior(app, monkeypatch):
     time.sleep(0.5)                             # vence la guarda del aviso 1
     detector.on_call_started()
     assert PopupMudo.mostrados == 1, "la guarda del aviso 1 libero el del aviso 2"
+
+
+# ── A4: la continuacion que no llega a existir ───────────────────────────
+
+def _reconexion(app, monkeypatch):
+    _grabador, detector, bandeja = app
+    _con_popup(monkeypatch, PopupQueDice)
+    bandeja.pendiente = True
+    return detector, bandeja
+
+
+def test_si_start_lanza_en_una_reconexion_se_deshace_la_continuacion(app, monkeypatch):
+    """request_continuation marcaba la sesion 'esperando' ANTES de recorder.start():
+    si start lanzaba, la sesion esperaba para siempre (sin minutas hasta reiniciar,
+    la siguiente grabacion se unia a ella, _pipeline_idle() nunca True)."""
+    grabador, _, _ = app
+    grabador.start_result = OSError('sin microfono')
+    detector, bandeja = _reconexion(app, monkeypatch)
+
+    detector.on_call_started()
+
+    assert bandeja.llamadas == ['request_continuation', 'cancel_continuation']
+
+
+def test_si_start_funciona_la_continuacion_sigue_esperando(app, monkeypatch):
+    detector, bandeja = _reconexion(app, monkeypatch)
+
+    detector.on_call_started()
+
+    assert 'request_continuation' in bandeja.llamadas
+    assert 'cancel_continuation' not in bandeja.llamadas
+
+
+def test_si_ya_se_grababa_no_se_cancela_la_continuacion(app, monkeypatch):
+    """start() -> False: hay otra grabacion en curso (la de 'Grabar ahora') que al
+    terminar se unira a la sesion que espera. Cancelar romperia esa union; si esa
+    grabacion se descarta, _cancel_recording deshace la espera."""
+    grabador, _, _ = app
+    grabador.start_result = False
+    detector, bandeja = _reconexion(app, monkeypatch)
+
+    detector.on_call_started()
+
+    assert 'cancel_continuation' not in bandeja.llamadas
