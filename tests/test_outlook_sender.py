@@ -146,14 +146,43 @@ def test_sin_nombre_se_empareja_por_proximidad_de_hora(fake_outlook):
     assert [p['email'] for p in participantes] == ['cerca@x.com']
 
 
-def test_si_ningun_nombre_alcanza_el_umbral_se_cae_a_la_hora(fake_outlook):
+def test_con_nombre_y_sin_cita_que_case_no_se_cae_a_la_hora(fake_outlook):
+    """Antes se caia a la hora y se cogia una cita que no era. El 18/11/2026, una llamada
+    con una persona ("Coll Corominas, Nil") recibio los 6 invitados de la cita de las
+    12:00 que el usuario se saltaba, y las minutas los dieron por asistentes."""
     fake_outlook.appointments = [
         CitaFalsa('Nada Que Ver', AHORA + timedelta(minutes=1), [('X', 'x@x.com')]),
     ]
 
-    participantes = os_mod.find_meeting_participants(AHORA, 'Comite de Direccion')
+    assert os_mod.find_meeting_participants(AHORA, 'Comite de Direccion') == []
 
-    assert [p['email'] for p in participantes] == ['x@x.com']
+
+def test_una_llamada_con_una_persona_no_recibe_la_cita_de_esa_hora(fake_outlook):
+    fake_outlook.appointments = [
+        CitaFalsa('Research - Work Observability for Process Reinvention', AHORA,
+                  [(f'P{i}', f'p{i}@x.com') for i in range(6)]),
+    ]
+
+    assert os_mod.find_meeting_participants(AHORA, 'Coll Corominas, Nil') == []
+
+
+def test_sin_nombre_de_teams_se_sigue_emparejando_por_hora(fake_outlook):
+    """Una grabacion manual de una reunion presencial no tiene titulo de Teams: ahi la
+    hora es lo unico que hay."""
+    fake_outlook.appointments = [
+        CitaFalsa('Reunion presencial', AHORA + timedelta(minutes=1), [('X', 'x@x.com')]),
+    ]
+
+    assert [p['email'] for p in os_mod.find_meeting_participants(AHORA)] == ['x@x.com']
+
+
+def test_con_nombre_que_casa_se_sigue_emparejando(fake_outlook):
+    fake_outlook.appointments = [
+        CitaFalsa('Nada Que Ver', AHORA, [('X', 'x@x.com')]),
+        CitaFalsa('Comite de Direccion', AHORA + timedelta(minutes=30), [('Y', 'y@x.com')]),
+    ]
+
+    assert [p['email'] for p in os_mod.find_meeting_participants(AHORA, 'Comite de Direccion')] == ['y@x.com']
 
 
 def test_un_fallo_de_com_devuelve_lista_vacia_y_no_lanza(monkeypatch):

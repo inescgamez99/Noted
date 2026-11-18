@@ -20,3 +20,6 @@ python-dotenv>=1.0.0
 click>=8.1.0
 markdown>=3.5.0
 pywebview>=5.0
+# ffmpeg empaquetado: convierte a WAV los MP3, M4A, MP4... que se importan o se sueltan en inbox/
+# (inbox_watcher._find_ffmpeg lo usa; sin el, solo se procesan .wav salvo que haya ffmpeg en el PATH).
+imageio-ffmpeg>=0.5.1

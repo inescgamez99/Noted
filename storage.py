@@ -123,9 +123,13 @@ def cleanup_old_recordings(days: int = 10):
     # *_screenshot_*.png y *.screenshots.jsonl: capturas que no llegaron a minutes/
     # (screen_capture), con la misma regla que su grabacion.
     aux_patterns   = ('*.lang', '*.partial', '*.context', '*.part', '*.live.*', '*.live', '*.title',
-                      '*_screenshot_*.png', '*.screenshots.jsonl')
-    for d in (RECORDINGS_DIR, RECORDINGS_DIR / 'processed'):
-        for pattern in audio_patterns + aux_patterns:
+                      '*_screenshot_*.png', '*.screenshots.jsonl', '*.imported')
+    # originals/: el audio original (MP3, M4A, MP4, un WAV de otro equipo...) de lo que
+    # se importo o se solto en inbox/, ya convertido (inbox_watcher). Misma retencion
+    # y mismo respeto a lo que aun no tiene minutas que la grabacion que de el sale.
+    originals = RECORDINGS_DIR / 'originals'
+    for d in (RECORDINGS_DIR, RECORDINGS_DIR / 'processed', originals):
+        for pattern in ('*',) if d == originals else audio_patterns + aux_patterns:
             for f in d.glob(pattern):
                 # Un fichero puede desaparecer entre el glob y el stat (el .tmp
                 # del estado en vivo se renombra al momento). Esto corre al
@@ -151,7 +155,7 @@ def cleanup_old_recordings(days: int = 10):
                     # tope de PENDING_RETENTION_FACTOR. Lo de processed/ ya la tiene.
                     # Un .part vacio no es una reunion pendiente: ya se decidio
                     # arriba (se borra), aunque este dentro del tope.
-                    if (d == RECORDINGS_DIR and pattern != '*.part'
+                    if (d in (RECORDINGS_DIR, originals) and pattern != '*.part'
                             and mtime >= pending_cutoff and not _has_minutes(f)):
                         continue
                     f.unlink()

@@ -631,3 +631,72 @@ def test_si_las_minutas_no_se_guardan_no_se_borra_una_que_ya_estaba(
 
     assert intentos == [previa], "el test no apunta a la minuta que intenta guardar"
     assert previa.read_text(encoding='utf-8') == 'minutas de antes'
+
+
+# ── Audio importado: sin Outlook ─────────────────────────────────────────────
+# 18/11/2026: una llamada con una persona recibio los invitados de la cita de esa hora.
+# Un audio importado no lo grabo Noted, y todavia menos tiene que ver con tu calendario.
+
+@pytest.fixture
+def outlook_espia(monkeypatch):
+    import outlook_sender
+    llamadas = {'participantes': [], 'asunto': []}
+
+    def participantes(when, meeting_name=None, **_k):
+        llamadas['participantes'].append(meeting_name)
+        return [{'name': 'Invitada Uno', 'email': 'uno@x.com', 'meeting_subject': 'Otra reunion'}]
+
+    monkeypatch.setattr(outlook_sender, 'find_meeting_participants', participantes)
+    monkeypatch.setattr(outlook_sender, 'find_meeting_subject',
+                        lambda when: llamadas['asunto'].append(when) or 'Asunto de Outlook')
+    return llamadas
+
+
+def _cierra(tray, wav):
+    tray._finalize_session(_sesion(tray, [wav], ['texto unico']))
+
+
+def test_una_reunion_grabada_si_busca_sus_participantes_en_outlook(
+        tray, cierre_aislado, outlook_espia, tr_dirs, wav_factory):
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+
+    _cierra(tray, a)
+
+    assert len(outlook_espia['participantes']) == 1
+
+
+def test_un_audio_importado_no_busca_participantes_en_outlook(
+        tray, cierre_aislado, outlook_espia, tr_dirs, wav_factory):
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    a.with_suffix('.imported').write_text('inbox', encoding='utf-8')
+
+    _cierra(tray, a)
+
+    assert outlook_espia['participantes'] == []
+    assert outlook_espia['asunto'] == []
+    assert cierre_aislado['minutas_de'] == 'texto unico', "las minutas se generan igual"
+
+
+def test_la_marca_en_processed_tambien_cuenta(tray, tr_dirs, wav_factory):
+    """Un reintento de minutas corre cuando el WAV ya esta en processed/."""
+    a = ta.RECORDINGS_DIR / f'{STEM_A}.wav'
+    processed = ta.RECORDINGS_DIR / 'processed'
+    processed.mkdir(parents=True, exist_ok=True)
+    assert tray._is_imported(a) is False
+    (processed / f'{STEM_A}.imported').write_text('inbox', encoding='utf-8')
+    assert tray._is_imported(a) is True
+
+
+def test_la_marca_viaja_a_processed_con_el_wav(tray, tr_dirs, wav_factory):
+    """No se borra al terminar: un reintento de minutas la sigue necesitando."""
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    a.with_suffix('.imported').write_text('inbox', encoding='utf-8')
+    transcript = ta.RECORDINGS_DIR / f'{STEM_A}_transcript.txt'
+    transcript.write_text('t', encoding='utf-8')
+
+    tray._move_to_processed(a, transcript)
+
+    assert not a.with_suffix('.imported').exists()
+    assert (ta.RECORDINGS_DIR / 'processed' / f'{STEM_A}.imported').exists()
+    assert tray._is_imported(a) is True
+

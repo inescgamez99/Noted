@@ -378,6 +378,23 @@ const T = {
     import_transcript_processing: 'Generando notas del transcript...',
     import_transcript_done: 'Notas generadas del transcript importado',
     import_transcript_error: 'Error al importar el transcript',
+    import_menu_tooltip: 'Importar',
+    import_menu_transcript: 'Importar transcript (.txt)',
+    import_menu_audio: 'Importar audio o vídeo…',
+    import_audio_name: 'Título',
+    import_audio_when: 'Fecha y hora de la reunión',
+    import_audio_hint: 'Un audio de fuera es una sola pista: el transcript no distinguirá quién habla. Los participantes se buscan en Outlook por la fecha que pongas.',
+    import_audio_cancel: 'Cancelar',
+    import_audio_ok: 'Importar',
+    import_audio_modal_title: (i, n, name) => n > 1 ? `Importar audio (${i} de ${n}): ${name}` : `Importar audio: ${name}`,
+    import_audio_queued: n => n > 1 ? `${n} audios añadidos: Noted los está procesando y aparecerán en la lista` : 'Audio añadido: Noted lo está procesando y aparecerá en la lista',
+    import_audio_err_not_found: 'No se encuentra el archivo',
+    import_audio_err_bad_ext: 'Ese formato no es de audio ni de vídeo',
+    import_audio_err_empty: 'El archivo está vacío',
+    import_audio_err_no_ffmpeg: 'Para importar este formato falta ffmpeg: actualiza Noted (o importa un WAV)',
+    import_audio_err_no_space: 'No hay espacio en disco para importarlo',
+    import_audio_err_copy_failed: 'No se pudo copiar el archivo',
+    import_audio_error: 'Error al importar el audio',
     export_transcript_btn: 'Exportar transcript',
     export_transcript_no_file: 'No hay transcript guardado para esta reunión',
     export_transcript_done: 'Transcript exportado',
@@ -454,7 +471,7 @@ const T = {
     tour_s4_title: 'Buscar en todas tus minutas', tour_s4_desc: 'Busca en el contenido de todas tus minutas a la vez. Atajo rápido: Ctrl+F desde cualquier vista.',
     tour_s5_title: 'Días o Proyectos', tour_s5_desc: 'Agrupa tus reuniones por fecha o por proyecto según lo que necesites en cada momento.',
     tour_s6_title: 'Tus reuniones', tour_s6_desc: 'Cada reunión grabada aparece aquí. Haz clic para abrirla. Clic derecho para fijarla arriba o eliminarla.',
-    tour_s7_title: 'Importar transcript', tour_s7_desc: '¿Tienes un transcript de un cliente o un compañero? Impórtalo directamente y Noted generará las minutas igual que si lo hubiera grabado él.',
+    tour_s7_title: 'Importar transcript o audio', tour_s7_desc: '¿Tienes un transcript o una grabación (WAV, MP3, M4A, MP4…) de un cliente o un compañero? Impórtala directamente y Noted generará las minutas igual que si la hubiera grabado él.',
     tour_s8_title: 'Título editable', tour_s8_desc: 'El título se genera automáticamente a partir del contenido. Haz clic sobre él para editarlo cuando quieras.',
     tour_s9_title: 'Proyecto detectado', tour_s9_desc: 'Noted intenta detectar automáticamente a qué proyecto pertenece cada reunión. Si se ha equivocado, cámbialo aquí.',
     tour_s10_title: 'Minutas generadas por Claude', tour_s10_desc: 'El cuerpo incluye un resumen de lo hablado, las decisiones tomadas y las tareas detectadas y asignadas automáticamente.',
@@ -804,6 +821,23 @@ const T = {
     import_transcript_processing: 'Generating notes from transcript...',
     import_transcript_done: 'Notes generated from imported transcript',
     import_transcript_error: 'Error importing transcript',
+    import_menu_tooltip: 'Import',
+    import_menu_transcript: 'Import transcript (.txt)',
+    import_menu_audio: 'Import audio or video…',
+    import_audio_name: 'Title',
+    import_audio_when: 'Meeting date and time',
+    import_audio_hint: 'An outside recording is a single track: the transcript will not say who is speaking. Participants are looked up in Outlook using the date you set.',
+    import_audio_cancel: 'Cancel',
+    import_audio_ok: 'Import',
+    import_audio_modal_title: (i, n, name) => n > 1 ? `Import audio (${i} of ${n}): ${name}` : `Import audio: ${name}`,
+    import_audio_queued: n => n > 1 ? `${n} audio files added: Noted is processing them and they will appear in the list` : 'Audio added: Noted is processing it and it will appear in the list',
+    import_audio_err_not_found: 'The file was not found',
+    import_audio_err_bad_ext: 'That format is not audio or video',
+    import_audio_err_empty: 'The file is empty',
+    import_audio_err_no_ffmpeg: 'ffmpeg is missing for this format: update Noted (or import a WAV)',
+    import_audio_err_no_space: 'Not enough disk space to import it',
+    import_audio_err_copy_failed: 'The file could not be copied',
+    import_audio_error: 'Error importing the audio',
     export_transcript_btn: 'Export transcript',
     export_transcript_no_file: 'No transcript saved for this meeting',
     export_transcript_done: 'Transcript exported',
@@ -880,7 +914,7 @@ const T = {
     tour_s4_title: 'Search all your minutes', tour_s4_desc: 'Search the content of all your minutes at once. Quick shortcut: Ctrl+F from any view.',
     tour_s5_title: 'Days or Projects', tour_s5_desc: 'Group your meetings by date or by project depending on what you need at each moment.',
     tour_s6_title: 'Your meetings', tour_s6_desc: 'Each recorded meeting appears here. Click to open it. Right-click to pin it to the top or delete it.',
-    tour_s7_title: 'Import transcript', tour_s7_desc: 'Have a transcript from a client or colleague? Import it directly and Noted will generate the minutes just as if it had recorded it itself.',
+    tour_s7_title: 'Import transcript or audio', tour_s7_desc: 'Have a transcript or a recording (WAV, MP3, M4A, MP4…) from a client or colleague? Import it directly and Noted will generate the minutes just as if it had recorded it itself.',
     tour_s8_title: 'Editable title', tour_s8_desc: 'The title is automatically generated from the content. Click on it to edit it whenever you want.',
     tour_s9_title: 'Detected project', tour_s9_desc: 'Noted tries to automatically detect which project each meeting belongs to. If it got it wrong, change it here.',
     tour_s10_title: 'Claude-generated minutes', tour_s10_desc: 'The body includes a summary of what was discussed, the decisions made and the automatically detected and assigned tasks.',
@@ -1229,6 +1263,23 @@ const T = {
     import_transcript_processing: 'Generant notes de la transcripció...',
     import_transcript_done: 'Notes generades de la transcripció importada',
     import_transcript_error: 'Error en importar la transcripció',
+    import_menu_tooltip: 'Importar',
+    import_menu_transcript: 'Importar transcripció (.txt)',
+    import_menu_audio: 'Importar àudio o vídeo…',
+    import_audio_name: 'Títol',
+    import_audio_when: 'Data i hora de la reunió',
+    import_audio_hint: 'Un àudio de fora és una sola pista: la transcripció no distingirà qui parla. Els participants es busquen a Outlook segons la data que posis.',
+    import_audio_cancel: 'Cancel·lar',
+    import_audio_ok: 'Importar',
+    import_audio_modal_title: (i, n, name) => n > 1 ? `Importar àudio (${i} de ${n}): ${name}` : `Importar àudio: ${name}`,
+    import_audio_queued: n => n > 1 ? `${n} àudios afegits: Noted els està processant i apareixeran a la llista` : 'Àudio afegit: Noted l\'està processant i apareixerà a la llista',
+    import_audio_err_not_found: 'No es troba el fitxer',
+    import_audio_err_bad_ext: 'Aquest format no és d\'àudio ni de vídeo',
+    import_audio_err_empty: 'El fitxer està buit',
+    import_audio_err_no_ffmpeg: 'Per importar aquest format falta ffmpeg: actualitza Noted (o importa un WAV)',
+    import_audio_err_no_space: 'No hi ha espai al disc per importar-lo',
+    import_audio_err_copy_failed: 'No s\'ha pogut copiar el fitxer',
+    import_audio_error: 'Error en importar l\'àudio',
     export_transcript_btn: 'Exportar transcripció',
     export_transcript_no_file: 'No hi ha transcripció desada per a aquesta reunió',
     export_transcript_done: 'Transcripció exportada',
@@ -1304,7 +1355,7 @@ const T = {
     tour_s4_title: 'Cercar a totes les actes', tour_s4_desc: 'Cerca al contingut de totes les actes alhora. Drecera ràpida: Ctrl+F des de qualsevol vista.',
     tour_s5_title: 'Dies o Projectes', tour_s5_desc: 'Agrupa les teves reunions per data o per projecte segons el que necessitis en cada moment.',
     tour_s6_title: 'Les teves reunions', tour_s6_desc: 'Cada reunió gravada apareix aquí. Fes clic per obrir-la. Clic dret per fixar-la a dalt o eliminar-la.',
-    tour_s7_title: 'Importar transcripció', tour_s7_desc: 'Tens una transcripció d\'un client o company? Importa-la directament i Noted generarà les actes igual que si l\'hagués gravat ell.',
+    tour_s7_title: 'Importar transcripció o àudio', tour_s7_desc: 'Tens una transcripció o una gravació (WAV, MP3, M4A, MP4…) d\'un client o company? Importa-la directament i Noted generarà les actes igual que si l\'hagués gravat ell.',
     tour_s8_title: 'Títol editable', tour_s8_desc: 'El títol es genera automàticament a partir del contingut. Fes clic per editar-lo quan vulguis.',
     tour_s9_title: 'Projecte detectat', tour_s9_desc: 'Noted intenta detectar automàticament a quin projecte pertany cada reunió. Si s\'ha equivocat, canvia-ho aquí.',
     tour_s10_title: 'Actes generades per Claude', tour_s10_desc: 'El cos inclou un resum del que s\'ha parlat, les decisions preses i les tasques detectades i assignades automàticament.',
@@ -5269,6 +5320,90 @@ async function importTranscript() {
     await refreshMeetingList();
     if (status.path) openMeeting(status.path);
   }, 2000);
+}
+
+// ── Importar audio o vídeo ────────────────────────────────────────────────────
+// El "+" abre un menú: transcript (.txt, como siempre) o audio. Para el audio se
+// elige el archivo, se pregunta título y fecha de cada uno, y el panel lo COPIA a
+// inbox/: el daemon lo convierte y lo procesa como a cualquier reunión.
+
+function toggleImportMenu(ev) {
+  if (ev) ev.stopPropagation();
+  document.getElementById('import-menu')?.classList.toggle('hidden');
+}
+
+function closeImportMenu() {
+  document.getElementById('import-menu')?.classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('.import-wrap')) closeImportMenu();
+});
+
+let _importAudioQueue = [];
+let _importAudioTotal = 0;
+let _importAudioOk = 0;
+
+async function importAudio() {
+  let files = [];
+  try { files = await pywebview.api.pick_audio_files(); } catch (_) {
+    showToast(t('import_audio_error'));
+    return;
+  }
+  if (!files || !files.length) return;   // el usuario canceló el selector
+  _importAudioQueue = files.slice();
+  _importAudioTotal = files.length;
+  _importAudioOk = 0;
+  nextImportAudio();
+}
+
+function nextImportAudio() {
+  const item = _importAudioQueue[0];
+  if (!item) { finishImportAudio(); return; }
+  const done = _importAudioTotal - _importAudioQueue.length;
+  document.getElementById('import-audio-title').textContent =
+    t('import_audio_modal_title', done + 1, _importAudioTotal, item.name);
+  const name = document.getElementById('import-audio-name');
+  name.value = item.title || '';
+  document.getElementById('import-audio-when').value = item.when || '';
+  document.getElementById('import-audio-modal').classList.remove('hidden');
+  setTimeout(() => name.select(), 60);
+}
+
+async function confirmImportAudio() {
+  const item = _importAudioQueue.shift();
+  if (!item) return;
+  const title = document.getElementById('import-audio-name').value.trim();
+  const when = document.getElementById('import-audio-when').value;
+  document.getElementById('import-audio-modal').classList.add('hidden');
+  let r;
+  try {
+    r = await pywebview.api.import_audio(item.path, title, when);
+  } catch (_) {
+    r = { ok: false, error: 'copy_failed' };
+  }
+  if (r && r.ok) {
+    _importAudioOk++;
+  } else {
+    const key = 'import_audio_err_' + ((r && r.error) || 'copy_failed');
+    showToast(t(key) === key ? t('import_audio_error') : t(key));
+  }
+  nextImportAudio();
+}
+
+function cancelImportAudio() {
+  _importAudioQueue = [];
+  finishImportAudio();
+}
+
+function finishImportAudio() {
+  document.getElementById('import-audio-modal')?.classList.add('hidden');
+  if (_importAudioOk > 0) {
+    showToast(t('import_audio_queued', _importAudioOk));
+    // El daemon tarda unos segundos en recogerlo de inbox/: se refresca la lista.
+    setTimeout(() => { refreshMeetingList(); }, 8000);
+  }
+  _importAudioOk = 0;
 }
 
 // ── Búsqueda ──────────────────────────────────────────────────────────────────

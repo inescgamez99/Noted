@@ -208,6 +208,14 @@ def _find_meeting_item(recording_time: datetime, meeting_name: str = None, for_t
             best_item = scored[0][2]
             log.info(f"Reunión emparejada por nombre (score {scored[0][0]:.2f}): {best_item.Subject}")
 
+    if best_item is None and meeting_name:
+        # La grabacion SABE como se llama su reunion (Teams) y ninguna cita se llama
+        # asi: no es de ninguna. Emparejar por hora cogia la reunion que el usuario se
+        # saltaba (18/11/2026: una llamada con una persona, "Coll Corominas, Nil",
+        # recibio los 6 invitados de la cita de las 12:00) y los metia en las minutas.
+        log.info(f"Ninguna cita se llama como '{meeting_name}': no se empareja por hora")
+        return None
+
     if best_item is None:
         # Primero las que EMPIEZAN junto a la grabación. Las que ya estaban
         # en marcha (la reunión anterior, que aún no ha acabado) solo valen
