@@ -60,9 +60,23 @@ def _title_kind(raw: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _same_name(a: str, b: str) -> bool:
+    """Dos nombres de reunion son el mismo sin contar signos, espacios ni
+    mayusculas: el nombre que lleva la grabacion pierde los signos del titulo
+    ("Comite / Ventas Q4" se graba como Comite_Ventas_Q4)."""
+    def bare(s: str) -> str:
+        return ''.join(ch for ch in s.casefold() if ch.isalnum())
+    return bool(bare(a)) and bare(a) == bare(b)
+
+
 def find_meeting_window(name: str | None = None) -> int | None:
     """La ventana de la reunion, para capturarla: la que lleva su nombre si se
-    sabe; si no, la ventana de reunion visible que este mas arriba."""
+    sabe; si no, la ventana de reunion visible que este mas arriba.
+
+    Con nombre y sin ninguna ventana que lo lleve, ninguna: la de mas arriba puede
+    ser la ventana principal de Teams o un chat, que tienen titulos con la misma
+    forma que una reunion. El 17 y el 18/11/2026 se capturo asi el chat, porque el
+    nombre de la grabacion no coincidia letra a letra con el de la ventana."""
     pids = _teams_pids()
     if not pids:
         return None
@@ -88,9 +102,7 @@ def find_meeting_window(name: str | None = None) -> int | None:
 
     win32gui.EnumWindows(cb, None)      # en orden Z: la primera es la de arriba
     if name:
-        for hwnd, title in found:
-            if title and title.strip().lower() == name.strip().lower():
-                return hwnd
+        return next((hwnd for hwnd, title in found if title and _same_name(title, name)), None)
     return found[0][0] if found else None
 
 
