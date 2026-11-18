@@ -130,6 +130,15 @@ def _start_cli_listener(recorder, tray, get_recording_path):
     threading.Thread(target=_loop, daemon=True, name='CLIListener').start()
 
 
+_POPUP_GUARD_EXTRA_S = 10.0
+
+
+def _popup_guard_s() -> float:
+    """Cuanto espera la guarda del aviso: su timeout mas un margen."""
+    from config import POPUP_TIMEOUT
+    return POPUP_TIMEOUT + _POPUP_GUARD_EXTRA_S
+
+
 def main():
     _bs("main() entered")
     if not _check_single_instance():
@@ -173,6 +182,7 @@ def main():
         _popup_active      = [False]   # guard para evitar popups múltiples
         _active_generation = [None]    # generación capturada en el último on_call_started
         _popup_lock        = threading.Lock()  # hace atómico el check-and-set de _popup_active
+        _popup_seq         = [0]       # nº del último aviso mostrado (para la guarda)
 
         def on_call_started():
             from teams_detector import get_current_meeting_name
@@ -198,6 +208,23 @@ def main():
                     return
                 _popup_active[0]      = True
                 _active_generation[0] = detector.call_generation
+                _popup_seq[0] += 1
+                _my_popup = _popup_seq[0]
+
+            # Guarda: el timeout del aviso vive dentro del hilo de Tk. Si show()
+            # falla alli o el hilo se cuelga, el flag se quedaba True y
+            # on_call_started retornaba siempre (sin volver a ofrecer grabar hasta
+            # reiniciar). Solo suelta el flag de ESTE aviso, no el de uno posterior.
+            def _release_popup_guard(seq=_my_popup):
+                with _popup_lock:
+                    if _popup_active[0] and _popup_seq[0] == seq:
+                        _popup_active[0] = False
+                        log.warning("Aviso de grabación sin respuesta: se libera para "
+                                    "poder ofrecer grabar de nuevo")
+
+            _guard = threading.Timer(_popup_guard_s(), _release_popup_guard)
+            _guard.daemon = True
+            _guard.start()
 
             try:
                 from popup import RecordingPopup
