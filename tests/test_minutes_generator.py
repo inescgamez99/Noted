@@ -497,3 +497,24 @@ def test_regenerar_acciones_respeta_la_cabecera_que_trae(cli_falso):
 def test_regenerar_acciones_sin_respuesta_devuelve_none(cli_falso):
     cli_falso['proc'].returncode = 2
     assert mg.regenerate_actions_section('t', '', 'x') is None
+
+
+
+# ── Lote C: duracion con minutos de 3 digitos y settings.json con BOM ────
+
+def test_la_duracion_estimada_admite_minutos_de_tres_digitos(tr_dirs):
+    """transcriber._format_time genera [125:30] en reuniones de mas de 100 min;
+    la regex de 2 digitos dejaba la duracion en el ultimo minuto < 100."""
+    t = '[00:05] [Ines]: hola\n[99:59] [Otros]: sigo\n[125:30] [Ines]: adios'
+    assert '125m 30s' in mg._build_prompt(t, tr_dirs / 'x.wav', language='es')
+
+
+def test_el_nombre_del_usuario_se_lee_con_settings_con_bom(cli_falso, tr_dirs, monkeypatch):
+    """Editores de Windows guardan settings.json con BOM: json.loads fallaba,
+    se tragaba y se perdia user_name."""
+    (tr_dirs / 'settings.json').write_bytes(b'\xef\xbb\xbf{"user_name": "Ines"}')
+    monkeypatch.setattr(mg, 'PROJECT_DIR', tr_dirs)
+
+    mg._generate_via_cli('[Ines]: hola\n[Otros]: buenas', tr_dirs / 'x.wav', language='es')
+
+    assert 'La persona que grabó esta reunión es **Ines**' in cli_falso['llamadas'][0]['prompt']

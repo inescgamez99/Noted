@@ -13,7 +13,7 @@ _settings: dict = {}
 _settings_path = PROJECT_DIR / 'settings.json'
 if _settings_path.exists():
     try:
-        _settings = _json.loads(_settings_path.read_text(encoding='utf-8'))
+        _settings = _json.loads(_settings_path.read_text(encoding='utf-8-sig'))
     except Exception:
         pass
 

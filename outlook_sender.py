@@ -380,7 +380,7 @@ def _build_email_html(minutes_text: str, title: str, date_str: str, participants
         from pathlib import Path as _Path
         settings_path = _Path(__file__).parent / 'settings.json'
         if settings_path.exists():
-            user_name = _json.loads(settings_path.read_text(encoding='utf-8')).get('user_name', '')
+            user_name = _json.loads(settings_path.read_text(encoding='utf-8-sig')).get('user_name', '')
     except Exception:
         pass
 
@@ -557,7 +557,7 @@ def _build_actions_email_html(title: str, date_str: str, actions: list[dict], la
     try:
         settings_path = Path(__file__).parent / 'settings.json'
         if settings_path.exists():
-            user_name = _json.loads(settings_path.read_text(encoding='utf-8')).get('user_name', '')
+            user_name = _json.loads(settings_path.read_text(encoding='utf-8-sig')).get('user_name', '')
     except Exception:
         pass
 

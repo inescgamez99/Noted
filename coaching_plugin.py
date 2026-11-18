@@ -96,7 +96,7 @@ def _ui_lang() -> str:
     try:
         from config import PROJECT_DIR
         import json as _j
-        cfg = _j.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8'))
+        cfg = _j.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8-sig'))
         return cfg.get('language', 'en')
     except Exception:
         return 'en'
@@ -156,7 +156,7 @@ def _coaching_enabled() -> bool:
     try:
         from config import PROJECT_DIR
         import json as _j
-        cfg = _j.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8'))
+        cfg = _j.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8-sig'))
         return cfg.get('coaching_enabled', False) is True
     except Exception:
         return False
