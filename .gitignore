@@ -82,3 +82,12 @@ desktop.ini
 
 # Fichero personal de minutas del usuario
 user_minutes.json
+
+# Lo que crean la escritura atomica y el bloqueo (atomic_io): temporales, bloqueos y la
+# copia de un JSON que no se pudo leer.
+*.json.tmp
+*.json.lock
+*.json.corrupt-*
+
+# Copias de trabajo de agentes de Claude Code
+.claude/worktrees/
