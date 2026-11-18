@@ -99,6 +99,9 @@ FINISH_BLOCK_S = 300
 LANG_LOCK_PROB = 0.8
 LANG_MIN_VOICE_S = 30
 LANG_FALLBACK_AFTER_S = 180
+# Despues, cada pista lo vuelve a mirar como mucho cada LANG_RECHECK_S de su audio
+# (transcriber.recheck_language): en el modo de fondo, casi en cada trozo.
+LANG_RECHECK_S = 120
 
 # Memoria. Lo que cuenta es la RESERVA contra el limite de Windows (commit), no
 # la RAM en uso: 'medium' reserva ~4,7 GB al cargarse y solo toca ~0,9 GB
@@ -611,6 +614,8 @@ class _Track:
         self.peak = 0.0
         self.vad_n = 0                # tamaño del bufer en la ultima pasada del VAD
         self.total = 0
+        self.lang = None              # el idioma de esta pista, una vez mirado
+        self.lang_at = None           # frame del ultimo trozo en que se miro
 
     def jump_to(self, frame: int) -> None:
         import numpy as np
@@ -702,30 +707,45 @@ def _step(track: _Track, model, lang: str | None, args: dict, vad, vad_opts, wav
 
     chunk = track.buf[:cut]
     voiced = sum(min(s['end'], cut) - s['start'] for s in speech if s['start'] < cut) / SR
-    segments, detected, chunk_lang = [], None, lang
+    segments, detected, chunk_lang = [], None, track.lang or lang
     t_asr = time.perf_counter()
     if voiced > 0:
-        segs, info = model.transcribe(np.ascontiguousarray(chunk * gain), language=lang, **args)
+        import transcriber
+        audio = np.ascontiguousarray(chunk * gain)
+        # Cada pista vuelve a mirar su idioma: el de la reunion se fijo una vez, con
+        # los primeros minutos, y puede no ser el de esta pista ni el de ahora.
+        if chunk_lang and (track.lang_at is None
+                           or track.buf_start - track.lang_at >= LANG_RECHECK_S * SR):
+            track.lang_at = track.buf_start
+            new = transcriber.recheck_language(model, audio, chunk_lang, voiced)
+            if new != chunk_lang:
+                log.info(f"live: {track.name} pasa de '{chunk_lang}' a '{new}' en {track.buf_start / SR:.0f}s")
+            track.lang = chunk_lang = new
+        asked = chunk_lang
+        segs, info = model.transcribe(audio, language=asked, **args)
         offset = track.buf_start / SR
+        done = []
         for s in segs:
             if abort is not None and abort():
                 log.info(f"live: {track.name} trozo abandonado a mitad (el daemon lo pidio)")
                 return False, None
             text = s.text.strip()
             if text:
-                segments.append([round(offset + s.start, 2), text])
-        if lang is None:
-            import transcriber
+                done.append((s.start, s.end, text))
+        if asked is None:
             chunk_lang = transcriber._remap(getattr(info, 'language', None))
             # Solo se fija con confianza alta: fijarlo con los primeros segundos de
             # charla impondria un idioma dudoso a toda la reunion.
             if getattr(info, 'language_probability', 0) >= LANG_LOCK_PROB:
                 detected = chunk_lang
+        done = transcriber._redo_echoes(model, done, transcriber._Audio(audio, SR),
+                                        dict(args, language=chunk_lang))
+        segments = [[round(offset + s, 2), text] for s, _e, text in done]
     t_asr = time.perf_counter() - t_asr
     _append_record(wav, {
         'track': track.name, 'start_frame': track.buf_start,
         'end_frame': track.buf_start + cut, 'segments': segments,
-        'lang': chunk_lang if segments else lang, 'model': model_name,
+        'lang': chunk_lang if segments else (track.lang or lang), 'model': model_name,
     })
     # Una linea por trozo: es lo que permite saber, en una reunion real, si va al
     # dia o se esta quedando atras, y por que.
@@ -1292,7 +1312,8 @@ def _finish_live(wav: Path, on_progress=None, should_cancel=None,
     marker.write_text(str(attempts + 1))
     # El fijado durante la reunion; si no llego a fijarse, el de la mayoria.
     langs = Counter(r.get('lang') for name in kept for r in kept[name] if r.get('lang') and r['segments'])
-    lang = read_status(wav).get('lang') or (langs.most_common(1)[0][0] if langs else None)
+    locked = read_status(wav).get('lang')
+    lang = locked or (langs.most_common(1)[0][0] if langs else None)
     rest = sum(b - a for _n, _p, a, b in todo)
     by_track = {name: _segments(kept[name]) for name, _path in tracks}
     log.info(f"live: cerrando {wav.name}; aprovechado {covered / SR:.0f}s, "
@@ -1320,9 +1341,16 @@ def _finish_live(wav: Path, on_progress=None, should_cancel=None,
         if hotwords:
             args['hotwords'] = hotwords
         vad_opts = VadOptions(threshold=0.3, min_silence_duration_ms=500, speech_pad_ms=0)
+        def lang_before(name, frame):
+            """El idioma de la pista justo antes del hueco: cada pista lleva el suyo.
+            Solo si se fijo durante la reunion; si no, cada trozo lo adivino solo."""
+            prev = [r for r in kept[name] if r['end_frame'] <= frame and r['segments'] and r.get('lang')]
+            return prev[-1]['lang'] if locked and prev else None
+
         try:
             done = 0
             for name, path, a, b in todo:
+                cur = lang_before(name, a) or lang
                 with sf.SoundFile(str(path)) as f:
                     pos = a
                     while pos < b:
@@ -1332,16 +1360,23 @@ def _finish_live(wav: Path, on_progress=None, should_cancel=None,
                         block = f.read(end - pos, dtype='float32', always_2d=False)
                         if not len(block):
                             break
-                        segs, info = model.transcribe(np.ascontiguousarray(block), language=lang, **args)
-                        if lang is None:
-                            lang = transcriber._remap(getattr(info, 'language', None))
-                        offset, new = pos / SR, []
+                        block = np.ascontiguousarray(block)
+                        cur = transcriber.recheck_language(model, block, cur)
+                        segs, info = model.transcribe(block, language=cur, **args)
+                        if cur is None:
+                            cur = transcriber._remap(getattr(info, 'language', None))
+                        lang = lang or cur
+                        got = []
                         for s in transcriber._paced(segs, should_pause, should_cancel):
                             text = s.text.strip()
                             if text:
-                                new.append([round(offset + s.start, 2), text])
+                                got.append((s.start, s.end, text))
+                        got = transcriber._redo_echoes(model, got, transcriber._Audio(block, SR),
+                                                       dict(args, language=cur))
+                        offset = pos / SR
+                        new = [[round(offset + s, 2), text] for s, _e, text in got]
                         _append_record(wav, {'track': name, 'start_frame': pos, 'end_frame': end,
-                                             'segments': new, 'lang': lang, 'model': model_name})
+                                             'segments': new, 'lang': cur, 'model': model_name})
                         by_track[name] += [(t, txt) for t, txt in new]
                         done += end - pos
                         pos = end

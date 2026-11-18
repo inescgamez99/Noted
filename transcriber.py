@@ -255,6 +255,14 @@ _TRANSCRIBE_ARGS = dict(
 )
 
 
+# Con dos pistas, el micro decide el idioma solo si quien graba habla lo bastante.
+# 29/10/2026: en una reunion en castellano en la que no hablo, faster-whisper
+# adivino 'en' (51 %) sobre el micro en silencio, se le impuso a la pista de los
+# demas y el transcript salio traducido al ingles. Entonces decide la pista de
+# los demas, que se transcribe detectando su propio idioma.
+_LANG_MIN_VOICE_S = 30.0
+
+
 def _targs(hotwords: str | None = None, **overrides) -> dict:
     """Argumentos de transcribe(), con las pistas del glosario si las hay.
 
@@ -268,26 +276,259 @@ def _targs(hotwords: str | None = None, **overrides) -> dict:
     return args
 
 
+# Pistas que se cuelan. Cuando Whisper duda con una ventana, a veces no la
+# transcribe: devuelve el texto de las pistas. El 11/11/2026, en una reunion de
+# 24 min, 18 lineas con los nombres de los invitados y el asunto de la cita
+# taparon hasta 14,5 de los ~16,5 min con voz de la pista de los demas.
+# Esos mismos tramos, transcritos sin pistas, salen enteros: se rehacen asi.
+_ECHO_MIN_WORDS = 2
+_ECHO_SHARE = 0.8
+
+
+def _words(text: str) -> list[str]:
+    import unicodedata
+    folded = unicodedata.normalize('NFKD', text.lower())
+    return re.findall(r'\w+', ''.join(c for c in folded if not unicodedata.combining(c)))
+
+
+def is_hotword_echo(text: str, hotwords: str | None) -> bool:
+    """Si la linea es Whisper repitiendo las pistas en vez de transcribir: casi
+    todas sus palabras son de las pistas. Una frase que nombra a un invitado
+    ("¿lo ves, Miguel?") tiene palabras propias. Un falso positivo solo cuesta
+    rehacer ese tramo sin pistas."""
+    if not hotwords:
+        return False
+    words = _words(text)
+    if len(words) < _ECHO_MIN_WORDS:
+        return False
+    vocab = set(_words(hotwords))
+    return sum(w in vocab for w in words) >= _ECHO_SHARE * len(words)
+
+
+class _Audio:
+    """Una pista, la mezcla o un trozo ya en memoria, a 16 kHz y en mono, que es lo
+    que espera Whisper. De un fichero se lee solo el tramo que se pide: una
+    reunion de 2 h son ~460 MB en float32."""
+
+    def __init__(self, source, sr: int = 16000):
+        self.source, self.sr = source, sr
+        self._whole = None
+
+    def _is_file(self) -> bool:
+        return isinstance(self.source, (str, Path))
+
+    @property
+    def total(self) -> float:
+        if self._is_file():
+            import soundfile as sf
+            return float(sf.info(str(self.source)).duration)
+        return len(self.source) / self.sr
+
+    def read(self, a: float, b: float):
+        import numpy as np
+        if not self._is_file():
+            return np.ascontiguousarray(self.source[int(a * self.sr):int(b * self.sr)])
+        import soundfile as sf
+        rate = sf.info(str(self.source)).samplerate
+        if rate != 16000:
+            # Los WAV del grabador son de 16 kHz; otro se decodifica entero, una vez.
+            if self._whole is None:
+                from faster_whisper import decode_audio
+                self._whole = decode_audio(str(self.source), sampling_rate=16000)
+            return np.ascontiguousarray(self._whole[int(a * 16000):int(b * 16000)])
+        audio, _ = sf.read(str(self.source), start=int(a * rate), stop=int(b * rate),
+                           dtype='float32', always_2d=False)
+        return np.ascontiguousarray(audio.mean(axis=1) if audio.ndim > 1 else audio)
+
+
+def _redo_spans(model, segments: list, audio: _Audio, args: dict, bad, why: str,
+                fix=None) -> list:
+    """Rehace con args los segmentos que marca bad(segmento).
+
+    segments: [(inicio, fin, texto)] en segundos de audio, que solo se lee si
+    hay algo que rehacer. Cada tramo va del final del segmento bueno anterior al
+    inicio del siguiente, y los marcados seguidos son un solo tramo: el texto
+    malo ocupa el sitio de lo que se dijo, y sus marcas de tiempo no son fiables.
+    fix(segmentos, audio del tramo), si se da, corrige lo rehecho antes de juntarlo.
+    """
+    if not any(bad(s) for s in segments):
+        return segments
+    out, i, redone = [], 0, 0.0
+    while i < len(segments):
+        if not bad(segments[i]):
+            out.append(segments[i])
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(segments) and bad(segments[j + 1]):
+            j += 1
+        a = min(segments[i][0], out[-1][1]) if out else segments[i][0]
+        b = segments[j + 1][0] if j + 1 < len(segments) else audio.total
+        window = audio.read(a, b) if b > a else ()
+        if len(window):
+            segs, _info = model.transcribe(window, **args)
+            got = [(s.start, s.end, s.text.strip()) for s in segs if s.text.strip()]
+            if fix is not None:
+                got = fix(got, window)
+            out += [(a + s, a + e, t) for s, e, t in got]
+        redone += max(0.0, b - a)
+        i = j + 1
+    log.info(f"{why}: {redone:.0f}s rehechos")
+    return out
+
+
+def _redo_echoes(model, segments: list, audio: _Audio, args: dict) -> list:
+    """Rehace sin pistas los tramos que salieron como eco de ellas."""
+    hotwords = args.get('hotwords')
+    if not hotwords:
+        return segments
+    plain = {k: v for k, v in args.items() if k != 'hotwords'}
+    return _redo_spans(model, segments, audio, plain, lambda s: is_hotword_echo(s[2], hotwords),
+                       "Pistas coladas en la transcripcion, sin ellas")
+
+
+# Idioma por tramos. El 05/11/2026, en una sesion de una hora en ingles, los
+# primeros 100 s fueron una charla en castellano: se fijo 'es' y todo lo dicho en
+# ingles salio traducido al castellano. Ahora el idioma se mira por tramos de cada
+# pista: el primero se fija con confianza alta, y despues un tramo solo lo cambia
+# si Whisper esta muy seguro y hay voz de sobra, para que una frase suelta en otro
+# idioma o un tramo con ruido no lo muevan. faster-whisper trae multilingual=True,
+# que decide en cada ventana de 30 s sin umbral y sin _remap ('gl' saldria en gallego).
+LANG_WINDOW_S = 300
+LANG_LOCK_PROB = 0.8
+LANG_SWITCH_PROB = 0.9
+LANG_CHECK_MIN_VOICE_S = 20.0
+
+
+def _speech_seconds(audio) -> float:
+    """Segundos con voz, mirados sobre el audio normalizado: una pista muy baja no es silencio."""
+    import numpy as np
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+    if not len(audio):
+        return 0.0
+    peak = float(np.max(np.abs(audio)))
+    gain = min(0.8 / peak, 50.0) if peak > 0 else 1.0
+    opts = VadOptions(threshold=0.3, min_silence_duration_ms=500, speech_pad_ms=0)
+    return sum(s['end'] - s['start']
+               for s in get_speech_timestamps(np.ascontiguousarray(audio * gain), opts)) / 16000
+
+
+def _can_detect(model) -> bool:
+    return not WHISPER_LANGUAGE and callable(getattr(model, 'detect_language', None))
+
+
+def _detect(model, audio) -> tuple[str, float] | None:
+    """Idioma y confianza de un tramo (los primeros 30 s con voz), o None si no se puede."""
+    try:
+        lang, prob, _all = model.detect_language(audio, vad_filter=True, language_detection_segments=1)
+    except Exception as e:
+        log.warning(f"Idioma no detectado en un tramo: {e}")
+        return None
+    return _remap(lang), float(prob)
+
+
+def next_language(current: str | None, found: tuple[str, float] | None) -> str | None:
+    """El idioma tras mirar un tramo; found es (idioma, confianza) o None."""
+    if found is None:
+        return current
+    lang, prob = found
+    if current is None:
+        return lang if prob >= LANG_LOCK_PROB else None
+    return lang if lang != current and prob >= LANG_SWITCH_PROB else current
+
+
+def recheck_language(model, audio, current: str | None, voiced_s: float | None = None) -> str | None:
+    """El idioma para un trozo que se va a transcribir, para quien transcribe por
+    trozos: el actual, salvo que el trozo diga otro con seguridad."""
+    if not _can_detect(model):
+        return current
+    if voiced_s is None:
+        voiced_s = _speech_seconds(audio)
+    if voiced_s < LANG_CHECK_MIN_VOICE_S:
+        return current
+    new = next_language(current, _detect(model, audio))
+    if current is not None and new != current:
+        log.info(f"Idioma: el tramo es '{new}', no '{current}'; cambia desde aqui")
+    return new
+
+
+def _language_plan(model, audio: _Audio) -> list[tuple[float, float, str | None, float]]:
+    """(inicio, fin, idioma, segundos de voz) de cada tramo de LANG_WINDOW_S, leyendo
+    uno cada vez. Los tramos de antes del primer idioma seguro toman ese idioma."""
+    if not _can_detect(model):
+        return []
+    plan, current, a, total = [], None, 0.0, audio.total
+    while a < total:
+        b = min(a + LANG_WINDOW_S, total)
+        window = audio.read(a, b)
+        voiced = _speech_seconds(window)
+        if voiced >= LANG_CHECK_MIN_VOICE_S:
+            current = next_language(current, _detect(model, window))
+        plan.append((a, b, current, voiced))
+        a = b
+    first = next((lang for _a, _b, lang, _v in plan if lang), None)
+    return [(a, b, lang or first, v) for a, b, lang, v in plan]
+
+
+def _main_language(plan) -> str | None:
+    """El idioma con mas voz en el plan, o None si no hay ninguno seguro."""
+    from collections import Counter
+    voice = Counter()
+    for _a, _b, lang, v in plan:
+        if lang:
+            voice[lang] += v
+    return voice.most_common(1)[0][0] if voice else None
+
+
+def _apply_plan(model, segments: list, audio: _Audio, args: dict, plan, lang: str) -> list:
+    """Rehace en su idioma los tramos del plan que no son de lang, el idioma con el
+    que se transcribio la pista entera. Tramos seguidos del mismo idioma, de una vez."""
+    runs = []
+    for a, b, tramo, _v in plan:
+        if not tramo or tramo == lang:
+            continue
+        if runs and runs[-1][2] == tramo and runs[-1][1] == a:
+            runs[-1][1] = b
+        else:
+            runs.append([a, b, tramo])
+    for a, b, tramo in runs:
+        largs = dict(args, language=tramo)
+        largs.pop('language_detection_segments', None)
+        segments = _redo_spans(model, segments, audio, largs,
+                               lambda s, a=a, b=b: a <= s[0] < b,
+                               f"Idioma '{tramo}' entre {a:.0f}s y {b:.0f}s",
+                               fix=lambda got, w, largs=largs: _redo_echoes(model, got, _Audio(w), largs))
+    return segments
+
+
 def _transcribe_whole(model, audio_path: Path, on_progress=None, on_segment=None,
                       should_cancel=None, should_pause=None, hotwords: str | None = None):
     _wait_if_paused(should_pause, should_cancel)
-    segments, info = model.transcribe(str(audio_path), **_targs(hotwords))
-    detected = _remap(getattr(info, 'language', None))
+    audio = _Audio(audio_path)
+    plan = _language_plan(model, audio)
+    meeting = _main_language(plan)
+    args = _targs(hotwords, language=meeting) if meeting else _targs(hotwords)
+    segments, info = model.transcribe(str(audio_path), **args)
+    detected = meeting or _remap(getattr(info, 'language', None))
     log.info(f"Idioma de la reunión: {detected}")
 
-    lines = []
+    done = []
     duration = getattr(info, 'duration', None)
     for seg in _paced(segments, should_pause, should_cancel):
         # faster-whisper devuelve un generador perezoso: salir del bucle corta
         # el trabajo de verdad, no solo descarta el resultado.
         _check_cancel(should_cancel)
-        line = f"{_format_time(seg.start)} {seg.text.strip()}"
-        lines.append(line)
+        done.append((seg.start, seg.end, seg.text.strip()))
+        # El .partial puede llevar un eco de las pistas: solo sirve para reanudar,
+        # y el texto que se devuelve ya va sin el.
         if on_segment:
-            on_segment(line)
+            on_segment(f"{_format_time(seg.start)} {seg.text.strip()}")
         if on_progress and duration:
             on_progress(min(int(seg.end / duration * 100), 100))
-    return '\n'.join(lines), detected
+    done = _redo_echoes(model, done, audio, dict(args, language=detected))
+    if meeting:
+        done = _apply_plan(model, done, audio, args, plan, meeting)
+    return '\n'.join(f"{_format_time(s)} {t}" for s, _e, t in done), detected
 
 
 def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=None,
@@ -303,8 +544,9 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
     duration = total / sr if sr else 0
     log.info(f"Transcribiendo por trozos de {_CHUNK_SECS}s ({duration/60:.1f} min en total)")
 
+    from collections import Counter
     lines: list[str] = list(prior_lines or [])
-    detected = None
+    detected, current, voice = None, None, Counter()
     with sf.SoundFile(str(audio_path)) as f:
         pos = min(int(resume_at * sr), total)
         if pos:
@@ -316,28 +558,41 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
             block = f.read(min(step, total - pos), dtype='float32', always_2d=False)
             if not len(block):
                 break
-            segments, cinfo = model.transcribe(np.ascontiguousarray(block), **_targs(hotwords))
+            block = np.ascontiguousarray(block)
+            # El idioma se vuelve a mirar en cada trozo (ver LANG_WINDOW_S).
+            current = recheck_language(model, block, current)
+            args = _targs(hotwords, language=current) if current else _targs(hotwords)
+            segments, cinfo = model.transcribe(block, **args)
+            block_lang = current or _remap(getattr(cinfo, 'language', None))
+            voice[block_lang] += len(block)
             if detected is None:
-                detected = _remap(getattr(cinfo, 'language', None))
+                detected = block_lang
                 log.info(f"Idioma de la reunión: {detected}")
             offset = pos / sr
+            done = []
             for seg in _paced(segments, should_pause, should_cancel):
                 _check_cancel(should_cancel)
-                line = f"{_format_time(offset + seg.start)} {seg.text.strip()}"
-                lines.append(line)
-                if on_segment:
-                    on_segment(line)
+                done.append((seg.start, seg.end, seg.text.strip()))
                 # Progreso por segmento y no solo por trozo: con trozos de 300s
                 # la barra se quedaba clavada varios minutos entre saltos de
                 # 13,6% y parecía colgada aunque estuviera transcribiendo.
                 if on_progress and duration:
                     on_progress(min(int((offset + seg.end) / duration * 100), 100))
+            # Las lineas salen por trozo, ya sin ecos de las pistas: van al .partial,
+            # y un eco ahi se conservaria al reanudar.
+            done = _redo_echoes(model, done, _Audio(block, sr), dict(args, language=block_lang))
+            for start, _end, text in done:
+                line = f"{_format_time(offset + start)} {text}"
+                lines.append(line)
+                if on_segment:
+                    on_segment(line)
             pos += len(block)
             del block
             gc.collect()
             if on_progress and duration:
                 on_progress(min(int(pos / sr / duration * 100), 100))
-    return '\n'.join(lines), (detected or 'es')
+    # El de la mayor parte de la reunion, que es en el que van las minutas.
+    return '\n'.join(lines), (voice.most_common(1)[0][0] if voice else detected or 'es')
 
 
 def _track_seconds(path: Path) -> float:
@@ -370,32 +625,70 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         if on_progress and total_secs:
             on_progress(min(int(done_secs / total_secs * 100), 100))
 
+    def fixed(lang):
+        args = _targs(hotwords, language=lang)
+        args.pop('language_detection_segments', None)
+        return args
+
+    # El idioma de cada pista por tramos (ver LANG_WINDOW_S): cada una se
+    # transcribe en el suyo y los tramos en otro idioma se rehacen en el suyo. Si
+    # ninguna lo deja claro, como antes: decide el micro si quien graba habla.
+    _wait_if_paused(should_pause, should_cancel)
+    plans = {'mic': _language_plan(model, _Audio(mic_path)),
+             'loop': _language_plan(model, _Audio(loop_path))}
+    meeting = _main_language(plans['mic'] + plans['loop'])
+    langs = {t: _main_language(p) or meeting for t, p in plans.items()} if meeting else {}
+    if meeting:
+        log.info(f"Idioma de la reunión: {meeting} (micro: {langs['mic']}, Teams: {langs['loop']})")
+
     _wait_if_paused(should_pause, should_cancel)
     log.info("Diarizando: transcribiendo track de micrófono...")
-    mic_segs_raw, mic_info = model.transcribe(str(mic_path), **_targs(hotwords))
-    detected = _remap(getattr(mic_info, 'language', None))
-    log.info(f"Idioma detectado (diarización): {detected}")
+    mic_args = fixed(langs['mic']) if meeting else _targs(hotwords)
+    mic_segs_raw, mic_info = model.transcribe(str(mic_path), **mic_args)
+    detected = meeting or _remap(getattr(mic_info, 'language', None))
+    mic_voice = getattr(mic_info, 'duration_after_vad', None)
+    mic_decides = mic_voice is None or mic_voice >= _LANG_MIN_VOICE_S
+    if not meeting:
+        log.info(f"Idioma detectado (diarización): {detected}"
+                 + ('' if mic_decides else f" — el micro tiene {mic_voice:.0f}s de voz; decide la otra pista"))
 
     me_label = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
     others_label = '[Otros]'
-    mic_segments: list[tuple[float, str, str]] = []
+    mic_done = []
     for seg in _paced(mic_segs_raw, should_pause, should_cancel):
         t = seg.text.strip()
         if t:
-            mic_segments.append((seg.start, me_label, t))
+            mic_done.append((seg.start, seg.end, t))
         progress(seg.end)
+    mic_lang = langs.get('mic') or detected
+    mic_done = _redo_echoes(model, mic_done, _Audio(mic_path), dict(mic_args, language=mic_lang))
+    if meeting:
+        mic_done = _apply_plan(model, mic_done, _Audio(mic_path), mic_args, plans['mic'], mic_lang)
+    mic_segments = [(s, me_label, t) for s, _e, t in mic_done]
 
     _wait_if_paused(should_pause, should_cancel)
     log.info("Diarizando: transcribiendo track de Teams (otros)...")
-    loop_args = _targs(hotwords, language=detected)
-    loop_args.pop('language_detection_segments', None)
-    loop_segs_raw, _ = model.transcribe(str(loop_path), **loop_args)
-    loop_segments: list[tuple[float, str, str]] = []
+    if meeting:
+        loop_args = fixed(langs['loop'])
+    elif mic_decides:
+        loop_args = fixed(detected)
+    else:
+        loop_args = _targs(hotwords)
+    loop_segs_raw, loop_info = model.transcribe(str(loop_path), **loop_args)
+    if not meeting and not mic_decides and (getattr(loop_info, 'duration_after_vad', 0) or 0) > mic_voice:
+        detected = _remap(getattr(loop_info, 'language', None))
+        log.info(f"Idioma de la reunión (pista de Teams): {detected}")
+    loop_done = []
     for seg in _paced(loop_segs_raw, should_pause, should_cancel):
         t = seg.text.strip()
         if t:
-            loop_segments.append((seg.start, others_label, t))
+            loop_done.append((seg.start, seg.end, t))
         progress(mic_secs + seg.end)
+    loop_lang = loop_args.get('language') or _remap(getattr(loop_info, 'language', None))
+    loop_done = _redo_echoes(model, loop_done, _Audio(loop_path), dict(loop_args, language=loop_lang))
+    if meeting:
+        loop_done = _apply_plan(model, loop_done, _Audio(loop_path), loop_args, plans['loop'], loop_lang)
+    loop_segments = [(s, others_label, t) for s, _e, t in loop_done]
 
     all_segments = sorted(mic_segments + loop_segments, key=lambda x: x[0])
     lines = [f"{_format_time(ts)} {speaker}: {text}" for ts, speaker, text in all_segments]
