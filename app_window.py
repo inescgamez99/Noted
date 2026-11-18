@@ -373,6 +373,43 @@ def _brief_mode(md: Path) -> str | None:
 
 
 
+def _backup_actions(ap: Path) -> Path | None:
+    """Copia `_actions.json` a `.bak` antes de borrarlo para regenerar: ahi
+    estan in_panel, executed, las acciones manuales y lo editado a mano."""
+    if not ap.exists():
+        return None
+    bak = ap.with_name(ap.name + '.bak')
+    try:
+        shutil.copy2(ap, bak)
+        return bak
+    except OSError as e:
+        log.warning(f"No se pudo copiar {ap.name} a .bak: {e}")
+        return None
+
+
+def _actions_file_valid(ap: Path) -> bool:
+    try:
+        data = json.loads(ap.read_text(encoding='utf-8'))
+    except Exception:
+        return False
+    return isinstance(data, dict) and isinstance(data.get('actions'), list)
+
+
+def _finish_actions_regen(ap: Path, bak: Path | None) -> None:
+    """Tras regenerar: si no hay un `_actions.json` valido, se restaura el
+    original; si lo hay, el `.bak` ya no hace falta."""
+    if bak is None:
+        return
+    try:
+        if _actions_file_valid(ap):
+            bak.unlink(missing_ok=True)
+        else:
+            os.replace(bak, ap)
+            log.warning(f"{ap.name}: la regeneracion no produjo acciones validas; se restaura el original")
+    except OSError as e:
+        log.warning(f"No se pudo restaurar {ap.name} desde .bak: {e}")
+
+
 class AppAPI:
 
     """API Python expuesta a JavaScript via pywebview."""
@@ -1528,11 +1565,22 @@ class AppAPI:
 
         ap = get_actions_path(md_path)
 
+        bak = _backup_actions(ap)
+
         if ap.exists():
 
             ap.unlink()
 
-        enrich_and_save(md_path, PROJECT_DIR.parent)
+        try:
+
+            enrich_and_save(md_path, PROJECT_DIR.parent,
+                            on_done=lambda: _finish_actions_regen(ap, bak))
+
+        except Exception:
+
+            _finish_actions_regen(ap, bak)
+
+            raise
 
         return True
 
@@ -3116,15 +3164,31 @@ class AppAPI:
 
                     ap = get_actions_path(md_path)
 
+                    bak = _backup_actions(ap)
+
                     if ap.exists():
 
                         ap.unlink()
 
                     _enrich_done = threading.Event()
 
-                    enrich_and_save(md_path, PROJECT_DIR.parent,
+                    def _regen_done(ap=ap, bak=bak):
 
-                                    on_done=lambda: _enrich_done.set())
+                        _finish_actions_regen(ap, bak)
+
+                        _enrich_done.set()
+
+                    try:
+
+                        enrich_and_save(md_path, PROJECT_DIR.parent,
+
+                                        on_done=_regen_done)
+
+                    except Exception:
+
+                        _finish_actions_regen(ap, bak)
+
+                        raise
 
                     _enrich_done.wait(timeout=300)  # wait for actions to be re-enriched
 
@@ -3316,15 +3380,27 @@ class AppAPI:
 
                 ap = get_actions_path(md_path)
 
+                bak = _backup_actions(ap)
+
                 if ap.exists():
 
                     ap.unlink()
 
                 def _after():
 
+                    _finish_actions_regen(ap, bak)
+
                     state['pct'] = 100; state['stage'] = 'done'; state['done'] = True
 
-                enrich_and_save(md_path, PROJECT_DIR.parent, on_done=_after)
+                try:
+
+                    enrich_and_save(md_path, PROJECT_DIR.parent, on_done=_after)
+
+                except Exception:
+
+                    _finish_actions_regen(ap, bak)
+
+                    raise
 
             except Exception as e:
 
