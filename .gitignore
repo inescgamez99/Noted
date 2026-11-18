@@ -79,3 +79,6 @@ models/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Fichero personal de minutas del usuario
+user_minutes.json

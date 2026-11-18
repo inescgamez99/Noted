@@ -23,3 +23,9 @@ pywebview>=5.0
 # ffmpeg empaquetado: convierte a WAV los MP3, M4A, MP4... que se importan o se sueltan en inbox/
 # (inbox_watcher._find_ffmpeg lo usa; sin el, solo se procesan .wav salvo que haya ffmpeg en el PATH).
 imageio-ffmpeg>=0.5.1
+# Lectores de documentos de la memoria de proyecto (project_context._extract_file_text,
+# import perezoso: sin ellos no se lee Word, Excel, PowerPoint ni PDF y se avisa en el log).
+python-docx>=1.1.0
+openpyxl>=3.1.0
+python-pptx>=1.0.0
+pypdf>=4.0.0

@@ -115,12 +115,15 @@ Log "Python: $python (origen: $($pyEnv.Source))"
 while ($true) {
     # Limpiar lock huerfano
     if (Test-Path $lockf) {
-        $pid_in_lock = Get-Content $lockf -ErrorAction SilentlyContinue
-        if ($pid_in_lock) {
-            $alive = Get-Process -Id $pid_in_lock -ErrorAction SilentlyContinue
+        # Get-TRLivePid solo da por vivo un PID que sea Python: un PID muerto o
+        # reciclado por otro programa (tras reiniciar el PC) no cuenta.
+        $pid_in_lock = Get-TRLivePid $lockf
+        $raw_lock = (Get-Content $lockf -ErrorAction SilentlyContinue)
+        if ($raw_lock) {
+            $alive = if ($pid_in_lock) { Get-Process -Id $pid_in_lock -ErrorAction SilentlyContinue }
             if (-not $alive) {
                 Remove-Item $lockf -Force -ErrorAction SilentlyContinue
-                Log "Lock huerfano eliminado (PID $pid_in_lock)"
+                Log "Lock huerfano o con PID reciclado eliminado (contenido: $raw_lock)"
             } else {
                 Log "Lock valido — daemon PID $pid_in_lock ya corre. Watchdog en espera pasiva."
                 # No lanzar otro daemon; esperar a que el existente muera.

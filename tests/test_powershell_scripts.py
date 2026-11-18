@@ -200,3 +200,20 @@ def test_el_watchdog_resuelve_su_directorio_invocado_con_File(tmp_path):
     assert resuelto == str(tmp_path), (
         f"$dir no resolvio a la carpeta del script.\n"
         f"  esperado: {tmp_path}\n  obtenido: '{resuelto}'")
+
+
+# ── El watchdog no se fia de un PID reciclado ───────────────────────────────
+# INCIDENTE: tras reiniciar el PC, un .lock viejo con un PID que Windows habia
+# reciclado para otro programa (cualquier proceso vivo) hacia que el watchdog
+# diera el daemon por vivo y esperase indefinidamente: Noted no arrancaba.
+# tr_env.ps1 (Get-TRLivePid) y main._check_single_instance si comprueban que
+# el proceso sea Python.
+
+@pytest.mark.unit
+def test_el_watchdog_valida_el_pid_del_lock_con_Get_TRLivePid():
+    texto = WATCHDOG.read_text(encoding='utf-8-sig')
+    assert re.search(r'Get-TRLivePid\s+\$lockf', texto), (
+        "el watchdog tiene que decidir si el .lock es de un daemon vivo con "
+        "Get-TRLivePid (comprueba que el proceso sea Python)")
+    assert not re.search(r'\$alive\s*=\s*Get-Process\s+-Id\s+\$pid_in_lock', texto), (
+        "Get-Process -Id sobre el PID del lock sin comprobar el nombre del proceso")

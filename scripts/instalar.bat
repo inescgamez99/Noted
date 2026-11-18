@@ -38,16 +38,38 @@ if not exist "%REPO%\requirements.txt" (
     goto :fail
 )
 
+rem Segunda instalacion: si Noted ya esta instalado desde OTRA carpeta, instalar
+rem aqui dejaria dos copias peleando por la tarea programada y por install_path.txt.
+rem Se para (tambien con /unattended, con exit code 1) en vez de pisar la otra.
+set "PREV="
+if exist "%LOCALAPPDATA%\Noted\install_path.txt" set /p PREV=<"%LOCALAPPDATA%\Noted\install_path.txt"
+if defined PREV (
+    for %%i in ("!PREV!") do set "PREV=%%~fi"
+    if /i not "!PREV!"=="!REPO!" if exist "!PREV!\main.py" (
+        echo   ERROR: Noted ya esta instalado en otra carpeta:
+        echo     !PREV!
+        echo   y este instalador esta en:
+        echo     !REPO!
+        echo   Instalar aqui pisaria la tarea programada de la otra copia.
+        echo   Si quieres mudarte a esta carpeta, desinstala la otra primero
+        echo   ^(scripts\uninstall_autostart.bat en la otra carpeta^) y borra
+        echo   %LOCALAPPDATA%\Noted\install_path.txt. Si no, usa /update-noted en la otra.
+        goto :fail
+    )
+)
+
 rem -------------------------------------------------------
 rem 1. Python  (usar "where" para evitar abrir la Tienda de Windows)
 rem -------------------------------------------------------
 echo [1/5] Comprobando Python...
-where python >nul 2>&1
+rem El alias de WindowsApps (la Tienda) aparece en "where python" pero no es un
+rem Python: se ignora, como hace tr_env.ps1 (Get-TRPython).
+call :find_python
 if errorlevel 1 (
     echo   Python no encontrado. Instalando via winget...
     winget install --id Python.Python.3.11 --source winget --silent --accept-package-agreements --accept-source-agreements
     call :refresh_path
-    where python >nul 2>&1
+    call :find_python
     if errorlevel 1 (
         echo.
         echo   No se pudo instalar Python automaticamente.
@@ -58,7 +80,7 @@ if errorlevel 1 (
         goto :fail
     )
 )
-for /f "tokens=2" %%v in ('python --version 2^>^&1') do echo   Python %%v encontrado.
+for /f "tokens=2" %%v in ('"%PYTHON%" --version 2^>^&1') do echo   Python %%v encontrado.
 echo.
 
 rem -------------------------------------------------------
@@ -115,7 +137,7 @@ set "PYEXE=%VENV%\Scripts\python.exe"
 
 if not exist "%PYEXE%" (
     echo   Creando entorno virtual .venv...
-    python -m venv "%VENV%"
+    "%PYTHON%" -m venv "%VENV%"
     if errorlevel 1 (
         echo.
         echo   ERROR: no se pudo crear el entorno virtual.
@@ -143,8 +165,10 @@ rem -------------------------------------------------------
 echo [5/5] Registrando arranque automatico...
 powershell.exe -NonInteractive -ExecutionPolicy Bypass -File "%REPO%\scripts\install_task.ps1"
 if errorlevel 1 (
+    set "RC=1"
     echo.
-    echo   AVISO: no se pudo registrar la tarea. Puedes hacerlo mas tarde
+    echo   ERROR: no se pudo registrar la tarea de arranque automatico. Noted NO
+    echo   arrancara solo al iniciar sesion. Puedes reintentarlo mas tarde
     echo   ejecutando: scripts\install_autostart.bat
     echo.
 ) else (
@@ -163,7 +187,11 @@ rem -------------------------------------------------------
 rem Listo
 rem -------------------------------------------------------
 echo ========================================
-echo   Noted instalado correctamente.
+if "%RC%"=="0" (
+    echo   Noted instalado correctamente.
+) else (
+    echo   Noted instalado CON ERRORES ^(ver arriba^).
+)
 echo ========================================
 echo.
 if defined UNATTENDED (
@@ -213,6 +241,15 @@ if defined UNATTENDED exit /b %RC%
 echo   Pulsa cualquier tecla para cerrar esta ventana.
 pause >nul
 exit /b %RC%
+
+:find_python
+rem Deja en PYTHON el primer python del PATH que no sea el alias de WindowsApps.
+set "PYTHON="
+for /f "delims=" %%p in ('where python 2^>nul') do (
+    echo "%%p"| find /i "WindowsApps" >nul
+    if errorlevel 1 if not defined PYTHON set "PYTHON=%%p"
+)
+if defined PYTHON (exit /b 0) else (exit /b 1)
 
 rem Relee el PATH de maquina y usuario del registro: lo que winget acaba de
 rem instalar no esta en el PATH de esta sesion, y sin esto habria que cerrar la

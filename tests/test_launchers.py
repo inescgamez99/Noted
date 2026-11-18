@@ -125,3 +125,130 @@ def test_un_vbs_construye_una_ruta_que_existe(lanzador, destino, tmp_path):
         f"  esperado que contenga: {tmp_path / destino}\n"
         f"  lanzaria:              {salida}"
     )
+
+
+# ── Instalacion: instalar.bat / install_task.ps1 ────────────────────────────
+# INCIDENTES: (1) install_task.ps1 no tenia $ErrorActionPreference='Stop', asi que
+# un Register-ScheduledTask fallido acababa con exit 0 e instalar.bat decia
+# "Tarea registrada" sin que lo estuviera. (2) instalar.bat usaba `where python`
+# y el alias de WindowsApps (la Tienda) cuenta como encontrado, aunque no es un
+# Python (tr_env.ps1 ya lo filtraba). (3) Una segunda instalacion desde otra
+# carpeta pisaba install_path.txt y la tarea programada de la primera.
+
+INSTALAR = SCRIPTS / 'instalar.bat'
+INSTALL_TASK = SCRIPTS / 'install_task.ps1'
+
+
+def _bat() -> str:
+    return INSTALAR.read_text(encoding='utf-8-sig').replace('\r\n', '\n')
+
+
+@pytest.mark.unit
+def test_install_task_sale_con_error_si_el_registro_falla():
+    texto = INSTALL_TASK.read_text(encoding='utf-8-sig')
+    assert re.search(r"\$ErrorActionPreference\s*=\s*'Stop'", texto), (
+        "sin ErrorActionPreference=Stop, Register-ScheduledTask puede fallar y el "
+        "script acabar con exit 0")
+    assert re.search(r'trap\s*\{[^}]*exit\s+1', texto, re.DOTALL), (
+        "un error tiene que acabar en exit 1 explicito")
+
+
+@pytest.mark.unit
+def test_instalar_bat_comprueba_el_registro_de_la_tarea_y_lo_dice():
+    texto = _bat()
+    bloque = texto[texto.index('install_task.ps1'):]
+    bloque = bloque[:bloque.index('post-merge')]
+    assert 'if errorlevel 1' in bloque
+    assert 'set "RC=1"' in bloque, "un registro fallido tiene que dar exit code != 0"
+    assert 'ERROR' in bloque.split('else')[0]
+
+
+@pytest.mark.unit
+def test_instalar_bat_no_usa_where_python_sin_filtrar_windowsapps():
+    texto = _bat()
+    assert 'WindowsApps' in texto
+    # el unico `where python` que queda es el de la rutina que filtra
+    for m in re.finditer(r'where python', texto):
+        linea = texto[texto.rfind('\n', 0, m.start()) + 1: texto.find('\n', m.end())]
+        if linea.lstrip().lower().startswith('rem '):
+            continue
+        assert 'for /f' in linea, f"`where python` sin filtrar: {linea.strip()}"
+
+
+@pytest.mark.unit
+def test_instalar_bat_usa_el_python_filtrado_para_crear_el_venv():
+    texto = _bat()
+    assert '"%PYTHON%" -m venv' in texto
+    assert not re.search(r'^\s*python -m venv', texto, re.MULTILINE)
+
+
+@pytest.mark.unit
+def test_instalar_bat_para_si_ya_hay_otra_instalacion():
+    texto = _bat()
+    assert 'install_path.txt' in texto
+    i = texto.index('install_path.txt')
+    resto = texto[i:i + 1500]
+    assert 'main.py' in resto and 'goto :fail' in resto, (
+        "con otra instalacion existente tiene que parar (goto :fail da exit 1 "
+        "en /unattended)")
+    # y antes de instalar nada
+    assert i < texto.index('[1/5]')
+
+
+_CMD = shutil.which('cmd')
+
+
+def _trozo(texto: str, desde: str, hasta: str) -> str:
+    i = texto.index(desde)
+    return texto[i:texto.index(hasta, i)]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not _CMD, reason='no hay cmd')
+def test_find_python_ignora_el_alias_de_windowsapps(tmp_path):
+    """Se ejecuta de verdad la rutina :find_python con un PATH que tiene primero
+    un falso WindowsApps\\python.exe y luego un python 'real'."""
+    sys32 = Path(shutil.which('where')).parent
+    tienda = tmp_path / 'WindowsApps'
+    real = tmp_path / 'real'
+    for d in (tienda, real):
+        d.mkdir()
+        shutil.copy(_CMD, d / 'python.exe')
+    rutina = _trozo(_bat(), '\n:find_python\n', '\nrem Relee')
+    bat = tmp_path / 't.bat'
+    bat.write_text('@echo off\nsetlocal enabledelayedexpansion\n'
+                   'call :find_python\nif errorlevel 1 (echo NOFOUND) else (echo FOUND=!PYTHON!)\n'
+                   'exit /b 0\n' + rutina, encoding='ascii')
+
+    def corre(path):
+        return subprocess.run([_CMD, '/c', str(bat)], capture_output=True, text=True,
+                              env={'PATH': path, 'SystemRoot': str(sys32.parent)},
+                              timeout=60).stdout
+
+    assert f'FOUND={real}' in corre(f'{tienda};{real};{sys32}')
+    assert 'NOFOUND' in corre(f'{tienda};{sys32}')
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(not _CMD, reason='no hay cmd')
+@pytest.mark.parametrize('hay_main, esperado', [(True, 'PARADO'), (False, 'SIGUE')])
+def test_segunda_instalacion_se_para_solo_si_la_otra_existe(tmp_path, hay_main, esperado):
+    otra = tmp_path / 'otra'
+    otra.mkdir()
+    if hay_main:
+        (otra / 'main.py').write_text('')
+    aqui = tmp_path / 'aqui'
+    aqui.mkdir()
+    cfg = tmp_path / 'Noted'
+    cfg.mkdir()
+    (cfg / 'install_path.txt').write_text(str(otra), encoding='ascii')
+    bloque = _trozo(_bat(), 'set "PREV="', 'rem ----')
+    bat = tmp_path / 't.bat'
+    bat.write_text(f'@echo off\nsetlocal enabledelayedexpansion\nset "REPO={aqui}"\n'
+                   + bloque + 'echo SIGUE\nexit /b 0\n:fail\necho PARADO\nexit /b 1\n',
+                   encoding='ascii')
+    r = subprocess.run([_CMD, '/c', str(bat)], capture_output=True, text=True,
+                       env={'LOCALAPPDATA': str(tmp_path), 'SystemRoot': r'C:\Windows',
+                            'PATH': r'C:\Windows\System32'}, timeout=60)
+    assert esperado in r.stdout, r.stdout + r.stderr
+    assert r.returncode == (1 if hay_main else 0)
