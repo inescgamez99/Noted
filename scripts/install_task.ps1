@@ -1,5 +1,14 @@
 ﻿param([string]$WatchdogPath = "")
 
+# Si Register-ScheduledTask (o cualquier otro paso) falla, el script tiene que salir
+# con codigo != 0: antes terminaba con 0 y instalar.bat anunciaba "Tarea registrada"
+# sin que lo estuviera.
+$ErrorActionPreference = 'Stop'
+trap {
+    Write-Host "ERROR registrando la tarea: $_"
+    exit 1
+}
+
 if (-not $WatchdogPath) {
     # La raiz del repo: este script vive en scripts/, watchdog.ps1 en la raiz.
     $WatchdogPath = Join-Path (Split-Path $PSScriptRoot -Parent) "watchdog.ps1"
