@@ -222,7 +222,8 @@ class _Cita:
         self.Recipients = [type('R', (), {'Name': n, 'Address': n})() for n in nombres]
 
 
-def test_el_contexto_trae_los_invitados_del_calendario(fake_outlook, tr_dirs):
+def test_el_contexto_trae_los_invitados_del_calendario(fake_outlook, tr_dirs, monkeypatch):
+    monkeypatch.setattr(gl, 'WHISPER_HOTWORDS', True)
     fake_outlook.appointments = [_Cita('IBP Review', datetime(2026, 10, 20, 14, 0),
                                        ['Nurettin Ekizoglu', 'Francesca Maestripieri'])]
     gl.save({'entries': [E('Kinaxis')]})
@@ -233,7 +234,8 @@ def test_el_contexto_trae_los_invitados_del_calendario(fake_outlook, tr_dirs):
     assert [e['term'] for e in ctx['entries']] == ['Kinaxis']
 
 
-def test_el_contexto_se_cachea_por_grabacion(fake_outlook, tr_dirs):
+def test_el_contexto_se_cachea_por_grabacion(fake_outlook, tr_dirs, monkeypatch):
+    monkeypatch.setattr(gl, 'WHISPER_HOTWORDS', True)
     llamadas = []
     fake_outlook.appointments = []
     import outlook_sender
@@ -253,6 +255,7 @@ def test_el_contexto_se_cachea_por_grabacion(fake_outlook, tr_dirs):
 
 
 def test_si_outlook_falla_el_contexto_sigue_con_el_glosario(monkeypatch, tr_dirs):
+    monkeypatch.setattr(gl, 'WHISPER_HOTWORDS', True)
     import outlook_sender
     monkeypatch.setattr(outlook_sender, '_get_outlook', lambda: (_ for _ in ()).throw(OSError('x')))
     gl.save({'entries': [E('Kinaxis')]})
@@ -260,6 +263,43 @@ def test_si_outlook_falla_el_contexto_sigue_con_el_glosario(monkeypatch, tr_dirs
     ctx = gl.recording_context(tr_dirs / 'recordings' / '2026-10-20_14-00_X.wav')
 
     assert ctx['hotwords'] == 'Kinaxis'
+
+
+def test_por_defecto_el_contexto_no_lleva_pistas_para_whisper(fake_outlook, tr_dirs):
+    """18/11/2026: con las pistas del glosario, Whisper escribio 5 lineas donde sin
+    ellas salian 32 (mismo tramo, 125 s con voz). Por defecto no se le pasan: el
+    glosario sigue sirviendo para corregir el transcript y para las minutas."""
+    fake_outlook.appointments = [_Cita('IBP Review', datetime(2026, 10, 20, 14, 0),
+                                       ['Nurettin Ekizoglu'])]
+    gl.save({'entries': [E('Kinaxis')]})
+
+    ctx = gl.recording_context(tr_dirs / 'recordings' / '2026-10-20_14-00_IBP_Review.wav')
+
+    assert gl.WHISPER_HOTWORDS is False
+    assert ctx['hotwords'] == ''
+    assert [e['term'] for e in ctx['entries']] == ['Kinaxis'], "las correcciones y las minutas las siguen usando"
+
+
+def test_sin_pistas_no_se_consulta_outlook_para_los_invitados(monkeypatch, tr_dirs):
+    """Los invitados solo servian para las pistas: sin ellas, nada de COM."""
+    import outlook_sender
+    llamadas = []
+    monkeypatch.setattr(outlook_sender, 'find_meeting_participants',
+                        lambda *a, **k: llamadas.append(1) or [])
+
+    ctx = gl.recording_context(tr_dirs / 'recordings' / '2026-10-20_14-00_IBP_Review.wav')
+
+    assert ctx['hotwords'] == ''
+    assert llamadas == [], "se consulto Outlook sin necesidad"
+
+
+def test_las_correcciones_del_glosario_siguen_aplicandose_sin_pistas(tr_dirs):
+    """Quitar las pistas no debe quitar la correccion posterior de errores conocidos."""
+    gl.save({'entries': [gl._clean_entry({'term': 'Kinaxis', 'aliases': ['Kinexis']})]})
+    ctx = gl.recording_context(tr_dirs / 'recordings' / '2026-10-20_14-00_X.wav')
+
+    assert ctx['hotwords'] == ''
+    assert tr._correct_with_glossary('usamos Kinexis hoy', ctx) == 'usamos Kinaxis hoy'
 
 
 def test_un_nombre_de_fichero_raro_no_lanza(tr_dirs):

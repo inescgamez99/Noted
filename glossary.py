@@ -451,8 +451,21 @@ def prompt_section(glossary_entries: list[dict], transcript: str, lang: str) -> 
 _context_cache: dict[str, dict] = {}
 
 
+# Pistas (hotwords) para Whisper. Desactivadas desde el 18/11/2026: con ellas, Whisper
+# escribia casi nada en ciertos tramos con voz. Mismo tramo de 125 s de una reunion:
+# 32 lineas y 303 palabras sin pistas, 5 lineas y 64 con las del glosario (y 4 con solo
+# 8 terminos, 21 con 16, 4 con 28: es inestabilidad, no depende de la longitud). Lo que
+# se perdia no era un eco de las pistas, asi que _redo_echoes no lo detectaba. Los
+# nombres se siguen arreglando despues: apply_corrections sobre el transcript y la
+# grafia exacta en el prompt de las minutas. Para volver a pasarlas a Whisper: True.
+WHISPER_HOTWORDS = False
+
+
 def recording_context(wav_path: Path) -> dict:
     """{'hotwords', 'entries', 'project_id'} para una grabación.
+
+    'hotwords' va vacio mientras WHISPER_HOTWORDS sea False (ver arriba): entonces
+    tampoco se consulta Outlook, porque los invitados solo servian para las pistas.
 
     Busca la reunión en el calendario por la hora y el nombre del fichero, igual
     que hace el pipeline para las minutas, y detecta el proyecto por el nombre.
@@ -479,19 +492,20 @@ def recording_context(wav_path: Path) -> dict:
 
         ctx['entries'] = entries(ctx['project_id'])
 
-        invitees, subject = [], ''
-        if m:
-            try:
-                from datetime import datetime
-                from outlook_sender import find_meeting_participants
-                when = datetime(*(int(m.group(i)) for i in range(1, 6)))
-                people = find_meeting_participants(when, meeting_name=name)
-                invitees = [p['name'] for p in people if p.get('name')]
-                subject = next((p['meeting_subject'] for p in people if p.get('meeting_subject')), '')
-            except Exception as e:
-                log.debug(f"glosario: sin invitados de calendario: {e}")
+        if WHISPER_HOTWORDS:
+            invitees, subject = [], ''
+            if m:
+                try:
+                    from datetime import datetime
+                    from outlook_sender import find_meeting_participants
+                    when = datetime(*(int(m.group(i)) for i in range(1, 6)))
+                    people = find_meeting_participants(when, meeting_name=name)
+                    invitees = [p['name'] for p in people if p.get('name')]
+                    subject = next((p['meeting_subject'] for p in people if p.get('meeting_subject')), '')
+                except Exception as e:
+                    log.debug(f"glosario: sin invitados de calendario: {e}")
 
-        ctx['hotwords'] = build_hotwords(ctx['entries'], invitees, subject)
+            ctx['hotwords'] = build_hotwords(ctx['entries'], invitees, subject)
     except Exception as e:
         log.warning(f"glosario: contexto de grabación no disponible: {e}")
 
