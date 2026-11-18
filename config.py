@@ -132,6 +132,13 @@ def actions_enabled() -> bool:
     return read_settings().get('actions_enabled', True) is not False
 
 
+def whisper_threads() -> int | None:
+    """Hilos de la transcripcion del final, si settings.json los fija ("whisper_threads": 6).
+    None si no, o si el valor no es un entero positivo: entonces decide transcriber."""
+    value = read_settings().get('whisper_threads')
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else None
+
+
 def clean_env() -> dict:
     """Entorno limpio para subprocesos: elimina tokens de sesión de Anthropic/MCP
     pero preserva variables de configuración de Claude Code (ej. CLAUDE_CODE_GIT_BASH_PATH)
