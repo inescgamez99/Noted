@@ -133,13 +133,7 @@ def test_si_falla_la_copia_del_transcript_el_original_se_conserva(cierre, monkey
     """Con el disco lleno o el antivirus bloqueando, la copia a minutes/ fallaba
     solo con un warning y _move_to_processed borraba el original: el texto de la
     reunion dejaba de existir."""
-    import minutes_generator
-    real = minutes_generator.save_minutes
-
-    def save(minutes, path):
-        return False if path.name.endswith('_transcript.txt') else real(minutes, path)
-
-    monkeypatch.setattr(minutes_generator, 'save_minutes', save)
+    monkeypatch.setattr(ta, '_write_text_atomic', lambda path, text: False)
     wav = wav_factory(ta.RECORDINGS_DIR / f'{STEM}.wav', seconds=0.1)
 
     cierre._finalize_session(_sesion(wav))

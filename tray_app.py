@@ -19,6 +19,32 @@ from transcriber import TranscriptionDeferred as _Deferred
 _CANCEL_FILE = PROJECT_DIR / '.cancelled_jobs.txt'
 
 
+def _write_text_atomic(path: Path, text: str) -> bool:
+    """Escribe al lado y renombra encima (como minutes_generator.save_minutes):
+    con el disco lleno no deja un fichero a medias. El renombrado se reintenta si
+    Windows tiene el destino abierto (antivirus, indexador). False si falla."""
+    import os
+    tmp = path.with_name(path.name + '.tmp')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(text, encoding='utf-8')
+        for intento in range(10):
+            try:
+                os.replace(tmp, path)
+                return True
+            except PermissionError:
+                if intento == 9:
+                    raise
+                time.sleep(0.05)
+    except Exception as e:
+        log.warning(f"No se pudo escribir {path.name}: {e}")
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return False
+
+
 def _slug_title(slug: str) -> str:
     """Titulo legible de la parte del nombre de fichero tras la fecha. Solo se
     pone en mayuscula la primera letra: .title() minusculizaba el resto y
@@ -1756,11 +1782,11 @@ class TrayApp:
         except Exception as e:
             log.warning(f"No se pudieron mover las capturas a minutes: {e}")
 
-        # La copia es atomica (save_minutes: tmp + replace con reintento) y, si falla
+        # La copia es atomica (_write_text_atomic: tmp + replace con reintento) y, si falla
         # (disco lleno, antivirus), el transcript original NO se borra: es el unico
         # texto de la reunion y _retry_pending_minutes lo busca tambien ahi.
         transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
-        if save_minutes(transcript_text, transcript_copy):
+        if _write_text_atomic(transcript_copy, transcript_text):
             self._move_to_processed(wav_path, transcript_path)
         else:
             log.warning(f"No se pudo copiar el transcript a minutes: se conserva "

@@ -87,7 +87,9 @@ def test_sin_voz_si_guarda_el_idioma_detectado(pipeline, tray):
     """Se detecto idioma, luego el modelo corrio. Es la prueba de que no fallo."""
     wav, _ = pipeline(('', 'en'))
     tray._run_pipeline_sync(wav)
-    lang = ta.RECORDINGS_DIR / f'{STEM}_transcript.lang'
+    # _move_to_processed lo lleva a processed/ junto al WAV (lote A: un reintento
+    # de minutas lo necesita ahi); lo que importa es que se guardo.
+    lang = ta.RECORDINGS_DIR / 'processed' / f'{STEM}_transcript.lang'
     assert lang.exists() and lang.read_text().strip() == 'en'
 
 
