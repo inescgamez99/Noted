@@ -812,3 +812,107 @@ def test_el_proceso_usa_las_pistas_del_glosario(proceso, wav, monkeypatch):
     lt.write_hints(wav, 'Kinaxis')
     proceso.arrancar()
     assert proceso.hasta(lambda: 'Kinaxis' in vistos)
+
+
+# ── Idioma inicial del modo de fondo ──────────────────────────────────────────
+# 18/11/2026: el micro tenia 37 s de voz y Whisper dijo 'uk' con 0,66. El remapeo lo
+# convirtio en 'en', se fijo sin mirar la confianza y el castellano del micro salio
+# traducido al ingles durante 7 minutos; las minutas salieron en ingles. La pista de
+# Teams, con 141 s de voz, daba 'es' con mas de 0,9.
+
+@pytest.fixture
+def idioma(proceso, wav, monkeypatch):
+    """_run en modo de fondo SIN idioma fijado: la voz la oye el VAD falso y el modelo
+    contesta lo que diga el guion (idioma, confianza) a cada detect_language."""
+    import sys
+
+    import numpy as np
+    import soundfile as sf
+    monkeypatch.setattr(transcriber, 'WHISPER_LANGUAGE', None)
+    sys.modules['faster_whisper.vad'].get_speech_timestamps = (
+        lambda audio, _o: [{'start': 0, 'end': len(audio)}])
+    guion, miradas = [], []
+
+    def detect(self, audio, **_k):
+        return guion.pop(0) + ({},) if guion else ('en', 0.0, {})
+
+    sys.modules['faster_whisper'].WhisperModel.detect_language = detect
+    real_read = lt.read_part
+
+    def espia(path, start, max_frames):
+        if max_frames == 150 * lt.SR:          # la ventana de la deteccion, no _step
+            miradas.append((path.name.split('.')[-2], start // lt.SR))
+        return real_read(path, start, max_frames)
+
+    monkeypatch.setattr(lt, 'read_part', espia)
+
+    def partes(segundos):
+        rng = np.random.default_rng(1)
+        for t in lt.TRACKS:
+            sf.write(str(lt.part_path(wav, t)),
+                     (rng.standard_normal(int(segundos * lt.SR)) * 0.1).astype('float32'),
+                     lt.SR, format='WAV', subtype='FLOAT')
+
+    lt.write_ctl(wav, mode='background', gate='free')
+    return types.SimpleNamespace(guion=guion, miradas=miradas, partes=partes)
+
+
+def test_se_fija_el_idioma_del_tramo_mas_seguro(idioma, proceso, wav):
+    """El micro dice 'uk' 0,66 y Teams 'es' 0,93: gana Teams. Sin el arreglo se miraba
+    solo el micro y se fijaba 'en' (uk remapeado)."""
+    idioma.guion += [('uk', 0.66), ('es', 0.93)]
+    idioma.partes(200)
+    proceso.arrancar()
+    assert proceso.hasta(lambda: lt.read_status(wav).get('lang') is not None)
+    assert lt.read_status(wav)['lang'] == 'es'
+
+
+def test_con_poca_confianza_no_se_fija_y_se_mira_mas_adelante(idioma, proceso, wav):
+    """Si ninguno de los dos llega a 0,8, no se impone un idioma dudoso: se vuelve a
+    mirar con el audio de 150 s mas adelante, donde si hay confianza."""
+    idioma.guion += [('uk', 0.66), ('en', 0.5),          # primera mirada: nada seguro
+                     ('es', 0.91), ('es', 0.6)]          # segunda, 150 s despues
+    idioma.partes(400)
+    proceso.arrancar()
+    assert proceso.hasta(lambda: lt.read_status(wav).get('lang') is not None)
+    assert lt.read_status(wav)['lang'] == 'es'
+    assert ('mic', 0) in idioma.miradas and ('mic', 150) in idioma.miradas
+    assert idioma.miradas.index(('mic', 0)) < idioma.miradas.index(('mic', 150))
+
+
+def test_detect_language_sin_voz_suficiente_no_decide(wav, monkeypatch):
+    import numpy as np
+    import soundfile as sf
+    for t in lt.TRACKS:
+        sf.write(str(lt.part_path(wav, t)), np.zeros(10 * lt.SR, dtype=np.float32), lt.SR,
+                 format='WAV', subtype='FLOAT')
+    modelo = types.SimpleNamespace(detect_language=lambda *a, **k: pytest.fail('sin voz no se detecta'))
+    assert lt._detect_language(modelo, wav, lambda _a, _o: [], None) == (None, 0.0)
+
+
+def test_detect_language_remapea_solo_el_idioma_elegido(wav):
+    """'uk' pasa a 'en' por el remapeo de siempre, pero con su confianza real: es el
+    llamador quien decide si basta para fijarlo (ver _settle_language)."""
+    import numpy as np
+    import soundfile as sf
+    for t in lt.TRACKS:
+        sf.write(str(lt.part_path(wav, t)), np.ones(40 * lt.SR, dtype=np.float32) * 0.1, lt.SR,
+                 format='WAV', subtype='FLOAT')
+    respuestas = iter([('uk', 0.66, {}), ('fr', 0.5, {})])
+    modelo = types.SimpleNamespace(detect_language=lambda *a, **k: next(respuestas))
+
+    def vad(audio, _o):
+        return [{'start': 0, 'end': len(audio)}]
+
+    assert lt._detect_language(modelo, wav, vad, None) == ('en', 0.66)
+
+
+@pytest.mark.parametrize('found, prob, start, esperado', [
+    (None, 0.0, 0.0, (None, 0.0)),                          # aun sin voz bastante
+    ('es', 0.93, 0.0, ('es', 0.0)),                         # seguro: se fija
+    ('es', lt.LANG_LOCK_PROB, 150.0, ('es', 150.0)),        # justo en el umbral: se fija
+    ('en', 0.66, 0.0, (None, lt.LANG_RETRY_STEP_S)),        # dudoso: no, y se salta
+    ('en', 0.5, 150.0, (None, 150.0 + lt.LANG_RETRY_STEP_S)),
+])
+def test_settle_language(found, prob, start, esperado):
+    assert lt._settle_language(found, prob, start) == esperado
