@@ -1044,6 +1044,7 @@ class TrayApp:
             except Exception as e:
                 log.error(f"Pipeline error: {e}", exc_info=True)
                 self.set_processing('')
+                self._current_job = {}
             finally:
                 self._release_whisper()
 
@@ -1150,14 +1151,17 @@ class TrayApp:
             result = transcribe(wav_path, on_progress=on_progress, on_segment=on_seg,
                                 should_cancel=lambda: self._is_cancelled(wav_path.stem),
                                 resume_from=partial_path, should_pause=self._pipeline_should_pause)
-            if partial_path.exists():
-                partial_path.unlink()
-
             if not result:
+                # El .partial se conserva: es lo unico que queda de lo transcrito
+                # (se borraba antes de mirar el resultado y un fallo lo perdia todo).
                 log.error(f"Transcripción fallida para {wav_path.name}")
                 self._notify('Noted ⚠', s['transcription_failed'])
                 self.set_processing('')
+                self._current_job = {}
                 return
+
+            if partial_path.exists():
+                partial_path.unlink()
 
             transcript_text, detected_language = result
             lang_path.write_text(detected_language)
@@ -1184,6 +1188,7 @@ class TrayApp:
                 self._move_to_processed(wav_path, transcript_path)
                 self._discard_live_files(wav_path)
                 self.set_processing('')
+                self._current_job = {}
                 return
 
             transcript_path.write_text(transcript_text, encoding='utf-8')
@@ -1733,13 +1738,16 @@ class TrayApp:
         except Exception as e:
             log.warning(f"No se pudieron mover las capturas a minutes: {e}")
 
-        try:
-            transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
-            transcript_copy.write_text(transcript_text, encoding='utf-8')
-        except Exception as e:
-            log.warning(f"No se pudo copiar transcript a minutes: {e}")
-
-        self._move_to_processed(wav_path, transcript_path)
+        # La copia es atomica (save_minutes: tmp + replace con reintento) y, si falla
+        # (disco lleno, antivirus), el transcript original NO se borra: es el unico
+        # texto de la reunion y _retry_pending_minutes lo busca tambien ahi.
+        transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
+        if save_minutes(transcript_text, transcript_copy):
+            self._move_to_processed(wav_path, transcript_path)
+        else:
+            log.warning(f"No se pudo copiar el transcript a minutes: se conserva "
+                        f"{transcript_path.name} en recordings/")
+            self._move_to_processed(wav_path, transcript_path, keep_transcript=True)
         for extra in parts[1:]:
             try:
                 extra.with_suffix('.title').unlink(missing_ok=True)
@@ -1870,7 +1878,9 @@ class TrayApp:
         return brief_minutes(title, 'summary' if summary else 'off', summary,
                              'en' if language == 'en' else 'es')
 
-    def _move_to_processed(self, wav_path: Path, transcript_path: Path):
+    def _move_to_processed(self, wav_path: Path, transcript_path: Path, keep_transcript: bool = False):
+        """keep_transcript: la copia a minutes/ fallo, el transcript es el unico
+        texto de la reunion y se queda (con su .lang) donde esta."""
         dest = RECORDINGS_DIR / 'processed'
         dest.mkdir(exist_ok=True)
         if wav_path.exists():
@@ -1878,11 +1888,19 @@ class TrayApp:
                 shutil.move(str(wav_path), str(dest / wav_path.name))
             except Exception as e:
                 log.warning(f"No se pudo mover {wav_path.name}: {e}")
-        if transcript_path.exists():
+        if transcript_path.exists() and not keep_transcript:
             try:
                 transcript_path.unlink()
             except Exception as e:
                 log.warning(f"No se pudo eliminar {transcript_path.name}: {e}")
+        # El idioma (<stem>_transcript.lang) lo necesita un reintento de minutas:
+        # sin el, las minutas salen con cabeceras en ingles. Se mueve, como .imported.
+        lang_file = transcript_path.with_suffix('.lang')
+        if lang_file.exists() and not keep_transcript:
+            try:
+                shutil.move(str(lang_file), str(dest / lang_file.name))
+            except Exception as e:
+                log.warning(f"No se pudo mover el idioma de {wav_path.name}: {e}")
         for suffix in ('.lang', '.partial', '.context', '.live', '.title'):
             aux = wav_path.with_suffix(suffix)
             if aux.exists():
@@ -1984,6 +2002,11 @@ class TrayApp:
                 text = md.with_name(md.stem + '_transcript.txt').read_text(encoding='utf-8')
             except OSError as e:
                 text, why = '', e
+                # La copia a minutes/ pudo fallar al cerrar: el original se quedo.
+                try:
+                    text = get_transcript_path(RECORDINGS_DIR / f'{stem}.wav').read_text(encoding='utf-8')
+                except OSError:
+                    pass
             else:
                 why = 'el transcript está vacío'
             if not text.strip():
@@ -1992,10 +2015,13 @@ class TrayApp:
                 continue
             # El WAV puede estar en processed/ o ya borrado: no se vuelve a leer.
             wav = RECORDINGS_DIR / f'{stem}.wav'
-            try:
-                lang = get_transcript_path(wav).with_suffix('.lang').read_text().strip() or 'auto'
-            except OSError:
-                lang = 'auto'
+            lang = 'auto'
+            for folder in (RECORDINGS_DIR, RECORDINGS_DIR / 'processed'):
+                try:
+                    lang = (folder / get_transcript_path(wav).with_suffix('.lang').name).read_text().strip() or 'auto'
+                    break
+                except OSError:
+                    continue
             log.info(f"Minutas pendientes de {md.name}: se reintentan "
                      f"(intento {self._pending_retries[stem]} de {RETRY_PENDING_MAX})")
             self._finalize_session({'base_wav': wav, 'parts': [wav], 'transcripts': {stem: text},
