@@ -102,9 +102,21 @@ _STR = {
         cancel_job='Descartar esta reunion (papelera)',
         job_cancelled='Reunion descartada: el audio y lo generado se han movido a la papelera.',
         ctx_title='Contexto / objetivo de la reunion',
-        ctx_subtitle='Se usara al generar las minutas',
+        ctx_subtitle='Entra en el transcript en el minuto {time}; puedes añadir varias',
         ctx_save='Guardar',
         ctx_cancel='Cancelar',
+        cap_menu='Capturar pantalla de Teams',
+        cap_saved='Captura guardada en el minuto {time}.',
+        cap_no_window='No encuentro la ventana de la reunion de Teams: no se ha guardado nada.',
+        cap_minimized='La ventana de Teams esta minimizada: abrela y vuelve a capturar.',
+        cap_covered='Otra ventana tapa la de la reunion: pon la reunion delante y vuelve a capturar.',
+        cap_blocked='Teams no deja capturar esta reunion: no se ha guardado nada.',
+        cap_failed='No se pudo guardar la captura (el detalle esta en noted.log).',
+        cap_line_label='Captura',
+        ctx_saved='Nota guardada en el minuto {time}: entrara en el transcript.',
+        ctx_save_failed='No se pudo guardar la nota (el detalle esta en noted.log).',
+        ctx_note_label='Nota de {name}',
+        ctx_note_label_anon='Nota',
     ),
     'en': dict(
         record_now='Record now', stop='Stop recording',
@@ -152,9 +164,21 @@ _STR = {
         cancel_job='Discard this meeting (bin)',
         job_cancelled='Meeting discarded: the audio and generated files were moved to the bin.',
         ctx_title='Meeting context / goal',
-        ctx_subtitle='Will be used when generating the minutes',
+        ctx_subtitle='Goes into the transcript at {time}; you can add several',
         ctx_save='Save',
         ctx_cancel='Cancel',
+        cap_menu='Capture Teams screen',
+        cap_saved='Screenshot saved at {time}.',
+        cap_no_window='Teams meeting window not found: nothing was saved.',
+        cap_minimized='The Teams window is minimized: restore it and capture again.',
+        cap_covered='Another window covers the meeting: bring the meeting to the front and capture again.',
+        cap_blocked='Teams blocks screenshots in this meeting: nothing was saved.',
+        cap_failed='The screenshot could not be saved (details in noted.log).',
+        cap_line_label='Screenshot',
+        ctx_saved='Note saved at {time}: it will go into the transcript.',
+        ctx_save_failed='The note could not be saved (details in noted.log).',
+        ctx_note_label='Note by {name}',
+        ctx_note_label_anon='Note',
     ),
 }
 
@@ -288,6 +312,9 @@ class TrayApp:
                                                         and self._rec_mode != 'live')),
                 pystray.MenuItem(s['add_context'],
                                  self._add_context,
+                                 visible=lambda _: bool(self._recorder.is_recording)),
+                pystray.MenuItem(s['cap_menu'],
+                                 self._capture_screen,
                                  visible=lambda _: bool(self._recorder.is_recording)),
                 pystray.MenuItem(lambda _: (s['cancel_recording'] if self._recorder.is_recording
                                             else s['cancel_job']),
@@ -911,6 +938,7 @@ class TrayApp:
                 if folder.exists():
                     candidates.extend(folder.glob(f"{pat}.*"))
                     candidates.extend(folder.glob(f"{pat}_transcript.*"))
+                    candidates.extend(folder.glob(f"{pat}_screenshot_*"))
             if minutes_path:
                 candidates += [
                     minutes_path,
@@ -918,6 +946,7 @@ class TrayApp:
                     minutes_path.parent / f"{minutes_path.stem}_actions.json",
                     minutes_path.parent / f"{minutes_path.stem}_transcript.txt",
                 ]
+                candidates += sorted(minutes_path.parent.glob(f"{glob.escape(minutes_path.stem)}_screenshot*"))
 
             files_meta = []
             for f in dict.fromkeys(candidates):        # sin duplicados, orden estable
@@ -1124,8 +1153,61 @@ class TrayApp:
 
             transcript_path.write_text(transcript_text, encoding='utf-8')
 
+        transcript_text = self._merge_notes(wav_path, transcript_path, transcript_text)
+        transcript_text = self._merge_screenshots(wav_path, transcript_path, transcript_text)
         self._discard_live_files(wav_path)
         self._register_part(wav_path, transcript_text, detected_language)
+
+    def _context_path(self, wav_path: Path) -> Path:
+        """<stem>.context junto al WAV o, si ya se movio, en processed/."""
+        here = wav_path.with_suffix('.context')
+        if here.exists():
+            return here
+        return RECORDINGS_DIR / 'processed' / here.name
+
+    def _merge_notes(self, wav_path: Path, transcript_path: Path, text: str) -> str:
+        """Las notas de la grabacion entran en su transcript, cada una en su minuto
+        (meeting_notes). Asi las usan las minutas, el boton del panel y "Preguntar",
+        tambien con las minutas a mano. El .context lo consume el cierre, como antes."""
+        import meeting_notes
+        from transcriber import ME_NAME
+        notes = meeting_notes.read_notes(self._context_path(wav_path))
+        if not notes:
+            return text
+        s = _STR.get(get_ui_language(), _STR['en'])
+        label = s['ctx_note_label'].format(name=ME_NAME) if ME_NAME else s['ctx_note_label_anon']
+        merged = meeting_notes.merge(text, notes, label)
+        if merged == text:
+            return text
+        try:
+            transcript_path.write_text(merged, encoding='utf-8')
+        except OSError as e:
+            log.warning(f"Notas no añadidas al transcript de {wav_path.name}: {e}")
+            return text
+        log.info(f"Notas añadidas al transcript de {wav_path.name}: {len(notes)}")
+        return merged
+
+    def _merge_screenshots(self, wav_path: Path, transcript_path: Path, text: str) -> str:
+        """Cada captura de la grabacion entra en su transcript como una nota: una
+        linea en su minuto con el nombre del archivo, que la app abre al pulsarlo.
+        Al cerrar la reunion, screen_capture.relink le pone el nombre que tiene ya
+        junto a las minutas."""
+        import meeting_notes
+        import screen_capture
+        shots = screen_capture.transcript_items(wav_path)
+        if not shots:
+            return text
+        s = _STR.get(get_ui_language(), _STR['en'])
+        merged = meeting_notes.merge(text, shots, s['cap_line_label'])
+        if merged == text:
+            return text
+        try:
+            transcript_path.write_text(merged, encoding='utf-8')
+        except OSError as e:
+            log.warning(f"Capturas no añadidas al transcript de {wav_path.name}: {e}")
+            return text
+        log.info(f"Capturas añadidas al transcript de {wav_path.name}: {len(shots)}")
+        return merged
 
     def _use_live_transcript(self, wav_path: Path, transcript_path: Path, lang_path: Path):
         """Cierra el transcript con lo hecho durante la reunion y lo deja donde
@@ -1453,13 +1535,17 @@ class TrayApp:
                 except Exception:
                     pass
 
+        # Se consume: si se quedara, se colaria en otra reunion con el mismo nombre.
+        # Las notas ya van en el transcript (_merge_notes); como contexto aparte solo
+        # va lo que no este en el, para no repetirlo.
         extra_context = None
-        context_path = wav_path.with_suffix('.context')
-        if not context_path.exists():
-            context_path = RECORDINGS_DIR / 'processed' / wav_path.with_suffix('.context').name
+        context_path = self._context_path(wav_path)
         if context_path.exists():
             try:
-                extra_context = context_path.read_text(encoding='utf-8').strip() or None
+                import meeting_notes
+                raw = context_path.read_text(encoding='utf-8').strip()
+                if raw and not meeting_notes.all_in(transcript_text, meeting_notes.read_notes(context_path)):
+                    extra_context = raw
                 context_path.unlink()
             except Exception:
                 pass
@@ -1583,6 +1669,19 @@ class TrayApp:
         # detect_project() (palabras clave sobre el transcript) y solo sirve para
         # elegir el contexto que se pasa al LLM. El proyecto definitivo lo decide
         # enrich_and_save más abajo, y el archivado ocurre en su callback.
+
+        # Las capturas, junto a las minutas y con su nombre: asi las enlaza a la
+        # reunion quien lee minutes/ (screen_capture, test_consumer_contract). Antes
+        # de copiar el transcript: sus lineas de captura pasan a ese nombre, tambien
+        # en la copia que se exporta al proyecto.
+        try:
+            import screen_capture
+            filed = screen_capture.file_for_minutes(parts, minutes_path)
+            if filed:
+                log.info(f"Capturas de {minutes_path.stem}: {len(filed)}")
+            transcript_text = screen_capture.relink(transcript_text, minutes_path)
+        except Exception as e:
+            log.warning(f"No se pudieron mover las capturas a minutes: {e}")
 
         try:
             transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
@@ -1941,6 +2040,11 @@ class TrayApp:
             self._stop_live(wait=True)
             if path is not None:
                 try:
+                    import screen_capture
+                    screen_capture.discard(path)
+                except Exception as e:
+                    log.warning(f"No se pudieron borrar las capturas descartadas: {e}")
+                try:
                     import live_transcriber
                     live_transcriber.discard_artifacts(path, parts=True)
                     if not any(live_transcriber.part_path(path, t).exists() for t in live_transcriber.TRACKS):
@@ -1955,19 +2059,75 @@ class TrayApp:
             s = _STR.get(get_ui_language(), _STR['en'])
             self._notify('Noted', s['job_cancelled'])
 
-    def _add_context(self):
-        rec_path = self._recording_path
+    def _capture_screen(self):
+        rec_path, started = self._recording_path, self._recording_start
         if not rec_path:
             return
-        threading.Thread(target=lambda: self._show_context_dialog(rec_path), daemon=True).start()
+        threading.Thread(target=lambda: self._take_screenshot(rec_path, started),
+                         daemon=True, name='Screenshot').start()
 
-    def _show_context_dialog(self, rec_path: Path):
+    def _take_screenshot(self, rec_path: Path, started: float | None) -> Path | None:
+        """Captura la ventana de la reunion, la guarda junto a la grabacion con su
+        minuto (screen_capture) y avisa de lo que paso: sin aviso, el usuario no
+        sabe si se guardo."""
+        import screen_capture
+        import teams_detector
+        s = _STR.get(get_ui_language(), _STR['en'])
+        name = self._recording_meeting_name(rec_path)
+        hwnd = teams_detector.find_meeting_window(name)
+        if not hwnd:
+            log.info(f"Captura de {rec_path.name}: no hay ventana de reunion de Teams")
+            self._notify('Noted ⚠', s['cap_no_window'])
+            return None
+        try:
+            shot = screen_capture.capture(hwnd)
+            seconds = time.time() - started if started else 0
+            png = screen_capture.save(shot.image, rec_path, seconds, shot.title or name, shot.method)
+        except screen_capture.CaptureError as e:
+            log.info(f"Captura de {rec_path.name} no guardada: {e.reason}")
+            self._notify('Noted ⚠', s[f'cap_{e.reason}'])
+            return None
+        except Exception as e:
+            log.warning(f"Captura de {rec_path.name} fallida: {e}")
+            self._notify('Noted ⚠', s['cap_failed'])
+            return None
+        log.info(f"Captura guardada: {png.name} ({shot.method}, ventana «{shot.title}»)")
+        self._notify('Noted', s['cap_saved'].format(time=screen_capture.stamp(seconds).replace('-', ':')))
+        return png
+
+    def _add_context(self):
+        rec_path, started = self._recording_path, self._recording_start
+        if not rec_path:
+            return
+        threading.Thread(target=lambda: self._show_context_dialog(rec_path, started),
+                         daemon=True).start()
+
+    def _save_note(self, rec_path: Path, started: float | None, text: str) -> str | None:
+        """Añade la nota a <stem>.context con el minuto de la grabacion y avisa: sin
+        aviso, el usuario no sabia si se habia guardado (meeting_notes)."""
+        import meeting_notes
+        s = _STR.get(get_ui_language(), _STR['en'])
+        try:
+            stamp = meeting_notes.add_note(rec_path.with_suffix('.context'),
+                                           time.time() - started if started else 0, text)
+        except OSError as e:
+            log.warning(f"No se pudo guardar la nota de {rec_path.name}: {e}")
+            self._notify('Noted ⚠', s['ctx_save_failed'])
+            return None
+        if stamp:
+            log.info(f"Nota guardada para {rec_path.name} en {stamp}")
+            self._notify('Noted', s['ctx_saved'].format(time=stamp.strip('[]')))
+        return stamp
+
+    def _show_context_dialog(self, rec_path: Path, started: float | None = None):
         import tkinter as tk
         from tk_thread import get_root, run_in_tk
 
         BG = '#1e1e2e'; CARD = '#313244'; FG = '#cdd6f4'; MUTED = '#a6adc8'
         BORDER = '#585b70'; BTN = '#89b4fa'
         s = _STR.get(get_ui_language(), _STR['en'])
+        elapsed = int(time.time() - started) if started else 0
+        now = f"{elapsed // 60:02d}:{elapsed % 60:02d}"
 
         def _create():
             root = get_root()
@@ -1986,7 +2146,7 @@ class TrayApp:
 
             tk.Label(frame, text=s['ctx_title'],
                      font=('Segoe UI', 10, 'bold'), fg=FG, bg=BG).pack(anchor='w')
-            tk.Label(frame, text=s['ctx_subtitle'],
+            tk.Label(frame, text=s['ctx_subtitle'].format(time=now),
                      font=('Segoe UI', 8), fg=MUTED, bg=BG).pack(anchor='w', pady=(2, 6))
 
             entry = tk.Entry(frame, font=('Segoe UI', 9), bg=CARD, fg=FG,
@@ -1995,14 +2155,10 @@ class TrayApp:
             entry.focus_set()
 
             def save():
-                ctx = entry.get().strip()
-                if ctx:
-                    try:
-                        rec_path.with_suffix('.context').write_text(ctx, encoding='utf-8')
-                        log.info(f"Contexto guardado para {rec_path.name}")
-                    except Exception as e:
-                        log.warning(f"No se pudo guardar contexto: {e}")
+                text = entry.get()
                 top.destroy()
+                threading.Thread(target=lambda: self._save_note(rec_path, started, text),
+                                 daemon=True).start()
 
             entry.bind('<Return>', lambda _: save())
             entry.bind('<Escape>', lambda _: top.destroy())

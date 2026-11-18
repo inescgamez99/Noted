@@ -387,6 +387,62 @@ def test_el_contexto_tambien_se_busca_en_processed(tray, cierre_aislado, tr_dirs
     assert cierre_aislado['contexto'] == 'contexto guardado'
 
 
+def test_las_capturas_de_la_reunion_quedan_junto_a_sus_minutas(tray, cierre_aislado, tr_dirs,
+                                                               wav_factory):
+    """Con el nombre de las minutas: es lo que las enlaza a la reunion (screen_capture)."""
+    import screen_capture
+    from PIL import Image
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), a, 65, 'Comite Semanal')
+
+    tray._finalize_session(_sesion(tray, [a], ['texto']))
+
+    md = cierre_aislado['guardadas']
+    assert (md.parent / f'{md.stem}_screenshot_01-05.png').exists()
+    assert (md.parent / f'{md.stem}_screenshots.json').exists()
+
+
+def test_el_transcript_de_minutes_nombra_cada_captura_como_se_llama_alli(tray, cierre_aislado,
+                                                                         tr_dirs, wav_factory):
+    """La parte la nombra como en recordings/; junto a las minutas se llama distinto."""
+    import screen_capture
+    from PIL import Image
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    png = screen_capture.save(Image.new('RGB', (8, 8), (90, 90, 90)), a, 65, 'Comite Semanal')
+
+    tray._finalize_session(_sesion(tray, [a], [f'[01:05] [Captura]: {png.name}']))
+
+    md = cierre_aislado['guardadas']
+    texto = md.with_name(f'{md.stem}_transcript.txt').read_text(encoding='utf-8')
+    assert texto == f'[01:05] [Captura]: {md.stem}_screenshot_01-05.png'
+
+
+def test_si_mover_las_capturas_falla_la_reunion_se_cierra_igual(tray, cierre_aislado, tr_dirs,
+                                                                wav_factory, monkeypatch):
+    import screen_capture
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+
+    def rota(_parts, _md):
+        raise OSError('disco lleno')
+
+    monkeypatch.setattr(screen_capture, 'file_for_minutes', rota)
+    tray._finalize_session(_sesion(tray, [a], ['texto']))
+    assert cierre_aislado['guardadas'] is not None and cierre_aislado['guardadas'].exists()
+
+
+def test_las_notas_que_ya_van_en_el_transcript_no_se_repiten_como_contexto(
+        tray, cierre_aislado, tr_dirs, wav_factory):
+    """_merge_notes ya las metio en el transcript de la parte."""
+    a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
+    a.with_suffix('.context').write_text('[02:05] ojo con enero\n', encoding='utf-8')
+
+    tray._finalize_session(_sesion(tray, [a], ['[02:05] [Nota]: ojo con enero']))
+
+    assert cierre_aislado['contexto'] is None
+    assert 'ojo con enero' in cierre_aislado['minutas_de']
+    assert not a.with_suffix('.context').exists()
+
+
 def test_un_contexto_vacio_no_se_pasa_como_contexto(tray, cierre_aislado, tr_dirs,
                                                     wav_factory):
     a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)

@@ -307,3 +307,25 @@ def test_las_acciones_pendientes_se_cuentan(api, dos_reuniones):
 
 def test_sin_minutas_el_listado_esta_vacio(api, tr_dirs):
     assert api.get_meetings() == []
+
+
+# ── Abrir una captura desde el transcript ────────────────────────────────────
+
+def test_open_screenshot_abre_solo_capturas_junto_a_sus_minutas(api, tmp_path, monkeypatch):
+    """El nombre sale del texto del transcript: no puede servir para abrir otra cosa."""
+    abiertas = []
+    monkeypatch.setattr(aw.semantic, 'open_file', lambda p: abiertas.append(p) or True)
+    carpeta = tmp_path / 'minutes'
+    carpeta.mkdir()
+    md = carpeta / '20261117_1236_Daily.md'
+    png = carpeta / '20261117_1236_Daily_screenshot_00-30.png'
+    png.write_bytes(b'x')
+    (tmp_path / 'fuera_screenshot_00-30.png').write_bytes(b'x')
+    (carpeta / '20261117_1236_Daily_screenshot_00-31.exe').write_bytes(b'x')
+
+    assert api.open_screenshot(str(md), png.name) is True
+    for nombre in ['..\\fuera_screenshot_00-30.png', '../fuera_screenshot_00-30.png',
+                   f'C:\\{png.name}', '20261117_1236_Daily.md', '20261117_1236_Daily_screenshot_00-31.exe',
+                   '20261117_1236_Daily_screenshot_09-09.png', '', None]:
+        assert api.open_screenshot(str(md), nombre) is False, nombre
+    assert abiertas == [str(png)]

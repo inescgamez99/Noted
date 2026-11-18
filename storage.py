@@ -120,7 +120,10 @@ def cleanup_old_recordings(days: int = 10):
     # (.live.jsonl, .live.json, su .tmp y .live.finishing) cuando no se usaron.
     # *.live: el formato de la transcripcion en vivo anterior, que esta sustituye.
     # *.title: el nombre de Teams de una grabacion manual (tray_app._note_teams_title).
-    aux_patterns   = ('*.lang', '*.partial', '*.context', '*.part', '*.live.*', '*.live', '*.title')
+    # *_screenshot_*.png y *.screenshots.jsonl: capturas que no llegaron a minutes/
+    # (screen_capture), con la misma regla que su grabacion.
+    aux_patterns   = ('*.lang', '*.partial', '*.context', '*.part', '*.live.*', '*.live', '*.title',
+                      '*_screenshot_*.png', '*.screenshots.jsonl')
     for d in (RECORDINGS_DIR, RECORDINGS_DIR / 'processed'):
         for pattern in audio_patterns + aux_patterns:
             for f in d.glob(pattern):
@@ -158,7 +161,8 @@ def cleanup_old_recordings(days: int = 10):
 
 def cleanup_old_minutes():
     cutoff = datetime.now() - timedelta(days=MINUTES_RETENTION_DAYS)
-    for pattern in ('*.md', '*.html', '*_actions.json', '*_transcript.txt'):
+    for pattern in ('*.md', '*.html', '*_actions.json', '*_transcript.txt',
+                    '*_screenshot_*.png', '*_screenshots.json'):
         for f in MINUTES_DIR.glob(pattern):
             if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
                 try:
