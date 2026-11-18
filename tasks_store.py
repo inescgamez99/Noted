@@ -23,12 +23,14 @@ Schema:
   "migrated": bool
 }
 """
+import functools
 import json
 import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import atomic_io
 from config import PROJECT_DIR
 
 log = logging.getLogger(__name__)
@@ -39,14 +41,32 @@ TASKS_FILE = PROJECT_DIR / 'tasks.json'
 def _load() -> dict:
     if TASKS_FILE.exists():
         try:
-            return json.loads(TASKS_FILE.read_text(encoding='utf-8'))
+            data = json.loads(TASKS_FILE.read_text(encoding='utf-8'))
+            if isinstance(data, dict):
+                return data
+            raise ValueError('tasks.json no es un objeto')
+        except OSError as e:
+            log.warning(f"tasks.json no se pudo leer: {e}")
         except Exception:
-            pass
+            # Existe pero no se entiende: guardar copia ANTES de que el
+            # siguiente _save lo pise con el tablero vacio.
+            atomic_io.quarantine_corrupt(TASKS_FILE, log)
     return {'tasks': [], 'migrated': False}
 
 
 def _save(data: dict) -> None:
-    TASKS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    atomic_io.write_text_atomic(
+        TASKS_FILE, json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _locked(fn):
+    """Serializa el ciclo leer-modificar-escribir entre hilos y entre procesos
+    (la ventana y el daemon escriben el mismo tasks.json)."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        with atomic_io.file_lock(TASKS_FILE.with_name(TASKS_FILE.name + '.lock')):
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def _normalize_tags(tags) -> list:
@@ -71,6 +91,7 @@ def get_tasks() -> list:
     return data.get('tasks', [])
 
 
+@_locked
 def create_task(
     project_id: str,
     title: str,
@@ -116,6 +137,7 @@ def create_task(
     return task
 
 
+@_locked
 def update_task(task_id: str, fields: dict) -> bool:
     allowed = {'title', 'description', 'status', 'assignee', 'deadline', 'priority', 'parent_id', 'project_id', 'bucket_id', 'start_date', 'end_date', 'tags', 'view'}
     data = _load()
@@ -130,6 +152,7 @@ def update_task(task_id: str, fields: dict) -> bool:
     return False
 
 
+@_locked
 def delete_task(task_id: str) -> bool:
     """Deletes the task and all its direct sub-items."""
     data = _load()
@@ -146,6 +169,7 @@ def get_custom_values(field: str) -> list:
     return _load().get(field, [])
 
 
+@_locked
 def save_custom_values(field: str, values: list) -> bool:
     data = _load()
     data[field] = values
@@ -153,6 +177,7 @@ def save_custom_values(field: str, values: list) -> bool:
     return True
 
 
+@_locked
 def migrate_panel_actions() -> int:
     """One-time import of all in_panel=True actions from meeting JSONs into tasks.json.
     Safe to call on every startup — no-op after first run."""
@@ -210,6 +235,7 @@ def migrate_panel_actions() -> int:
     return count
 
 
+@_locked
 def auto_sync_meeting_tasks(meeting_path: str, actions: list, first_bucket_id: str = 'pendiente') -> int:
     """Creates tasks for all meeting actions not already in tasks.json. Returns count added."""
     data = _load()

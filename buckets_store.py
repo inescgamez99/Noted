@@ -1,6 +1,10 @@
 import json
+import logging
 
+import atomic_io
 from config import PROJECT_DIR
+
+log = logging.getLogger(__name__)
 
 BUCKETS_FILE = PROJECT_DIR / 'buckets.json'
 
@@ -19,8 +23,13 @@ def get_buckets() -> list:
             buckets = data.get('buckets', [])
             if buckets:
                 return sorted(buckets, key=lambda b: b.get('order', 0))
+        except OSError as e:
+            log.warning(f"buckets.json no se pudo leer: {e}")
+            return list(DEFAULT_BUCKETS)
         except Exception:
-            pass
+            # Existe pero no se entiende: copia ANTES de re-guardar los
+            # valores por defecto encima.
+            atomic_io.quarantine_corrupt(BUCKETS_FILE, log)
     _save({'buckets': list(DEFAULT_BUCKETS)})
     return list(DEFAULT_BUCKETS)
 
@@ -39,4 +48,5 @@ def get_first_bucket_id() -> str:
 
 
 def _save(data: dict) -> None:
-    BUCKETS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    atomic_io.write_text_atomic(
+        BUCKETS_FILE, json.dumps(data, ensure_ascii=False, indent=2))

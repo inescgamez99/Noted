@@ -143,6 +143,7 @@ const T = {
       ? `¿Eliminar la columna "${name}"? Sus ${count} tarea(s) pasarán a "${target}".`
       : `¿Eliminar la columna "${name}"?`,
     toast_meeting_deleted: 'Reunión eliminada',
+    toast_trash_op_failed: 'No se pudo completar la operación. Los ficheros se conservan; cierra lo que los use e inténtalo de nuevo.',
     no_match_actions: 'No hay acciones en el panel. Mueve acciones desde "Gestionar acciones".',
     toast_claude: 'Abriendo Claude...', toast_terminal: 'Abriendo terminal...',
     toast_outlook: 'Abriendo Outlook...', toast_done: 'Acción marcada como hecha',
@@ -586,6 +587,7 @@ const T = {
       ? `Delete column "${name}"? Its ${count} task(s) will move to "${target}".`
       : `Delete column "${name}"?`,
     toast_meeting_deleted: 'Meeting deleted',
+    toast_trash_op_failed: 'The operation could not be completed. Your files were kept; close whatever is using them and try again.',
     no_match_actions: 'No actions in the panel. Move actions from "Manage actions".',
     toast_claude: 'Opening Claude...', toast_terminal: 'Opening terminal...',
     toast_outlook: 'Opening Outlook...', toast_done: 'Action marked as done',
@@ -1033,6 +1035,7 @@ const T = {
       ? `Eliminar la columna "${name}"? Les seves ${count} tasca(ques) passaran a "${target}".`
       : `Eliminar la columna "${name}"?`,
     toast_meeting_deleted: 'Reunió eliminada',
+    toast_trash_op_failed: 'No s\'ha pogut completar l\'operació. Els fitxers es conserven; tanca el que els faci servir i torna-ho a provar.',
     no_match_actions: 'No hi ha accions al panell. Mou accions des de "Gestionar accions".',
     toast_claude: 'Obrint Claude...', toast_terminal: 'Obrint terminal...', toast_outlook: 'Obrint Outlook...', toast_done: 'Acció marcada com a feta',
     toast_moved: 'Acció moguda al panell',
@@ -1726,6 +1729,8 @@ async function recoverMeeting(id) {
     showToast(t('trash_recovered'));
     await loadTrash();
     try { if (typeof refreshMeetingList === 'function') await refreshMeetingList(); } catch (_) {}
+  } else {
+    showToast(t('toast_trash_op_failed'));
   }
 }
 
@@ -1735,6 +1740,7 @@ function purgeTrashMeeting(id, title) {
     async () => {
       const ok = await pywebview.api.purge_trash_meeting(id);
       if (ok) { showToast(t('trash_purged')); await loadTrash(); }
+      else showToast(t('toast_trash_op_failed'));
     },
     { title: t('trash_delete_forever'), okLabel: t('btn_delete') }
   );
@@ -1867,6 +1873,8 @@ function _confirmDeleteMeeting(pathToDelete, titleToDelete, elToRemove) {
 
         // Full refresh — also clears right panel if currentPath is gone
         await refreshMeetingList();
+      } else {
+        showToast(t('toast_trash_op_failed'));
       }
     },
     { title: t('confirm_delete_meeting_title'), okLabel: t('btn_delete') }

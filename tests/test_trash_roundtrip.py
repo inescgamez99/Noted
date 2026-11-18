@@ -178,13 +178,12 @@ def test_descartar_el_mismo_stem_dos_veces_crea_dos_entradas(api, tray, reunion,
     assert ids[1].endswith('__2'), f"anticolision roto: {ids}"
 
 
-# ── Defectos conocidos, fijados para poder arreglarlos ───────────────────
+# ── Arreglos de la papelera (antes fijados como test_DEFECTO_*) ──────────
 
-def test_DEFECTO_un_orig_dir_vacio_restaura_en_el_directorio_de_trabajo(api, tr_dirs,
-                                                                        monkeypatch):
-    """DEFECTO (app_window.py:820): la guarda `if not str(dst_dir)` es una rama
-    MUERTA, porque str(Path('')) es '.' y siempre es truthy. Con un orig_dir
-    vacio el fichero se restaura en el cwd del proceso en vez de saltarse.
+def test_un_orig_dir_vacio_se_salta_y_no_restaura_en_el_cwd(api, tr_dirs, monkeypatch):
+    """Antes (DEFECTO): la guarda `if not str(dst_dir)` era una rama muerta,
+    porque str(Path('')) es '.', y un orig_dir vacio restauraba el fichero en
+    el cwd del proceso. Ahora se salta ese fichero.
 
     Se ejecuta con el cwd apuntando a tmp_path para no ensuciar nada."""
     trash_dir = tr_dirs / 'trash' / 'manipulada'
@@ -199,16 +198,15 @@ def test_DEFECTO_un_orig_dir_vacio_restaura_en_el_directorio_de_trabajo(api, tr_
     destino_falso.mkdir()
     monkeypatch.chdir(destino_falso)
 
-    assert api.recover_meeting('manipulada') is True
-    assert (destino_falso / 'suelto.md').exists(), \
-        "si esto cambia, la rama muerta se arreglo"
+    api.recover_meeting('manipulada')
+    assert not (destino_falso / 'suelto.md').exists()
 
 
-def test_DEFECTO_recuperar_borra_la_papelera_aunque_falle_un_movimiento(api, tr_dirs,
-                                                                        monkeypatch):
-    """DEFECTO (app_window.py:829): el rmtree corre INCONDICIONALMENTE tras el
-    bucle. Si un move falla, el error se traga, la carpeta de papelera se borra
-    igual y el fichero se pierde en silencio. Y encima devuelve True."""
+def test_si_falla_un_movimiento_recuperar_conserva_la_papelera(api, tr_dirs,
+                                                               monkeypatch):
+    """Antes (DEFECTO): el rmtree corria incondicionalmente tras el bucle; si
+    un move fallaba, la papelera se borraba igual, el fichero se perdia en
+    silencio y devolvia True. Ahora devuelve False y conserva todo."""
     trash_dir = tr_dirs / 'trash' / 'fallona'
     trash_dir.mkdir(parents=True)
     (trash_dir / 'a.md').write_text('x', encoding='utf-8')
@@ -223,8 +221,96 @@ def test_DEFECTO_recuperar_borra_la_papelera_aunque_falle_un_movimiento(api, tr_
 
     monkeypatch.setattr(aw.shutil, 'move', move_que_falla)
 
-    resultado = api.recover_meeting('fallona')
-
-    assert resultado is True, "informa exito pese al fallo"
-    assert not trash_dir.exists(), "y borra la papelera, perdiendo el fichero"
+    assert api.recover_meeting('fallona') is False
+    assert (trash_dir / 'a.md').exists(), "el fichero sigue en la papelera"
     assert not (destino / 'a.md').exists()
+
+
+def test_recuperar_no_pisa_un_fichero_existente(api, reunion):
+    """shutil.move sobre un destino existente lo sobrescribe: si el usuario ya
+    tiene otra minuta con ese nombre, se restaura como <stem>_recuperada."""
+    api.delete_meeting(str(reunion['md']))
+    reunion['md'].write_text('NUEVA, no pisar', encoding='utf-8')
+    item_id = api.list_trash()[0]['id']
+
+    assert api.recover_meeting(item_id) is True
+
+    assert reunion['md'].read_text(encoding='utf-8') == 'NUEVA, no pisar'
+    rec = reunion['md'].with_name(f'{MD_STEM}_recuperada.md')
+    assert rec.read_text(encoding='utf-8').startswith('TITULO:')
+
+
+@pytest.mark.parametrize('malo', ['..', '../x', 'a/b', 'a\\b', '', '   '])
+def test_trash_id_peligroso_se_rechaza(api, tr_dirs, malo):
+    """Un trash_id con separadores o '..' podia apuntar fuera de la papelera:
+    purge_trash_meeting hacia rmtree de esa ruta."""
+    fuera = tr_dirs / 'x'
+    fuera.mkdir()
+    (fuera / 'f.txt').write_text('no tocar', encoding='utf-8')
+    (tr_dirs / 'trash').mkdir(exist_ok=True)
+
+    assert api.purge_trash_meeting(malo) is False
+    assert api.recover_meeting(malo) is False
+    assert (fuera / 'f.txt').exists()
+
+
+def test_delete_meeting_si_fallan_todos_los_movimientos_devuelve_false(
+        api, reunion, monkeypatch):
+    """Con los ficheros en uso, delete_meeting devolvia True y escribia un
+    _trash_meta.json vacio: la reunion seguia en su sitio y la papelera
+    mostraba una entrada fantasma."""
+    def move_que_falla(*_a, **_k):
+        raise OSError('en uso')
+    monkeypatch.setattr(aw.shutil, 'move', move_que_falla)
+
+    assert api.delete_meeting(str(reunion['md'])) is False
+
+    assert reunion['md'].exists()
+    assert api.list_trash() == []
+    assert not any(reunion['trash'].glob('*/_trash_meta.json'))
+
+
+def test_delete_meeting_no_se_lleva_el_wav_de_otra_reunion_del_mismo_minuto(
+        api, reunion, wav_factory):
+    """El glob `{wav_stem}*.wav` capturaba el WAV de OTRA reunion iniciada en
+    el mismo minuto."""
+    otro = wav_factory(ta.RECORDINGS_DIR / '2026-09-16_12-00_Otra_Reunion.wav',
+                       seconds=0.1)
+
+    assert api.delete_meeting(str(reunion['md'])) is True
+
+    assert not reunion['wav'].exists()
+    assert otro.exists()
+
+
+def test_delete_meeting_con_titulo_distinto_y_un_solo_wav_lo_incluye(
+        api, tr_dirs, wav_factory):
+    """El slug de las minutas sale del titulo generado, no del nombre del WAV:
+    si solo hay un WAV en ese minuto, es el de la reunion."""
+    wav = wav_factory(ta.RECORDINGS_DIR / '2026-09-16_12-00_Grabacion.wav', seconds=0.1)
+    md = ta.MINUTES_DIR / '20260916_1200_Titulo_Generado.md'
+    md.write_text('TITULO: Titulo Generado\n\nx', encoding='utf-8')
+
+    assert api.delete_meeting(str(md)) is True
+    assert not wav.exists()
+
+
+def test_delete_meeting_con_varios_wav_y_ninguno_exacto_los_conserva(
+        api, tr_dirs, wav_factory):
+    a = wav_factory(ta.RECORDINGS_DIR / '2026-09-16_12-00_A.wav', seconds=0.1)
+    b = wav_factory(ta.RECORDINGS_DIR / '2026-09-16_12-00_B.wav', seconds=0.1)
+    md = ta.MINUTES_DIR / '20260916_1200_Otro_Titulo.md'
+    md.write_text('TITULO: x\n\nx', encoding='utf-8')
+
+    assert api.delete_meeting(str(md)) is True
+    assert a.exists() and b.exists()
+
+
+def test_trash_id_absoluto_hacia_fuera_se_rechaza(api, tr_dirs):
+    """Ruta absoluta como trash_id: `trash / absoluta` es la absoluta."""
+    fuera = tr_dirs / 'otra'
+    fuera.mkdir()
+    (fuera / 'f.txt').write_text('no tocar', encoding='utf-8')
+    (tr_dirs / 'trash').mkdir(exist_ok=True)
+    assert api.purge_trash_meeting(str(fuera)) is False
+    assert (fuera / 'f.txt').exists()
