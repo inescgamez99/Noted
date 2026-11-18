@@ -67,7 +67,32 @@ def test_se_elige_la_ventana_con_el_nombre_de_la_reunion(ventanas):
                  (3, 10, False, 'Comite Semanal | Microsoft Teams'),     # oculta
                  (4, 10, True, 'Comite Semanal | Microsoft Teams')]
     assert td.find_meeting_window('comite semanal') == 4
-    assert td.find_meeting_window(None) == 1, "sin nombre, la de mas arriba"
+
+
+def test_sin_nombre_no_se_coge_ninguna(ventanas):
+    """Una grabacion que empezo en "Union a la reunion", o manual sin titulo, no
+    sabe que reunion es: la de mas arriba puede ser el chat."""
+    ventanas += [(1, 10, True, 'Comunidades y espacio propio | Gil, Ana | Microsoft Teams'),
+                 (2, 10, True, 'Comite Semanal | Microsoft Teams')]
+    assert td.find_meeting_window(None) is None
+    assert td.find_meeting_window('') is None
+
+
+def test_un_nombre_cortado_a_60_encuentra_la_ventana_que_empieza_igual(ventanas):
+    """storage._slugify corta el nombre de la grabacion a 60 caracteres."""
+    import storage
+    titulo = 'Revisión mensual del programa de transformación de la cadena de suministro'
+    nombre = storage._slugify(titulo).replace('_', ' ')
+    assert len(nombre) == 60
+    ventanas += [(1, 10, True, 'Comunidades y espacio propio | Gil, Ana | Microsoft Teams'),
+                 (2, 10, True, f'{titulo} | Microsoft Teams')]
+    assert td.find_meeting_window(nombre) == 2
+
+
+def test_un_nombre_corto_no_vale_como_principio_de_otro(ventanas):
+    """Solo un nombre que llego cortado se compara por el principio."""
+    ventanas += [(1, 10, True, 'Comite Semanal de Ventas | Microsoft Teams')]
+    assert td.find_meeting_window('Comite Semanal') is None
 
 
 def test_el_nombre_de_la_grabacion_encuentra_la_ventana_aunque_pierda_los_signos(ventanas):

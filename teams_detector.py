@@ -60,23 +60,35 @@ def _title_kind(raw: str) -> tuple[str | None, str | None]:
     return None, None
 
 
-def _same_name(a: str, b: str) -> bool:
-    """Dos nombres de reunion son el mismo sin contar signos, espacios ni
-    mayusculas: el nombre que lleva la grabacion pierde los signos del titulo
-    ("Comite / Ventas Q4" se graba como Comite_Ventas_Q4)."""
-    def bare(s: str) -> str:
-        return ''.join(ch for ch in s.casefold() if ch.isalnum())
-    return bool(bare(a)) and bare(a) == bare(b)
+# storage._slugify corta el nombre de la grabacion a 60 caracteres: un nombre de
+# ese largo puede ser solo el principio del titulo de la reunion.
+_RECORDING_NAME_MAX = 60
 
 
-def find_meeting_window(name: str | None = None) -> int | None:
-    """La ventana de la reunion, para capturarla: la que lleva su nombre si se
-    sabe; si no, la ventana de reunion visible que este mas arriba.
+def _bare(s: str) -> str:
+    return ''.join(ch for ch in s.casefold() if ch.isalnum())
 
-    Con nombre y sin ninguna ventana que lo lleve, ninguna: la de mas arriba puede
-    ser la ventana principal de Teams o un chat, que tienen titulos con la misma
-    forma que una reunion. El 17 y el 18/11/2026 se capturo asi el chat, porque el
-    nombre de la grabacion no coincidia letra a letra con el de la ventana."""
+
+def _same_name(title: str, name: str) -> bool:
+    """El titulo de una ventana y el nombre de una grabacion son la misma reunion,
+    sin contar signos, espacios ni mayusculas: la grabacion pierde los signos del
+    titulo ("Comite / Ventas Q4" se graba como Comite_Ventas_Q4). Si el nombre
+    llego cortado, basta con que el titulo empiece igual."""
+    t, n = _bare(title), _bare(name)
+    if not n:
+        return False
+    return t.startswith(n) if len(name) >= _RECORDING_NAME_MAX else t == n
+
+
+def find_meeting_window(name: str | None) -> int | None:
+    """La ventana de la reunion que se graba, para capturarla: la que lleva su
+    nombre (_same_name). Sin nombre, o sin ninguna ventana que lo lleve, ninguna:
+    la de mas arriba puede ser la ventana principal de Teams o un chat, que tienen
+    titulos con la misma forma que una reunion. El 17 y el 18/11/2026 se capturo
+    asi el chat, porque el nombre de la grabacion no coincidia letra a letra con
+    el de la ventana."""
+    if not name or not _bare(name):
+        return None
     pids = _teams_pids()
     if not pids:
         return None
@@ -101,9 +113,7 @@ def find_meeting_window(name: str | None = None) -> int | None:
             pass
 
     win32gui.EnumWindows(cb, None)      # en orden Z: la primera es la de arriba
-    if name:
-        return next((hwnd for hwnd, title in found if title and _same_name(title, name)), None)
-    return found[0][0] if found else None
+    return next((hwnd for hwnd, title in found if title and _same_name(title, name)), None)
 
 
 def _check_window_titles(pids: list[int]) -> tuple[bool, bool, str | None, list[str]]:
