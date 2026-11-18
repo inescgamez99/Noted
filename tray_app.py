@@ -1948,6 +1948,13 @@ class TrayApp:
                 except Exception as e:
                     log.warning(f"No se pudo limpiar la transcripcion en vivo descartada: {e}")
             self.set_recording(False)
+            if path is not None:
+                # Lo que apunto el ticker (_note_teams_title): sin reunion que
+                # cerrar, nadie lo recogeria.
+                try:
+                    path.with_suffix('.title').unlink(missing_ok=True)
+                except OSError:
+                    pass
             return
         stem = self._active_job_stem()
         if stem:
