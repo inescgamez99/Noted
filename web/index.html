@@ -102,7 +102,13 @@
 
         </button>
 
-        <button class="btn-import-transcript" onclick="importTranscript()" title="Importar transcript">+</button>
+        <div class="import-wrap">
+          <button class="btn-import-transcript" onclick="toggleImportMenu(event)" data-i18n-title="import_menu_tooltip" title="Importar" aria-haspopup="true">+</button>
+          <div class="import-menu hidden" id="import-menu">
+            <button class="import-menu-item" onclick="closeImportMenu(); importTranscript()" data-i18n="import_menu_transcript">Importar transcript (.txt)</button>
+            <button class="import-menu-item" onclick="closeImportMenu(); importAudio()" data-i18n="import_menu_audio">Importar audio o vídeo…</button>
+          </div>
+        </div>
 
       </div>
 
@@ -313,6 +319,27 @@
 </div>
 
 
+
+<!-- Modal: importar audio -->
+
+<div class="modal-overlay hidden" id="import-audio-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="import-audio-title"></div>
+    <div class="modal-field">
+      <label for="import-audio-name" data-i18n="import_audio_name">Título</label>
+      <input type="text" id="import-audio-name">
+    </div>
+    <div class="modal-field">
+      <label for="import-audio-when" data-i18n="import_audio_when">Fecha y hora de la reunión</label>
+      <input type="datetime-local" id="import-audio-when">
+    </div>
+    <div class="modal-hint" data-i18n="import_audio_hint"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="cancelImportAudio()" data-i18n="import_audio_cancel">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmImportAudio()" data-i18n="import_audio_ok">Importar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal: renombrar reunión -->
 

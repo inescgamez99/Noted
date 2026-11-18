@@ -159,19 +159,12 @@ def test_sin_ffmpeg_un_video_no_se_procesa(watcher):
     assert f.exists(), "el fichero se queda para cuando haya ffmpeg"
 
 
-def test_DEFECTO_un_wav_con_ffmpeg_disponible_se_sobrescribe_con_el_original(
+def test_un_wav_con_ffmpeg_se_remuestrea_y_el_original_se_conserva(
         watcher, ffmpeg_falso, wav_factory):
-    """DEFECTO (inbox_watcher.py:75-95). La guarda es
-    `if f.suffix == '.wav' and not self._ffmpeg`, asi que con ffmpeg presente
-    (el caso NORMAL, imageio_ffmpeg viene en el venv) un .wav entra por la rama
-    de conversion. Ahi wav_name == dest_name, o sea wav_path == orig_dest:
-    ffmpeg escribe el WAV convertido a 16 kHz en esa ruta y la linea siguiente
-    hace shutil.move(f, orig_dest), SOBRESCRIBIENDOLO con el original.
-
-    Resultado: los .wav que dejas en inbox/ nunca se remuestrean, al contrario
-    de lo que promete el pipeline.
-
-    Se fija el comportamiento actual."""
+    """Antes el WAV convertido (16 kHz mono) se sobrescribia con el original: los .wav de
+    inbox/ nunca se remuestreaban. Ahora va al pipeline el convertido, y el original
+    queda aparte, en recordings/originals/ (un .wav en recordings/ lo tomaria
+    _recover_pending por otra grabacion)."""
     f = wav_factory(iw.INBOX_DIR / 'estereo.wav', seconds=0.2, samplerate=48000)
     original = f.read_bytes()
     listos = []
@@ -180,9 +173,109 @@ def test_DEFECTO_un_wav_con_ffmpeg_disponible_se_sobrescribe_con_el_original(
     watcher._process(f)
 
     assert listos, "deberia haber avisado de un fichero listo"
-    assert listos[0].read_bytes() == original, \
-        "si esto cambia, el remuestreo del inbox ya funciona"
-    assert b'RIFF-convertido' not in listos[0].read_bytes()
+    assert listos[0].read_bytes() == b'RIFF-convertido'
+    guardado = iw.RECORDINGS_DIR / iw.ORIGINALS_DIRNAME / listos[0].name
+    assert guardado.read_bytes() == original
+    assert not f.exists()
+
+
+def test_un_nombre_con_fecha_no_recibe_otra_hora_delante(watcher, ffmpeg_falso):
+    """AppAPI.import_audio pone la fecha de la reunion en el nombre."""
+    listos = []
+    watcher._on_wav_ready = listos.append
+    f = iw.INBOX_DIR / '2026-11-03_13-00_Comite_Semanal.m4a'
+    f.write_bytes(b'fake m4a')
+
+    watcher._process(f)
+
+    assert listos[0].name == '2026-11-03_13-00_Comite_Semanal.wav'
+    assert (iw.RECORDINGS_DIR / iw.ORIGINALS_DIRNAME / '2026-11-03_13-00_Comite_Semanal.m4a').exists()
+
+
+def test_un_nombre_sin_fecha_sigue_recibiendo_la_hora_de_ahora(watcher, ffmpeg_falso):
+    import re
+    listos = []
+    watcher._on_wav_ready = listos.append
+    f = iw.INBOX_DIR / 'reunion.mp3'
+    f.write_bytes(b'fake mp3')
+
+    watcher._process(f)
+
+    assert re.match(r'\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_reunion\.wav', listos[0].name)
+
+
+def test_si_ffmpeg_falla_no_queda_un_wav_a_medias(watcher, monkeypatch):
+    """Un WAV parcial en recordings/ lo reencolaba _recover_pending al arrancar y se
+    transcribia audio cortado como si fuera bueno."""
+    def run_que_escribe_y_falla(cmd, **kwargs):
+        iw.Path(cmd[-1]).write_bytes(b'RIFF-a-medias')
+        return type('R', (), {'returncode': 1, 'stderr': b'boom'})()
+
+    monkeypatch.setattr(iw.subprocess, 'run', run_que_escribe_y_falla)
+    watcher._ffmpeg = 'ffmpeg-falso'
+    f = iw.INBOX_DIR / '2026-11-03_13-00_roto.mp4'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)
+
+    assert list(iw.RECORDINGS_DIR.glob('*.wav')) == []
+    assert (iw.INBOX_DIR / '2026-11-03_13-00_roto.mp4.error').exists()
+
+
+def test_si_ffmpeg_tarda_demasiado_tampoco_queda_un_wav_a_medias(watcher, monkeypatch):
+    def run_que_se_cuelga(cmd, **kwargs):
+        iw.Path(cmd[-1]).write_bytes(b'RIFF-a-medias')
+        raise iw.subprocess.TimeoutExpired(cmd, 300)
+
+    monkeypatch.setattr(iw.subprocess, 'run', run_que_se_cuelga)
+    watcher._ffmpeg = 'ffmpeg-falso'
+    f = iw.INBOX_DIR / '2026-11-03_13-00_largo.mp4'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)       # no debe lanzar
+
+    assert list(iw.RECORDINGS_DIR.glob('*.wav')) == []
+    assert (iw.INBOX_DIR / '2026-11-03_13-00_largo.mp4.error').exists()
+
+
+def test_un_fallo_de_ffmpeg_no_borra_la_grabacion_de_otra_reunion(watcher, monkeypatch, wav_factory):
+    """Mismo nombre y mismo minuto que una reunion que ya existe: se le da otro stem
+    (__2) en vez de convertir encima, y si falla, solo se descarta lo suyo."""
+    existente = wav_factory(iw.RECORDINGS_DIR / '2026-11-03_13-00_Comite.wav', seconds=0.2)
+    contenido = existente.read_bytes()
+
+    def run_falla(cmd, **kwargs):
+        iw.Path(cmd[-1]).write_bytes(b'RIFF-a-medias')
+        return type('R', (), {'returncode': 1, 'stderr': b''})()
+
+    monkeypatch.setattr(iw.subprocess, 'run', run_falla)
+    watcher._ffmpeg = 'ffmpeg-falso'
+    f = iw.INBOX_DIR / '2026-11-03_13-00_Comite.mp3'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)
+
+    assert existente.read_bytes() == contenido
+    assert not (iw.RECORDINGS_DIR / '2026-11-03_13-00_Comite__2.wav').exists()
+
+
+def test_una_importacion_repetida_recibe_otro_stem(watcher, ffmpeg_falso, wav_factory):
+    wav_factory(iw.RECORDINGS_DIR / '2026-11-03_13-00_Comite.wav', seconds=0.2)
+    listos = []
+    watcher._on_wav_ready = listos.append
+    f = iw.INBOX_DIR / '2026-11-03_13-00_Comite.mp3'
+    f.write_bytes(b'fake')
+
+    watcher._process(f)
+
+    assert listos[0].name == '2026-11-03_13-00_Comite__2.wav'
+
+
+def test_el_tiempo_de_conversion_crece_con_el_tamano(tmp_path):
+    chico = tmp_path / 'a.mp3'
+    chico.write_bytes(b'x' * 1000)
+    assert iw._convert_timeout(chico) == 300
+    assert iw._convert_timeout(tmp_path / 'no_existe.mp3') == 300
 
 
 def test_una_excepcion_al_procesar_marca_el_fichero_y_no_propaga(watcher, monkeypatch,

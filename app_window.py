@@ -3461,6 +3461,85 @@ class AppAPI:
 
 
 
+    def pick_audio_files(self) -> list:
+        """Selector nativo de audio y video (varios). De cada archivo devuelve lo que el
+        cuadro de importacion propone: titulo (su nombre) y fecha (la de modificacion)."""
+        import inbox_watcher as iw
+        exts = ';'.join(f'*{e}' for e in sorted(iw.ALL_EXTS))
+        out = []
+        for p in self.pick_files([f'Audio y video ({exts})', 'All files (*.*)']):
+            try:
+                f = Path(p)
+                st = f.stat()
+            except OSError:
+                continue
+            out.append({'path': str(f), 'name': f.name,
+                        'title': re.sub(r'_+', ' ', f.stem).strip(),
+                        'when': datetime.fromtimestamp(st.st_mtime).strftime('%Y-%m-%dT%H:%M'),
+                        'size_mb': round(st.st_size / 1_048_576, 1)})
+        return out
+
+    def import_audio(self, path: str, title: str = '', when: str = '') -> dict:
+        """Importa un audio o video que no grabo Noted: lo COPIA a inbox/ con la fecha y
+        el titulo elegidos, y el daemon (InboxWatcher) lo convierte y lo procesa como a
+        cualquier reunion. El panel y el daemon son procesos distintos: inbox/ es el
+        canal entre los dos. El original no se mueve ni se toca.
+
+        Devuelve {'ok': True, 'name', 'stem'} o {'ok': False, 'error': codigo} con
+        not_found, bad_ext, empty, no_ffmpeg, no_space o copy_failed (la UI los traduce)."""
+        import inbox_watcher as iw
+        from storage import _COLLISION_SEP, _recording_stem_taken, _slugify
+        src = Path(path or '')
+        try:
+            if not src.is_file():
+                return {'ok': False, 'error': 'not_found'}
+            size = src.stat().st_size
+        except OSError:
+            return {'ok': False, 'error': 'not_found'}
+        ext = src.suffix.lower()
+        if ext not in iw.ALL_EXTS:
+            return {'ok': False, 'error': 'bad_ext'}
+        if size <= 0:
+            return {'ok': False, 'error': 'empty'}
+        # Sin ffmpeg solo se procesan los .wav: lo demas se quedaria en inbox/ sin
+        # que nadie lo avise. Mejor decirlo antes de copiar nada.
+        if ext != '.wav' and not iw._find_ffmpeg():
+            return {'ok': False, 'error': 'no_ffmpeg'}
+        try:
+            iw.INBOX_DIR.mkdir(parents=True, exist_ok=True)
+            if shutil.disk_usage(iw.INBOX_DIR).free < size + 500 * 1_048_576:
+                return {'ok': False, 'error': 'no_space'}
+        except OSError as e:
+            log.warning(f"import_audio: disco: {e}")
+
+        try:
+            dt = datetime.fromisoformat((when or '').strip())
+        except ValueError:
+            dt = datetime.now()
+        base = f"{dt.strftime('%Y-%m-%d_%H-%M')}_{_slugify(title or '') or _slugify(src.stem) or 'Audio_importado'}"
+        stem, n = base, 2
+        while _recording_stem_taken(stem) or any(iw.INBOX_DIR.glob(glob.escape(stem) + '.*')):
+            stem = f"{base}{_COLLISION_SEP}{n}"
+            n += 1
+
+        # Primero a un temporal que el watcher ignora (.importing no es una extension
+        # de audio) y luego se renombra: un archivo grande copiandose parece estable
+        # si la copia se para un momento, y se procesaria a medias.
+        tmp = iw.INBOX_DIR / f"{stem}{ext}.importing"
+        final = iw.INBOX_DIR / f"{stem}{ext}"
+        try:
+            shutil.copyfile(src, tmp)
+            os.replace(tmp, final)
+        except OSError as e:
+            log.error(f"import_audio: no se pudo copiar {src.name}: {e}")
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            return {'ok': False, 'error': 'copy_failed'}
+        log.info(f"import_audio: {src.name} -> inbox/{final.name}")
+        return {'ok': True, 'name': final.name, 'stem': stem}
+
     def get_import_status(self, run_id: str) -> dict:
 
         """Devuelve el progreso de una importación en curso: {pct, stage, done, error, path}."""

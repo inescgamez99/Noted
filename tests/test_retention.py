@@ -72,3 +72,40 @@ def test_lo_reciente_no_se_toca(tr_dirs):
     con_minutas()
     storage.cleanup_old_recordings()
     assert wav.exists()
+
+
+# ── originals/: el audio original de lo importado o soltado en inbox/ ───────
+
+def en_originals(nombre, cuando=HACE_20):
+    d = storage.RECORDINGS_DIR / 'originals'
+    d.mkdir(parents=True, exist_ok=True)
+    return envejecer(d / nombre, cuando)
+
+
+def test_un_original_con_minutas_se_borra_a_los_10_dias(tr_dirs):
+    """Sin esto, los MP3, M4A y MP4 importados se acumulan en disco para siempre."""
+    original = en_originals(f'{STEM}.m4a')
+    con_minutas()
+    storage.cleanup_old_recordings()
+    assert not original.exists()
+
+
+def test_un_original_sin_minutas_se_guarda_hasta_el_tope(tr_dirs):
+    """Como la grabacion que sale de el: si no se proceso, no se borra a los 10 dias."""
+    original = en_originals(f'{STEM}.mp4')
+    storage.cleanup_old_recordings()
+    assert original.exists()
+
+
+def test_pasado_el_tope_un_original_pendiente_se_borra(tr_dirs):
+    original = en_originals(f'{STEM}.mp4', HACE_40)
+    storage.cleanup_old_recordings()
+    assert not original.exists()
+
+
+def test_un_original_reciente_no_se_toca(tr_dirs):
+    original = en_originals(f'{STEM}.wav', time.time())
+    con_minutas()
+    storage.cleanup_old_recordings()
+    assert original.exists()
+

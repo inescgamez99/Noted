@@ -1,4 +1,6 @@
 import logging
+import os
+import re
 import shutil
 import subprocess
 import threading
@@ -12,6 +14,36 @@ log = logging.getLogger(__name__)
 AUDIO_EXTS = {'.wav', '.mp3', '.m4a', '.aac', '.ogg', '.flac', '.opus', '.wma'}
 VIDEO_EXTS = {'.mp4', '.mkv', '.avi', '.mov', '.webm', '.m4v', '.wmv', '.ts'}
 ALL_EXTS   = AUDIO_EXTS | VIDEO_EXTS
+
+
+# Un nombre que ya empieza por YYYY-MM-DD_HH-MM_ lleva la fecha de la reunion (lo pone
+# AppAPI.import_audio): no se le antepone la hora de ahora. Los ficheros que alguien
+# suelta a mano en inbox/ siguen recibiendo la hora de ahora.
+_DATED_NAME = re.compile(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_')
+
+# Donde queda el original despues de convertirlo. NO en recordings/: un .wav alli lo
+# tomaria _recover_pending por una grabacion y lo procesaria otra vez.
+ORIGINALS_DIRNAME = 'originals'
+
+
+def _convert_timeout(f: Path) -> int:
+    """Segundos que se le dan a ffmpeg: 5 min como minimo, y mas en ficheros grandes
+    (un video de 1-2 h de Teams)."""
+    try:
+        return max(300, int(f.stat().st_size / 1_000_000 * 1.5))
+    except OSError:
+        return 300
+
+
+def _unique_stem(stem: str) -> str:
+    """Si ya existe una grabacion con este stem, anade __2, __3...: convertir encima
+    de ella la sobrescribiria (y si falla, borrariamos lo de otra reunion)."""
+    from storage import _COLLISION_SEP, _recording_stem_taken
+    base, n = stem, 2
+    while _recording_stem_taken(stem):
+        stem = f"{base}{_COLLISION_SEP}{n}"
+        n += 1
+    return stem
 
 
 def _find_ffmpeg() -> str | None:
@@ -68,8 +100,11 @@ class InboxWatcher:
 
     def _process(self, f: Path):
         from datetime import datetime
-        ts = datetime.now().strftime('%Y-%m-%d_%H-%M')
-        dest_name = f"{ts}_{f.name}"
+        if _DATED_NAME.match(f.name):
+            dest_name = f.name
+        else:
+            dest_name = f"{datetime.now().strftime('%Y-%m-%d_%H-%M')}_{f.name}"
+        created = None      # el WAV que ESTE proceso esta creando, por si hay que descartarlo
 
         try:
             if f.suffix.lower() == '.wav' and not self._ffmpeg:
@@ -79,27 +114,52 @@ class InboxWatcher:
                 if not self._ffmpeg:
                     log.warning(f"ffmpeg no disponible, no se puede convertir {f.name}")
                     return
-                wav_name = dest_name.rsplit('.', 1)[0] + '.wav'
-                wav_path = RECORDINGS_DIR / wav_name
-                orig_dest = RECORDINGS_DIR / dest_name
+                stem = _unique_stem(dest_name.rsplit('.', 1)[0])
+                wav_path = RECORDINGS_DIR / f"{stem}.wav"
+                originals = RECORDINGS_DIR / ORIGINALS_DIRNAME
+                originals.mkdir(parents=True, exist_ok=True)
+                orig_dest = originals / f"{stem}{Path(dest_name).suffix}"
+                created = wav_path
                 result = subprocess.run(
                     [self._ffmpeg, '-y', '-i', str(f),
                      '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
                      str(wav_path)],
-                    capture_output=True, timeout=300,
+                    capture_output=True, timeout=_convert_timeout(f),
                 )
                 if result.returncode != 0:
+                    # Sin dejar un WAV a medias: _recover_pending lo transcribiria al
+                    # arrancar como si fuera una grabacion buena.
+                    self._discard_partial(created)
+                    created = None
                     f.rename(f.parent / (f.name + '.error'))
                     log.error(f"ffmpeg falló convirtiendo {f.name}")
                     return
+                created = None
                 shutil.move(str(f), str(orig_dest))
+                # La retencion cuenta desde que se archiva, no desde la fecha del
+                # fichero (un MP3 de hace un mes se borraria en el siguiente arranque).
+                try:
+                    os.utime(orig_dest, None)
+                except OSError:
+                    pass
 
             log.info(f"Inbox: {f.name} → {wav_path.name}")
             if self._on_wav_ready:
                 self._on_wav_ready(wav_path)
         except Exception as e:
             log.error(f"Error procesando {f.name}: {e}")
+            if created is not None:
+                self._discard_partial(created)
             try:
                 f.rename(f.parent / (f.name + '.error'))
             except Exception:
                 pass
+
+    @staticmethod
+    def _discard_partial(wav_path: Path) -> None:
+        """Borra el WAV que ffmpeg dejo a medias. Solo se llama con un WAV creado por
+        este proceso, cuyo nombre _unique_stem garantizo libre antes de empezar."""
+        try:
+            wav_path.unlink(missing_ok=True)
+        except OSError as e:
+            log.warning(f"No se pudo borrar el WAV parcial {wav_path.name}: {e}")
