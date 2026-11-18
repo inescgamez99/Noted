@@ -39,7 +39,7 @@ scripts\install_autostart.bat   # registers Task Scheduler entry
 # to run without console: scripts\start_silent.vbs
 ```
 
-**Diagnostic scripts** (not production, just dev helpers): `tools/check_audio.py`, `tools/check_teams.py`, `tools/check_onenote.py`, `tools/check_onenote_graph.py`, `tools/diagnostico.py`, `tools/check_glossary_ui.py` (end-to-end check of the glossary UI against the real `AppAPI`, needs `playwright`). GSK one-offs: `tools/gsk/`.
+**Diagnostic scripts** (not production, just dev helpers): `tools/check_audio.py`, `tools/check_teams.py`, `tools/diagnostico.py`, `tools/check_glossary_ui.py` (end-to-end check of the glossary UI against the real `AppAPI`, needs `playwright`).
 
 ## Configuration
 
@@ -51,7 +51,9 @@ WHISPER_LANGUAGE=es            # omit for auto-detect
 OUTPUT_DIR=C:\path\to\output   # default: project root
 ```
 
-Key constants in `config.py`: `TEAMS_POLL_INTERVAL=3.0s`, `TEAMS_REQUIRED_CONFIRMATIONS=2`, `CLAUDE_MODEL=claude-sonnet-4-6`, `SAMPLE_RATE=16000Hz`.
+`settings.json` (written by the Settings UI) takes priority over `.env` for `OUTPUT_DIR` (`output_dir`) and `WHISPER_MODEL` (`whisper_model`). It also holds `minutes_mode` (`config.minutes_mode()`: `full` = full minutes, `summary` = title + brief summary only, `off` = transcript only; default `full`) and `actions_enabled` (`config.actions_enabled()`; actions are only extracted/enriched with `full` minutes and when this is not false). Both are read fresh on each call because the panel is another process.
+
+Key constants in `config.py`: `TEAMS_POLL_INTERVAL=3.0s`, `TEAMS_REQUIRED_CONFIRMATIONS=2`, `SAMPLE_RATE=16000Hz`.
 
 ## Pipeline & Data Flow
 
@@ -85,6 +87,7 @@ teams_detector.py  ──call detected──►  tray_app.py (pipeline queue)
 - `recordings/processed/` — moved here after full pipeline completes
 - `minutes/` — `<slug>.md` + `<slug>.html` + `<slug>.actions.json`
 - `inbox/` — drop zone; `inbox_watcher.py` converts any audio/video via ffmpeg and feeds to pipeline
+- `recordings/originals/` — the original file (MP3, M4A, MP4...) of what came in through `inbox/`, kept after conversion (deliberately not in `recordings/`: a stray `.wav` there would be re-processed by `_recover_pending`)
 
 ## Key Architecture Decisions
 
@@ -113,11 +116,23 @@ Action blocks embedded in markdown:
 
 `actions_parser.py` uses regex to extract these; `actions_enricher.py` calls Claude to assign each to a project (guessed from directory names) and an assignee.
 
+### Importing audio/video
+The "+" in the web UI calls `AppAPI.pick_audio_files()` (native picker) and `AppAPI.import_audio()`, which COPIES the file to `inbox/` with the chosen title/date (the panel and the daemon are different processes; `inbox/` is the channel). `InboxWatcher` converts it and writes a `<stem>.imported` marker next to the recording: the pipeline then does NOT search Outlook for attendees or subject (no calendar entry is theirs; the time in the name is only a label).
+
+### Glossary hints for Whisper are OFF
+`glossary.WHISPER_HOTWORDS = False`: passing glossary terms as `hotwords` made Whisper write almost nothing in some stretches with speech (same 125 s: 303 words without hints, 64 with them; it is instability, not length). Names are fixed afterwards by `apply_corrections` on the transcript and the exact spelling in the minutes prompt. Set it to `True` to pass them again.
+
+### Live transcript
+`live_transcriber.py` runs in its own process during the meeting (background or live mode, `<stem>.live.*` files) and the daemon closes it with `finish_live`; read its module docstring before touching it.
+
+### Outlook matching
+`outlook_sender.find_meeting_participants` matches a calendar entry by the Teams meeting name and, as a fallback, by time. If a Teams name exists but no entry matches it, it is NOT matched by time (it would pick another meeting the user happened to have then).
+
 ### Web UI
 `app_window.py` wraps pywebview as a singleton and exposes an `AppAPI` class (Python methods callable from JS via `window.pywebview.api.*`). Key methods: `get_meetings()`, `get_actions()`, `execute_action()`, `enrich_actions()`. The web UI (`web/index.html` + `app.js` + `app.css`) is a single-page app with a meetings sidebar and an actions manager view.
 
 ### Single Instance
-`main.py` writes a `.lock` file with the current PID. On startup it checks if the PID is still alive; if so, it exits. CLI commands communicate with the running daemon by writing to a `.cli_command` file polled by a listener thread in `main.py`.
+`main.py` first takes the named Windows mutex `Noted_SingleInstance` (atomic; the file lock alone has a TOCTOU race), then writes a `.lock` file with the current PID. On startup it checks if the PID is still alive; if so, it exits. CLI commands communicate with the running daemon by writing to a `.cli_command` file polled by a listener thread in `main.py`.
 
 ## Where to Make Changes
 
