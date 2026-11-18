@@ -1,5 +1,7 @@
 import atexit
 
+import atomic_io
+
 import glob
 
 import json
@@ -791,15 +793,19 @@ class AppAPI:
 
             import re as _re
 
+            # Sin saltos de linea (romperian la cabecera) y con funcion de
+            # reemplazo: como cadena, `\1` o `\g<` del titulo se interpretan.
+            title = _re.sub(r'\s*[\r\n]+\s*', ' ', new_title).strip()
+
             if _re.match(r'TITULO:', text):
 
-                text = _re.sub(r'^TITULO:.*', f'TITULO: {new_title.strip()}', text, count=1)
+                text = _re.sub(r'^TITULO:.*', lambda _m: f'TITULO: {title}', text, count=1)
 
             else:
 
-                text = f'TITULO: {new_title.strip()}\n\n' + text
+                text = f'TITULO: {title}\n\n' + text
 
-            md_path.write_text(text, encoding='utf-8')
+            atomic_io.write_text_atomic(md_path, text)
 
             return True
 
@@ -1731,7 +1737,12 @@ class AppAPI:
 
             if p.exists():
 
+                # Corrupto: la excepcion corta aqui, no se re-guarda encima.
                 data = json.loads(p.read_text(encoding='utf-8'))
+
+                if not isinstance(data, dict):
+
+                    raise ValueError('projects.json no es un objeto')
 
             projects = data.get('projects', [])
 
@@ -1769,7 +1780,7 @@ class AppAPI:
 
             data['projects'] = projects
 
-            p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            atomic_io.write_text_atomic(p, json.dumps(data, ensure_ascii=False, indent=2))
 
             if is_new:
 
@@ -2320,6 +2331,11 @@ class AppAPI:
 
         p = Path(path)
 
+        if not isinstance(notes_md, str) or not notes_md.strip():
+
+            # Un editor vacio por error dejaria la minuta en blanco.
+            return False
+
         try:
 
             current = ''
@@ -2328,9 +2344,16 @@ class AppAPI:
 
                 current = p.read_text(encoding='utf-8')
 
-            except Exception:
+            except FileNotFoundError:
 
                 pass
+
+            except Exception as e:
+
+                # Sin leer lo que hay no se puede preservar la seccion de Acciones.
+                log.error(f"save_minutes_notes: no se pudo leer {p.name}: {e}")
+
+                return False
 
             m = re.search(
 
@@ -2344,7 +2367,7 @@ class AppAPI:
 
             new_md = notes_md.rstrip() + (('\n\n' + actions_section + '\n') if actions_section else '\n')
 
-            p.write_text(new_md, encoding='utf-8')
+            atomic_io.write_text_atomic(p, new_md)
 
             try:
 
@@ -2443,11 +2466,16 @@ class AppAPI:
 
             if p.exists():
 
+                # Corrupto: la excepcion corta aqui, no se re-guarda encima.
                 existing = json.loads(p.read_text(encoding='utf-8'))
+
+                if not isinstance(existing, dict):
+
+                    raise ValueError('settings.json no es un objeto')
 
             existing.update(settings)
 
-            p.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding='utf-8')
+            atomic_io.write_text_atomic(p, json.dumps(existing, indent=2, ensure_ascii=False))
 
             return True
 
