@@ -59,9 +59,9 @@ _STR = {
     'es': dict(
         record_now='Grabar ahora', stop='Parar grabacion',
         record_now_live='Grabar ahora (transcript en vivo)',
-        switch_live='Activar transcript en vivo',
-        add_context='Añadir contexto a grabacion',
-        cancel_recording='Cancelar grabacion (sin guardar)',
+        switch_live='Transcript en vivo',
+        add_context='Añadir nota…',
+        cancel_recording='Descartar grabación…',
         view_minutes='Abrir la aplicacion',
         quit='Salir',
         recordings_queued='{n} grabaciones en cola',
@@ -85,8 +85,7 @@ _STR = {
         untitled='Reunión {time}',
         mic_only='Grabando SOLO tu microfono: no se captura el audio de los demas. Si usas auriculares, sus voces no quedaran en la grabacion.',
         mic_unavailable='No se pudo acceder al micrófono. Comprueba que no lo usa otra app.',
-        mic_menu_muted='Micrófono: {name} — SILENCIADO (clic para activar)',
-        mic_menu_active='Micrófono: {name} — activo (clic para silenciar)',
+        mic_mute='Silenciar micrófono',
         mic_tip_muted='micro SILENCIADO',
         mic_muted_warning='Tu micrófono ({name}) está silenciado en Windows: no se grabará tu voz. Actívalo desde el menú de Noted.',
         disk_full='Disco lleno: Noted guarda el audio en memoria y lo escribirá en cuanto haya espacio. Libera espacio.',
@@ -99,7 +98,7 @@ _STR = {
         disk_low='Queda poco espacio en disco ({gb:.1f} GB). Noted sigue grabando.',
         disk_critical='Disco casi lleno ({gb:.1f} GB). Libera espacio: mientras tanto Noted guarda el audio en memoria.',
         disk_critical_reserve='Disco casi lleno ({gb:.1f} GB): Noted ha liberado su reserva de {released:.0f} GB para seguir grabando. Libera espacio.',
-        cancel_job='Descartar esta reunion (papelera)',
+        cancel_job='Descartar esta reunión…',
         job_cancelled='Reunion descartada: el audio y lo generado se han movido a la papelera.',
         ctx_title='Contexto / objetivo de la reunion',
         ctx_subtitle='Entra en el transcript en el minuto {time}; puedes añadir varias',
@@ -117,13 +116,16 @@ _STR = {
         ctx_save_failed='No se pudo guardar la nota (el detalle esta en noted.log).',
         ctx_note_label='Nota de {name}',
         ctx_note_label_anon='Nota',
+        confirm_discard_rec='¿Descartar esta grabación? Se borra el audio y no se puede recuperar.',
+        confirm_discard_job='¿Descartar esta reunión? Su audio y lo generado van a la papelera.',
+        discard_changed='La grabación cambió mientras confirmabas: no se ha descartado nada.',
     ),
     'en': dict(
         record_now='Record now', stop='Stop recording',
         record_now_live='Record now (live transcript)',
-        switch_live='Turn on live transcript',
-        add_context='Add context to recording',
-        cancel_recording='Cancel recording (discard)',
+        switch_live='Live transcript',
+        add_context='Add note…',
+        cancel_recording='Discard recording…',
         view_minutes='Open the app',
         quit='Quit',
         recordings_queued='{n} recordings in queue',
@@ -147,8 +149,7 @@ _STR = {
         untitled='Meeting {time}',
         mic_only='Recording your microphone ONLY — system audio is not being captured. If you are on a headset, the others will not be in the recording.',
         mic_unavailable='Could not access the microphone. Check that no other app is using it.',
-        mic_menu_muted='Microphone: {name} — MUTED (click to unmute)',
-        mic_menu_active='Microphone: {name} — on (click to mute)',
+        mic_mute='Mute microphone',
         mic_tip_muted='mic MUTED',
         mic_muted_warning='Your microphone ({name}) is muted in Windows: your voice will not be recorded. Unmute it from the Noted menu.',
         disk_full='Disk full: Noted keeps the audio in memory and will write it as soon as there is space. Free up some space.',
@@ -161,7 +162,7 @@ _STR = {
         disk_low='Low disk space ({gb:.1f} GB left). Noted keeps recording.',
         disk_critical='Disk almost full ({gb:.1f} GB). Free up some space: meanwhile Noted keeps the audio in memory.',
         disk_critical_reserve='Disk almost full ({gb:.1f} GB): Noted released its {released:.0f} GB reserve to keep recording. Free up some space.',
-        cancel_job='Discard this meeting (bin)',
+        cancel_job='Discard this meeting…',
         job_cancelled='Meeting discarded: the audio and generated files were moved to the bin.',
         ctx_title='Meeting context / goal',
         ctx_subtitle='Goes into the transcript at {time}; you can add several',
@@ -179,6 +180,9 @@ _STR = {
         ctx_save_failed='The note could not be saved (details in noted.log).',
         ctx_note_label='Note by {name}',
         ctx_note_label_anon='Note',
+        confirm_discard_rec='Discard this recording? The audio is deleted and cannot be recovered.',
+        confirm_discard_job='Discard this meeting? Its audio and generated files go to the bin.',
+        discard_changed='The recording changed while you were confirming: nothing was discarded.',
     ),
 }
 
@@ -213,6 +217,9 @@ _ICON_RECORDING  = _make_icon('#f38ba8')
 _ICON_PROCESSING = _make_icon('#f9e2af')
 
 _MIC_POLL_S = 2
+# szTip de Windows: 128 caracteres con el nulo final; con uno mas, pystray lanza
+# ValueError y el tooltip se queda sin actualizar.
+_TIP_MAX = 127
 _BADGED: dict[int, object] = {}
 
 
@@ -232,6 +239,16 @@ def _with_mic_badge(img):
     d.line([39, 56, 56, 39], fill='#ffffff', width=5)
     _BADGED[id(img)] = out
     return out
+
+
+def _ask_yes_no(title: str, text: str) -> bool:
+    """Si/No de Windows (MessageBoxW), encima de todo y con 'No' por defecto: un
+    Enter de mas no descarta nada."""
+    import ctypes
+    MB_YESNO, MB_ICONWARNING, MB_DEFBUTTON2 = 0x4, 0x30, 0x100
+    MB_SETFOREGROUND, MB_TOPMOST, IDYES = 0x10000, 0x40000, 6
+    flags = MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SETFOREGROUND | MB_TOPMOST
+    return ctypes.windll.user32.MessageBoxW(None, text, title, flags) == IDYES
 
 
 class TrayApp:
@@ -297,40 +314,48 @@ class TrayApp:
 
     def start(self):
         import pystray
-        s = _STR.get(get_ui_language(), _STR['en'])
-        self._icon = pystray.Icon(
-            'Noted',
-            _ICON_IDLE,
-            'Noted',
-            menu=pystray.Menu(
-                pystray.MenuItem(lambda _: s['stop'] if self._recorder.is_recording else s['record_now'],
-                                 self._toggle_recording),
-                pystray.MenuItem(s['record_now_live'], self._record_now_live,
-                                 visible=lambda _: not self._recorder.is_recording),
-                pystray.MenuItem(s['switch_live'], self._switch_live_from_menu,
-                                 visible=lambda _: bool(self._recorder.is_recording
-                                                        and self._rec_mode != 'live')),
-                pystray.MenuItem(s['add_context'],
-                                 self._add_context,
-                                 visible=lambda _: bool(self._recorder.is_recording)),
-                pystray.MenuItem(s['cap_menu'],
-                                 self._capture_screen,
-                                 visible=lambda _: bool(self._recorder.is_recording)),
-                pystray.MenuItem(lambda _: (s['cancel_recording'] if self._recorder.is_recording
-                                            else s['cancel_job']),
-                                 self._cancel_recording,
-                                 visible=lambda _: bool(self._recorder.is_recording
-                                                        or self._active_job_stem())),
-                pystray.MenuItem(lambda _: self._mic_menu_label(),
-                                 self._toggle_mic_mute,
-                                 visible=lambda _: getattr(self, '_mic_state', None) is not None),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(s['view_minutes'], self._open_actions_ui, default=True),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(s['quit'], self._quit),
-            )
-        )
+        self._icon = pystray.Icon('Noted', _ICON_IDLE, 'Noted', menu=self._build_menu())
         self._icon.run()
+
+    def _build_menu(self):
+        """El menu de la bandeja, agrupado por uso: arriba lo que se pulsa durante
+        la llamada; luego los interruptores, con su marca; parar y descartar
+        aparte, y descartar pregunta antes. pystray oculta lo que no toca y los
+        separadores que sobran."""
+        import pystray
+        s = _STR.get(get_ui_language(), _STR['en'])
+        sep = pystray.Menu.SEPARATOR
+
+        def recording(_):
+            return bool(self._recorder.is_recording)
+
+        def idle(_):
+            return not self._recorder.is_recording
+
+        return pystray.Menu(
+            pystray.MenuItem(s['record_now'], self._record_now, visible=idle),
+            pystray.MenuItem(s['record_now_live'], self._record_now_live, visible=idle),
+            pystray.MenuItem(s['cap_menu'], self._capture_screen, visible=recording),
+            pystray.MenuItem(s['add_context'], self._add_context, visible=recording),
+            sep,
+            # En vivo se enciende a mitad de la reunion pero no se apaga: marcado y gris.
+            pystray.MenuItem(s['switch_live'], self._switch_live_from_menu,
+                             checked=lambda _: self._rec_mode == 'live',
+                             enabled=lambda _: self._rec_mode != 'live',
+                             visible=recording),
+            pystray.MenuItem(s['mic_mute'], self._toggle_mic_mute,
+                             checked=lambda _: self._mic_muted(),
+                             visible=lambda _: getattr(self, '_mic_state', None) is not None),
+            sep,
+            pystray.MenuItem(s['stop'], self._stop_recording, visible=recording),
+            pystray.MenuItem(lambda _: s['cancel_recording'] if self._recorder.is_recording else s['cancel_job'],
+                             self._confirm_cancel,
+                             visible=lambda _: bool(self._recorder.is_recording or self._active_job_stem())),
+            sep,
+            pystray.MenuItem(s['view_minutes'], self._open_actions_ui, default=True),
+            sep,
+            pystray.MenuItem(s['quit'], self._quit),
+        )
 
     def _write_status(self):
         import json as _json
@@ -678,17 +703,16 @@ class TrayApp:
         return _with_mic_badge(img) if self._mic_muted() else img
 
     def _mic_decorated_title(self, tooltip: str) -> str:
-        if not self._mic_muted():
-            return tooltip
-        s = _STR.get(get_ui_language(), _STR['en'])
-        return f"{tooltip} · {s['mic_tip_muted']}"
-
-    def _mic_menu_label(self) -> str:
+        """El tooltip dice que micro graba (el menu solo dice si esta silenciado)
+        y, si lo esta, eso va antes del nombre: Windows corta el tooltip y no
+        puede llevarse el aviso."""
         st = getattr(self, '_mic_state', None)
         if st is None:
-            return ''
+            return tooltip
         s = _STR.get(get_ui_language(), _STR['en'])
-        return (s['mic_menu_muted'] if st.muted else s['mic_menu_active']).format(name=st.name)
+        mic = f"{s['mic_tip_muted']} · {st.name}" if st.muted else st.name
+        title = f"{tooltip} · {mic}"
+        return title if len(title) <= _TIP_MAX else title[:_TIP_MAX - 1] + '…'
 
     def _refresh_icon(self):
         img, tooltip = getattr(self, '_icon_base', (_ICON_IDLE, 'Noted'))
@@ -1979,12 +2003,17 @@ class TrayApp:
                 self._pipeline_queue.put(wav)
         self._refresh_disk_reserve()
 
-    def _toggle_recording(self):
+    # 'Grabar ahora' y 'Parar' son dos opciones y cada una hace solo lo suyo: el
+    # menu se pinta antes del clic, y si entretanto la grabacion empezo o paro, una
+    # opcion que alterna haria lo contrario de lo que se leia.
+    def _record_now(self):
+        if not self._recorder.is_recording:
+            self._start_manual('background')
+
+    def _stop_recording(self):
         if self._recorder.is_recording:
             self._recorder.stop()
             self.set_recording(False)
-        else:
-            self._start_manual('background')
 
     def _record_now_live(self):
         """'Grabar ahora (en vivo)': como 'Grabar ahora', pero con el transcript ya.
@@ -2017,6 +2046,32 @@ class TrayApp:
         if stem:
             return stem
         return self._pipeline_queued[0] if self._pipeline_queued else ''
+
+    def _confirm_cancel(self):
+        """'Descartar…' pregunta antes: mientras se graba borra el audio sin vuelta
+        atras, y esta a un clic de opciones que se pulsan varias veces por llamada."""
+        if self._recorder.is_recording:
+            target, key = self._recording_path, 'confirm_discard_rec'
+        else:
+            target, key = self._active_job_stem(), 'confirm_discard_job'
+        if not target:
+            return
+        threading.Thread(target=lambda: self._discard_if_confirmed(target, key),
+                         daemon=True, name='ConfirmDiscard').start()
+
+    def _discard_if_confirmed(self, target, key: str) -> bool:
+        """Se descarta lo que habia al pulsar, no lo que haya al confirmar: si
+        entretanto la grabacion paro o empezo otra, no se toca nada."""
+        s = _STR.get(get_ui_language(), _STR['en'])
+        if not _ask_yes_no('Noted', s[key]):
+            return False
+        now = self._recording_path if self._recorder.is_recording else self._active_job_stem()
+        if now != target:
+            log.info(f"Descarte no aplicado: {target} ya no es lo que se graba o procesa")
+            self._notify('Noted', s['discard_changed'])
+            return False
+        self._cancel_recording()
+        return True
 
     def _cancel_recording(self):
         # Mientras graba, se descarta el audio sin guardar. Una vez parada, lo
