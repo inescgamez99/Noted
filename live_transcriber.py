@@ -95,13 +95,16 @@ LOOPBACK_WAIT_S = 50
 FINISH_BLOCK_S = 300
 
 # Idioma. En vivo se fija la primera vez que un trozo lo deja claro; en el modo de
-# fondo, como el post-reunion: una vez, en el micro, con voz suficiente.
+# fondo, como el post-reunion: una vez, con el tramo mas seguro de micro y Teams.
 LANG_LOCK_PROB = 0.8
 LANG_MIN_VOICE_S = 30
 LANG_FALLBACK_AFTER_S = 180
 # Despues, cada pista lo vuelve a mirar como mucho cada LANG_RECHECK_S de su audio
 # (transcriber.recheck_language): en el modo de fondo, casi en cada trozo.
 LANG_RECHECK_S = 120
+# Si la primera deteccion no llega a LANG_LOCK_PROB, no se fija: se vuelve a mirar
+# con el audio de mas adelante, a partir de este salto.
+LANG_RETRY_STEP_S = 150
 
 # Memoria. Lo que cuenta es la RESERVA contra el limite de Windows (commit), no
 # la RAM en uso: 'medium' reserva ~4,7 GB al cargarse y solo toca ~0,9 GB
@@ -768,34 +771,50 @@ def _voiced(audio, vad, vad_opts) -> float:
     return sum(s['end'] - s['start'] for s in vad(np.ascontiguousarray(audio * gain), vad_opts)) / SR
 
 
-def _detect_language(model, wav: Path, vad, vad_opts) -> str | None:
-    """Idioma para el modo de fondo, como lo decide el post-reunion: una vez, en el
-    micro (5 segmentos de deteccion), cuando hay voz suficiente. Si tras
-    LANG_FALLBACK_AFTER_S el micro apenas tiene voz (quien graba no habla), se usa
-    la pista con mas voz. None mientras no se pueda decidir."""
+def _detect_language(model, wav: Path, vad, vad_opts,
+                     start_s: float = 0.0) -> tuple[str | None, float]:
+    """(idioma, confianza) para el modo de fondo, como lo decide el post-reunion:
+    el del tramo mas seguro de los dos (micro y Teams) entre los que tienen voz
+    suficiente, mirando desde start_s. Un tramo vale con LANG_MIN_VOICE_S de voz, o,
+    pasados LANG_FALLBACK_AFTER_S de audio, con algo de voz (quien graba no habla).
+    (None, 0.0) mientras ninguno tenga voz bastante.
+
+    18/11/2026: se miraba solo el micro, con 37 s de voz, y Whisper dijo 'uk' con
+    0,66: el remapeo lo convirtio en 'en', se fijo sin mirar la confianza y el
+    castellano del micro salio traducido al ingles durante 7 minutos. La pista de
+    Teams, con 141 s de voz, daba 'es' con mas de 0,9."""
     import numpy as np
 
     import transcriber
-    window = 150 * SR
-    mic, mic_total = read_part(part_path(wav, 'mic'), 0, window)
-    mic_voice = _voiced(mic, vad, vad_opts)
-    audio = None
-    if mic_voice >= LANG_MIN_VOICE_S:
-        audio = mic
-    elif mic_total >= LANG_FALLBACK_AFTER_S * SR:
-        loop, _ = read_part(part_path(wav, 'loop'), 0, window)
-        loop_voice = _voiced(loop, vad, vad_opts)
-        best, voice = (loop, loop_voice) if loop_voice > mic_voice else (mic, mic_voice)
-        if voice >= 5:
-            audio = best
-    if audio is None:
-        return None
-    peak = float(np.max(np.abs(audio)))
-    gain = min(0.8 / peak, 50.0) if peak > 0 else 1.0
-    lang, prob, _ = model.detect_language(np.ascontiguousarray(audio * gain), vad_filter=True,
-                                          language_detection_segments=5)
-    log.info(f"live: idioma detectado '{lang}' ({prob:.2f})")
-    return transcriber._remap(lang)
+    window, start = 150 * SR, int(start_s * SR)
+    best_lang, best_prob = None, 0.0
+    for name in TRACKS:
+        audio, total = read_part(part_path(wav, name), start, window)
+        voice = _voiced(audio, vad, vad_opts)
+        if not (voice >= LANG_MIN_VOICE_S
+                or (voice >= 5 and total >= start + LANG_FALLBACK_AFTER_S * SR)):
+            continue
+        peak = float(np.max(np.abs(audio)))
+        gain = min(0.8 / peak, 50.0) if peak > 0 else 1.0
+        lang, prob, _ = model.detect_language(np.ascontiguousarray(audio * gain), vad_filter=True,
+                                              language_detection_segments=5)
+        log.info(f"live: idioma detectado '{lang}' ({prob:.2f}) en {name}")
+        if prob > best_prob:
+            best_lang, best_prob = lang, float(prob)
+    return (transcriber._remap(best_lang) if best_lang else None), best_prob
+
+
+def _settle_language(found: str | None, prob: float, start_s: float) -> tuple[str | None, float]:
+    """(idioma a fijar o None, desde donde mirar la proxima vez). Solo se fija con
+    confianza alta (LANG_LOCK_PROB), como en el post-reunion y en _step: fijarlo con
+    una deteccion dudosa impone un idioma equivocado a toda la reunion."""
+    if found is None:
+        return None, start_s
+    if prob >= LANG_LOCK_PROB:
+        return found, start_s
+    log.info(f"live: idioma '{found}' sin confianza ({prob:.2f}, hacen falta {LANG_LOCK_PROB}): "
+             f"no se fija; vuelvo a mirar con el audio de mas adelante")
+    return None, start_s + LANG_RETRY_STEP_S
 
 
 def _run(wav: Path, daemon_pid: int, daemon_ct: float, from_now: bool = False) -> None:
@@ -822,6 +841,7 @@ def _run(wav: Path, daemon_pid: int, daemon_ct: float, from_now: bool = False) -
     vad_opts = VadOptions(threshold=0.3, min_silence_duration_ms=500, speech_pad_ms=0)
 
     mode = model = model_name = None
+    detect_from = 0.0                  # desde donde mirar el idioma (ver _settle_language)
     waiting_logged = -WAITING_LOG_EVERY_S        # el primer aviso de memoria sale ya
     last_ctl, ctl = 0.0, read_ctl(wav)
 
@@ -932,7 +952,8 @@ def _run(wav: Path, daemon_pid: int, daemon_ct: float, from_now: bool = False) -
             log.info(f"live: modelo '{name}' cargado en {time.monotonic() - t0:.1f}s ({mode})")
             _write_status(wav, state='running', mode=mode, model=name)
         if mode == MODE_BACKGROUND and lang is None:
-            lang = _detect_language(model, wav, get_speech_timestamps, vad_opts)
+            found, prob = _detect_language(model, wav, get_speech_timestamps, vad_opts, detect_from)
+            lang, detect_from = _settle_language(found, prob, detect_from)
             if lang is None:
                 time.sleep(5)
                 continue
