@@ -19,6 +19,32 @@ from transcriber import TranscriptionDeferred as _Deferred
 _CANCEL_FILE = PROJECT_DIR / '.cancelled_jobs.txt'
 
 
+def _write_text_atomic(path: Path, text: str) -> bool:
+    """Escribe al lado y renombra encima (como minutes_generator.save_minutes):
+    con el disco lleno no deja un fichero a medias. El renombrado se reintenta si
+    Windows tiene el destino abierto (antivirus, indexador). False si falla."""
+    import os
+    tmp = path.with_name(path.name + '.tmp')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(text, encoding='utf-8')
+        for intento in range(10):
+            try:
+                os.replace(tmp, path)
+                return True
+            except PermissionError:
+                if intento == 9:
+                    raise
+                time.sleep(0.05)
+    except Exception as e:
+        log.warning(f"No se pudo escribir {path.name}: {e}")
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    return False
+
+
 def _slug_title(slug: str) -> str:
     """Titulo legible de la parte del nombre de fichero tras la fecha. Solo se
     pone en mayuscula la primera letra: .title() minusculizaba el resto y
@@ -1044,6 +1070,7 @@ class TrayApp:
             except Exception as e:
                 log.error(f"Pipeline error: {e}", exc_info=True)
                 self.set_processing('')
+                self._current_job = {}
             finally:
                 self._release_whisper()
 
@@ -1150,14 +1177,17 @@ class TrayApp:
             result = transcribe(wav_path, on_progress=on_progress, on_segment=on_seg,
                                 should_cancel=lambda: self._is_cancelled(wav_path.stem),
                                 resume_from=partial_path, should_pause=self._pipeline_should_pause)
-            if partial_path.exists():
-                partial_path.unlink()
-
             if not result:
+                # El .partial se conserva: es lo unico que queda de lo transcrito
+                # (se borraba antes de mirar el resultado y un fallo lo perdia todo).
                 log.error(f"Transcripción fallida para {wav_path.name}")
                 self._notify('Noted ⚠', s['transcription_failed'])
                 self.set_processing('')
+                self._current_job = {}
                 return
+
+            if partial_path.exists():
+                partial_path.unlink()
 
             transcript_text, detected_language = result
             lang_path.write_text(detected_language)
@@ -1184,6 +1214,7 @@ class TrayApp:
                 self._move_to_processed(wav_path, transcript_path)
                 self._discard_live_files(wav_path)
                 self.set_processing('')
+                self._current_job = {}
                 return
 
             transcript_path.write_text(transcript_text, encoding='utf-8')
@@ -1483,6 +1514,24 @@ class TrayApp:
                     sess['timer'] = None
                 log.info("Reunión marcada para continuar (esperando la reconexión)")
 
+    def cancel_continuation(self):
+        """Deshace request_continuation cuando la grabacion de reconexion no llego a
+        existir (start fallo) o se descarto. Sin esto la sesion se quedaba
+        'esperando' para siempre: sin minutas hasta reiniciar, la siguiente
+        grabacion se unia a ella y _pipeline_idle() nunca era True. Si ya estaban
+        todas las partes transcritas, el cierre se reprograma como siempre; si
+        falta alguna, _register_part lo hara al terminar. No hace nada si la
+        sesion no esta esperando."""
+        with self._session_lock:
+            sess = self._session
+            if not sess or sess.get('finalized') or not sess.get('awaiting'):
+                return
+            sess['awaiting'] = False
+            sess['last_at'] = time.time()
+            log.info("Continuación cancelada: la sesión vuelve a cerrarse sola")
+            if all(v is not None for v in sess['transcripts'].values()):
+                self._schedule_finalize(sess)
+
     def finalize_pending_now(self):
         with self._session_lock:
             sess = self._session
@@ -1733,13 +1782,16 @@ class TrayApp:
         except Exception as e:
             log.warning(f"No se pudieron mover las capturas a minutes: {e}")
 
-        try:
-            transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
-            transcript_copy.write_text(transcript_text, encoding='utf-8')
-        except Exception as e:
-            log.warning(f"No se pudo copiar transcript a minutes: {e}")
-
-        self._move_to_processed(wav_path, transcript_path)
+        # La copia es atomica (_write_text_atomic: tmp + replace con reintento) y, si falla
+        # (disco lleno, antivirus), el transcript original NO se borra: es el unico
+        # texto de la reunion y _retry_pending_minutes lo busca tambien ahi.
+        transcript_copy = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
+        if _write_text_atomic(transcript_copy, transcript_text):
+            self._move_to_processed(wav_path, transcript_path)
+        else:
+            log.warning(f"No se pudo copiar el transcript a minutes: se conserva "
+                        f"{transcript_path.name} en recordings/")
+            self._move_to_processed(wav_path, transcript_path, keep_transcript=True)
         for extra in parts[1:]:
             try:
                 extra.with_suffix('.title').unlink(missing_ok=True)
@@ -1870,7 +1922,9 @@ class TrayApp:
         return brief_minutes(title, 'summary' if summary else 'off', summary,
                              'en' if language == 'en' else 'es')
 
-    def _move_to_processed(self, wav_path: Path, transcript_path: Path):
+    def _move_to_processed(self, wav_path: Path, transcript_path: Path, keep_transcript: bool = False):
+        """keep_transcript: la copia a minutes/ fallo, el transcript es el unico
+        texto de la reunion y se queda (con su .lang) donde esta."""
         dest = RECORDINGS_DIR / 'processed'
         dest.mkdir(exist_ok=True)
         if wav_path.exists():
@@ -1878,11 +1932,19 @@ class TrayApp:
                 shutil.move(str(wav_path), str(dest / wav_path.name))
             except Exception as e:
                 log.warning(f"No se pudo mover {wav_path.name}: {e}")
-        if transcript_path.exists():
+        if transcript_path.exists() and not keep_transcript:
             try:
                 transcript_path.unlink()
             except Exception as e:
                 log.warning(f"No se pudo eliminar {transcript_path.name}: {e}")
+        # El idioma (<stem>_transcript.lang) lo necesita un reintento de minutas:
+        # sin el, las minutas salen con cabeceras en ingles. Se mueve, como .imported.
+        lang_file = transcript_path.with_suffix('.lang')
+        if lang_file.exists() and not keep_transcript:
+            try:
+                shutil.move(str(lang_file), str(dest / lang_file.name))
+            except Exception as e:
+                log.warning(f"No se pudo mover el idioma de {wav_path.name}: {e}")
         for suffix in ('.lang', '.partial', '.context', '.live', '.title'):
             aux = wav_path.with_suffix(suffix)
             if aux.exists():
@@ -1984,6 +2046,11 @@ class TrayApp:
                 text = md.with_name(md.stem + '_transcript.txt').read_text(encoding='utf-8')
             except OSError as e:
                 text, why = '', e
+                # La copia a minutes/ pudo fallar al cerrar: el original se quedo.
+                try:
+                    text = get_transcript_path(RECORDINGS_DIR / f'{stem}.wav').read_text(encoding='utf-8')
+                except OSError:
+                    pass
             else:
                 why = 'el transcript está vacío'
             if not text.strip():
@@ -1992,10 +2059,13 @@ class TrayApp:
                 continue
             # El WAV puede estar en processed/ o ya borrado: no se vuelve a leer.
             wav = RECORDINGS_DIR / f'{stem}.wav'
-            try:
-                lang = get_transcript_path(wav).with_suffix('.lang').read_text().strip() or 'auto'
-            except OSError:
-                lang = 'auto'
+            lang = 'auto'
+            for folder in (RECORDINGS_DIR, RECORDINGS_DIR / 'processed'):
+                try:
+                    lang = (folder / get_transcript_path(wav).with_suffix('.lang').name).read_text().strip() or 'auto'
+                    break
+                except OSError:
+                    continue
             log.info(f"Minutas pendientes de {md.name}: se reintentan "
                      f"(intento {self._pending_retries[stem]} de {RETRY_PENDING_MAX})")
             self._finalize_session({'base_wav': wav, 'parts': [wav], 'transcripts': {stem: text},
@@ -2139,6 +2209,9 @@ class TrayApp:
                 except Exception as e:
                     log.warning(f"No se pudo limpiar la transcripcion en vivo descartada: {e}")
             self.set_recording(False)
+            # Si era la grabacion de una reconexion, la sesion anterior esperaba
+            # esta parte (awaiting): no va a llegar. No hace nada si no esperaba.
+            self.cancel_continuation()
             return
         stem = self._active_job_stem()
         if stem:
