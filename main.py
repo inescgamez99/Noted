@@ -184,6 +184,13 @@ def main():
                 is_reconnect = False
 
             with _popup_lock:
+                # Ya se graba ("Grabar ahora" al entrar, antes de que se detecte la
+                # llamada): esa grabacion pasa a ser la de esta llamada y se para al
+                # colgar, igual que ya toma su titulo (tray_app._note_teams_title).
+                # Sin apuntarla, on_call_ended ignoraba el fin como generacion
+                # obsoleta: el 03/11/2026 una grabacion siguio 6 min tras colgar.
+                if recorder.is_recording:
+                    _active_generation[0] = detector.call_generation
                 if recorder.is_recording or _popup_active[0]:
                     return
                 # call_declined bloquea reuniones nuevas, no reconexiones a la misma
