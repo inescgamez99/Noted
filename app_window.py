@@ -1783,17 +1783,38 @@ class AppAPI:
 
                 wav_stem = f"{y}-{mo}-{d}_{hh}-{mm}"
 
+                # Solo los WAV de ESTA reunion: el minuto solo no basta, otra
+                # reunion iniciada en el mismo minuto tendria el mismo prefijo.
+                # El slug de las minutas sale del titulo generado y puede no
+                # coincidir con el nombre del WAV: se acepta el nombre exacto y,
+                # si no hay, un unico WAV de ese minuto. Con varios y ninguno
+                # exacto se conserva todo (ante la duda, no borrar audio).
+                same_minute = []
+
                 for folder in [RECORDINGS_DIR / 'processed', RECORDINGS_DIR]:
 
                     if folder.exists():
 
-                        candidates.extend(folder.glob(f"{wav_stem}*.wav"))
+                        same_minute.extend(
+                            w for w in folder.glob(f"{glob.escape(wav_stem)}*.wav")
+                            if w.stem == wav_stem or w.stem.startswith(wav_stem + '_'))
+
+                exact_stem = wav_stem + stem[13:]
+
+                exact = [w for w in same_minute
+                         if w.stem == exact_stem or w.stem.startswith(exact_stem + '__')]
+
+                candidates.extend(exact or (same_minute if len(same_minute) == 1 else []))
 
             files_meta = []
+
+            intentos = 0
 
             for f in candidates:
 
                 if f.exists():
+
+                    intentos += 1
 
                     try:
 
@@ -1804,6 +1825,15 @@ class AppAPI:
                     except Exception as e:
 
                         log.warning(f"delete_meeting move {f.name}: {e}")
+
+            if intentos and not files_meta:
+
+                # Todo fallo (ficheros en uso): no hay nada en la papelera.
+                shutil.rmtree(trash_dir, ignore_errors=True)
+
+                log.warning(f"delete_meeting: no se pudo mover ningun fichero de {stem}")
+
+                return False
 
             meta = _parse_stem(stem)
 
@@ -1875,11 +1905,31 @@ class AppAPI:
 
 
 
+    @staticmethod
+    def _trash_dir_for(trash_id):
+        """Carpeta de papelera de un id, o None si el id no es un nombre simple
+        o el directorio resuelto cae fuera de la papelera (../, rutas absolutas)."""
+        if not isinstance(trash_id, str) or not trash_id.strip():
+            return None
+        if '/' in trash_id or '\\' in trash_id or '..' in trash_id or ':' in trash_id:
+            return None
+        root = (MINUTES_DIR.parent / 'trash').resolve()
+        d = (root / trash_id).resolve()
+        if d == root or root not in d.parents:
+            return None
+        return d
+
+
+
     def recover_meeting(self, trash_id: str) -> bool:
 
         """Restaura una reunión desde la papelera a sus ubicaciones originales."""
 
-        trash_dir = MINUTES_DIR.parent / 'trash' / trash_id
+        trash_dir = self._trash_dir_for(trash_id)
+
+        if trash_dir is None:
+
+            return False
 
         meta_f = trash_dir / '_trash_meta.json'
 
@@ -1891,27 +1941,61 @@ class AppAPI:
 
             meta = json.loads(meta_f.read_text(encoding='utf-8'))
 
+            todo_ok = True
+
             for fm in meta.get('files', []):
 
-                src = trash_dir / fm['name']
-
-                dst_dir = Path(fm.get('orig_dir', ''))
-
-                if not str(dst_dir):
+                # orig_dir vacio o manipulado: no restaurar en el cwd.
+                if not fm.get('orig_dir'):
 
                     continue
 
-                dst_dir.mkdir(parents=True, exist_ok=True)
+                name = Path(str(fm.get('name', ''))).name
+
+                if not name or name != fm.get('name'):
+
+                    todo_ok = False
+
+                    continue
+
+                src = trash_dir / name
+
+                dst_dir = Path(fm['orig_dir'])
 
                 if src.exists():
 
                     try:
 
-                        shutil.move(str(src), str(dst_dir / fm['name']))
+                        dst_dir.mkdir(parents=True, exist_ok=True)
+
+                        dst = dst_dir / name
+
+                        if dst.exists():
+
+                            # shutil.move pisaria el fichero que hay ahora.
+                            dst = dst_dir / f"{Path(name).stem}_recuperada{Path(name).suffix}"
+
+                            n = 2
+
+                            while dst.exists():
+
+                                dst = dst_dir / f"{Path(name).stem}_recuperada{n}{Path(name).suffix}"
+
+                                n += 1
+
+                        shutil.move(str(src), str(dst))
 
                     except Exception as e:
 
-                        log.warning(f"recover_meeting move {fm['name']}: {e}")
+                        todo_ok = False
+
+                        log.warning(f"recover_meeting move {name}: {e}")
+
+            if not todo_ok:
+
+                log.warning(f"recover_meeting: {trash_id} incompleto, se conserva la papelera")
+
+                return False
 
             shutil.rmtree(trash_dir, ignore_errors=True)
 
@@ -1931,9 +2015,9 @@ class AppAPI:
 
         """Elimina permanentemente una entrada de la papelera."""
 
-        trash_dir = MINUTES_DIR.parent / 'trash' / trash_id
+        trash_dir = self._trash_dir_for(trash_id)
 
-        if not trash_dir.exists():
+        if trash_dir is None or not trash_dir.exists():
 
             return False
 
