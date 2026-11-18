@@ -1325,3 +1325,48 @@ def test_al_cancelar_la_marca_se_queda_solo_si_quedan_temporales(tray, wav, monk
     terco.unlink()
     tray._cancel_recording()
     assert not wav.with_suffix('.discarded').exists()
+
+
+
+# ── Medicion: voz por trozo y aviso de trozo sospechoso ──────────────────────
+
+def _trozo(wav, voz_s, lineas, caplog):
+    segs = tuple((float(i), i + 1.0, f'l{i}') for i in range(lineas))
+    vad = VadEspia([{'start': 0, 'end': int(voz_s * SR)}])
+    caplog.set_level('INFO', logger=lt.log.name)
+    done, _ = lt._step(pista_baja(wav, 160), TrackModel(segments=segs), None, {}, vad, None,
+                       wav, min_s=15, max_s=160)
+    assert done
+    return lt.read_records(wav)[0]
+
+
+def test_el_registro_del_trozo_guarda_los_segundos_con_voz(wav, caplog):
+    """18/11/2026: un trozo de la pista de Teams tuvo 150 s de voz y 5 lineas y
+    no habia forma de medir cuanta voz vio cada trozo."""
+    r = _trozo(wav, 100, 40, caplog)
+    assert r['voiced'] == pytest.approx(100, abs=1)
+
+
+def test_un_registro_viejo_sin_voiced_se_sigue_leyendo(wav, model, me):
+    write_records(wav, rec('mic', 0, 15, (1.0, 'hola')))
+    assert 'voiced' not in lt.read_records(wav)[0]
+    make_track(lt.track_wav(wav, 'mic'), 20)
+    assert lt.finish_live(wav) is not None
+
+
+def test_avisa_de_un_trozo_con_mucha_voz_y_casi_sin_texto(wav, caplog):
+    _trozo(wav, 150, 5, caplog)
+    avisos = [r for r in caplog.records if 'trozo sospechoso' in r.getMessage()]
+    assert len(avisos) == 1
+    m = avisos[0].getMessage()
+    assert 'mic' in m and 'lineas 5' in m and 'voz 150' in m
+
+
+def test_no_avisa_con_texto_suficiente(wav, caplog):
+    _trozo(wav, 150, 40, caplog)
+    assert not [r for r in caplog.records if 'sospechoso' in r.getMessage()]
+
+
+def test_no_avisa_con_poca_voz_aunque_haya_pocas_lineas(wav, caplog):
+    _trozo(wav, 20, 0, caplog)
+    assert not [r for r in caplog.records if 'sospechoso' in r.getMessage()]

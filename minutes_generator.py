@@ -364,7 +364,7 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
     hora = f"{m.group(2)}:{m.group(3)}" if m else 'desconocida'
 
     duracion = 'desconocida'
-    times = re.findall(r'\[(\d{2}):(\d{2})\]', transcript)
+    times = re.findall(r'\[(\d+):(\d{2})\]', transcript)
     if times:
         last_m, last_s = int(times[-1][0]), int(times[-1][1])
         duracion = f"{last_m}m {last_s}s"
@@ -517,7 +517,7 @@ def _generate_via_cli(transcript: str, recording_path: Path, extra_context: str 
 
     try:
         import json as _json
-        _cfg = _json.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8'))
+        _cfg = _json.loads((PROJECT_DIR / 'settings.json').read_text(encoding='utf-8-sig'))
         me_name = _cfg.get('user_name', '').strip()
     except Exception:
         me_name = ''

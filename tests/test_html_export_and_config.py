@@ -303,3 +303,33 @@ def test_un_wrapper_ilegible_cae_al_cmd(monkeypatch, tmp_path):
     monkeypatch.setattr(config.shutil, 'which', lambda _n: str(wrapper))
 
     assert config._find_claude_bin() == str(wrapper)
+
+
+
+# ── settings.json con BOM ────────────────────────────────────────────────
+
+def test_settings_con_bom_se_leen_en_config_y_coaching(tmp_path, tr_dirs):
+    """config.py leia settings.json con utf-8 a secas: con BOM json.loads fallaba,
+    se tragaba y se ignoraban whisper_model, user_name, output_dir, language y
+    minutes_retention_days. Se carga una COPIA de config.py para no tocar el
+    modulo real."""
+    import importlib.util
+    import shutil
+    from pathlib import Path
+
+    import config as real
+    carpeta = tmp_path / 'copia'
+    carpeta.mkdir()
+    shutil.copy(Path(real.__file__), carpeta / 'config.py')
+    (carpeta / 'settings.json').write_bytes(
+        b'\xef\xbb\xbf{"user_name": "Ines", "language": "es", "coaching_enabled": true}')
+    spec = importlib.util.spec_from_file_location('config_copia', carpeta / 'config.py')
+    copia = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(copia)
+    assert copia._settings.get('user_name') == 'Ines'
+
+    import coaching_plugin
+    (tr_dirs / 'settings.json').write_bytes(
+        b'\xef\xbb\xbf{"language": "es", "coaching_enabled": true}')
+    assert coaching_plugin._ui_lang() == 'es'
+    assert coaching_plugin._coaching_enabled() is True

@@ -167,6 +167,10 @@ def _run_enrichment(minutes_path: Path, projects_dir: Path, on_done=None):
                     if m:
                         parsed = json.loads(m.group(0))
                         enriched_map = {item['index']: item for item in parsed}
+                else:
+                    from minutes_generator import _cli_error
+                    log.warning(f"Enrichment CLI rc={result.returncode}: "
+                                f"{_cli_error(result.stdout, result.stderr)[:300]}")
             except Exception as e:
                 log.warning(f"Enrichment CLI failed: {e}")
 
@@ -266,10 +270,7 @@ Return ONLY the project id from the list above (e.g. "my-project"), or "none" if
 No explanation, just the id or "none"."""
 
     try:
-        env = os.environ.copy()
-        for k in list(env.keys()):
-            if k.startswith(('CLAUDE', 'MCP_', 'ANTHROPIC_')):
-                del env[k]
+        env = _clean_env()
         if os.name == 'nt':
             si = subprocess.STARTUPINFO()
             si.dwFlags |= subprocess.STARTF_USESHOWWINDOW

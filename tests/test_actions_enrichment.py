@@ -382,3 +382,45 @@ def test_los_indices_no_se_reutilizan_al_anadir(minuta, proyectos, cli_falso):
 def test_anadir_una_accion_sin_actions_previo_crea_el_fichero(minuta):
     ae.add_manual_action(minuta, 'Primera a mano')
     assert [a['title'] for a in _acciones(minuta)] == ['Primera a mano']
+
+
+
+# ── Entorno del subproceso y rc != 0 ─────────────────────────────────────
+
+def test_la_deteccion_de_proyecto_conserva_las_variables_de_claude_code(
+        minuta, tr_dirs, monkeypatch):
+    """_detect_and_save_project borraba TODO lo que empezara por CLAUDE, incluida
+    CLAUDE_CODE_GIT_BASH_PATH, que `claude -p` necesita en Windows con PATH
+    limitado: la deteccion fallaba sin rastro."""
+    (ae.PROJECT_DIR / 'projects.json').write_text(
+        json.dumps({'projects': [{'id': 'contoso', 'name': 'Contoso'}]}), encoding='utf-8')
+    llamadas = []
+
+    def run_falso(cmd, **kw):
+        llamadas.append(kw.get('env'))
+        return type('R', (), {'returncode': 0, 'stdout': 'contoso', 'stderr': ''})()
+
+    monkeypatch.setattr(ae.subprocess, 'run', run_falso)
+    monkeypatch.setattr(ae, '_get_claude_bin', lambda: 'claude')
+    monkeypatch.setenv('CLAUDE_CODE_GIT_BASH_PATH', r'C:\Git\bash.exe')
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'x')
+    monkeypatch.setenv('MCP_FOO', 'x')
+
+    ae._detect_and_save_project(minuta, tr_dirs / 'proyectos')
+
+    env = llamadas[0]
+    assert env['CLAUDE_CODE_GIT_BASH_PATH'] == r'C:\Git\bash.exe'
+    assert not [k for k in env if k.startswith(('ANTHROPIC_', 'MCP_'))]
+
+
+def test_un_rc_distinto_de_cero_en_el_enriquecimiento_deja_un_warning(
+        minuta, proyectos, cli_falso, caplog):
+    """Se ignoraba sin log: el enriquecimiento fallaba y nadie sabia por que."""
+    cli_falso['rc'] = 1
+    cli_falso['salida'] = 'Failed to authenticate: OAuth session expired'
+    caplog.set_level('WARNING')
+
+    ae._run_enrichment(minuta, proyectos)
+
+    msgs = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert any('rc=1' in m and 'OAuth session expired' in m for m in msgs)
