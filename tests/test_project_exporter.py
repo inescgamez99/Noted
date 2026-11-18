@@ -38,12 +38,12 @@ def reunion(tr_dirs):
                                                        encoding='utf-8')
 
     def configurar(**extra):
-        proyecto = {'id': 'aramco', 'name': 'Aramco', 'directory': str(destino)}
+        proyecto = {'id': 'contoso', 'name': 'Contoso', 'directory': str(destino)}
         proyecto.update(extra)
         (tr_dirs / 'projects.json').write_text(
             json.dumps({'projects': [proyecto]}), encoding='utf-8')
         (md.parent / f'{STEM}_actions.json').write_text(
-            json.dumps({'project_id': 'aramco', 'actions': []}), encoding='utf-8')
+            json.dumps({'project_id': 'contoso', 'actions': []}), encoding='utf-8')
 
     return {'md': md, 'destino': destino, 'configurar': configurar}
 
@@ -57,7 +57,7 @@ def test_sin_actions_json_no_hay_proyecto(reunion):
 def test_devuelve_el_proyecto_completo(reunion):
     reunion['configurar']()
     proyecto = pe.get_meeting_project(reunion['md'])
-    assert proyecto['id'] == 'aramco'
+    assert proyecto['id'] == 'contoso'
     assert proyecto['directory'] == str(reunion['destino'])
 
 
@@ -69,7 +69,7 @@ def test_devuelve_el_proyecto_completo(reunion):
 ])
 def test_las_cuatro_rutas_a_none(reunion, tr_dirs, contenido):
     (tr_dirs / 'projects.json').write_text(
-        json.dumps({'projects': [{'id': 'aramco', 'name': 'A'}]}), encoding='utf-8')
+        json.dumps({'projects': [{'id': 'contoso', 'name': 'A'}]}), encoding='utf-8')
     (reunion['md'].parent / f'{STEM}_actions.json').write_text(contenido,
                                                                 encoding='utf-8')
     assert pe.get_meeting_project(reunion['md']) is None
@@ -209,10 +209,10 @@ def test_un_stem_sin_fecha_no_rompe_el_email(reunion, tr_dirs):
     suelta = tr_dirs / 'minutes' / 'suelta.md'
     suelta.write_text('TITULO: Suelta\n\ncuerpo', encoding='utf-8')
     (tr_dirs / 'projects.json').write_text(json.dumps({'projects': [
-        {'id': 'aramco', 'name': 'A', 'directory': str(reunion['destino'])}]}),
+        {'id': 'contoso', 'name': 'A', 'directory': str(reunion['destino'])}]}),
         encoding='utf-8')
     (tr_dirs / 'minutes' / 'suelta_actions.json').write_text(
-        json.dumps({'project_id': 'aramco', 'actions': []}), encoding='utf-8')
+        json.dumps({'project_id': 'contoso', 'actions': []}), encoding='utf-8')
 
     assert pe.export_to_project_folder(suelta) is True
 

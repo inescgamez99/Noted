@@ -51,8 +51,8 @@ def minuta(tr_dirs):
 @pytest.fixture
 def proyectos(tr_dirs):
     d = tr_dirs / 'proyectos'
-    (d / 'aramco').mkdir(parents=True)
-    (d / 'aramco' / 'CLAUDE.md').write_text('Proyecto Aramco de Agentic AI.',
+    (d / 'contoso').mkdir(parents=True)
+    (d / 'contoso' / 'CLAUDE.md').write_text('Proyecto Contoso de Agentic AI.',
                                              encoding='utf-8')
     (d / 'otro').mkdir()
     return d
@@ -148,7 +148,7 @@ def test_una_excepcion_del_subproceso_no_pierde_las_acciones(minuta, proyectos,
 
 def test_se_aplica_el_enriquecimiento_devuelto(minuta, proyectos, cli_falso):
     cli_falso['salida'] = json.dumps([
-        {'index': 0, 'project': 'aramco', 'assignee': 'Felipe',
+        {'index': 0, 'project': 'contoso', 'assignee': 'Felipe',
          'prompt': 'prompt enriquecido y completo'},
     ])
 
@@ -156,7 +156,7 @@ def test_se_aplica_el_enriquecimiento_devuelto(minuta, proyectos, cli_falso):
 
     accion = _acciones(minuta)[0]
     assert accion['prompt_enriched'] == 'prompt enriquecido y completo'
-    assert accion['project'] == 'aramco'
+    assert accion['project'] == 'contoso'
     assert accion['enriched_ok'] is True
 
 
@@ -211,7 +211,7 @@ def test_el_prompt_incluye_los_proyectos_disponibles(minuta, proyectos, cli_fals
     ae._run_enrichment(minuta, proyectos)
 
     prompt = cli_falso['llamadas'][0]['input']
-    assert 'aramco' in prompt
+    assert 'contoso' in prompt
     assert 'Agentic AI' in prompt, "falta el resumen del CLAUDE.md del proyecto"
 
 

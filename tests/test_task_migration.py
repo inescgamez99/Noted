@@ -27,7 +27,7 @@ def reunion_con_acciones(tr_dirs):
     (config.MINUTES_DIR / '20260917_1616_Comite_actions.json').write_text(
         json.dumps({
             'minutes': str(md),
-            'project_id': 'aramco',
+            'project_id': 'contoso',
             'actions': [
                 {'index': 0, 'title': 'Enviar la propuesta', 'in_panel': True,
                  'assignee': 'Felipe', 'deadline': '30/09',
@@ -92,7 +92,7 @@ def test_se_conservan_responsable_y_fecha(reunion_con_acciones):
 
 def test_se_conserva_el_proyecto_de_la_reunion(reunion_con_acciones):
     ts.migrate_panel_actions()
-    assert all(t['project_id'] == 'aramco' for t in ts.get_tasks())
+    assert all(t['project_id'] == 'contoso' for t in ts.get_tasks())
 
 
 def test_la_tarea_recuerda_de_que_reunion_salio(reunion_con_acciones):
@@ -110,7 +110,7 @@ def test_no_se_duplica_una_accion_que_ya_estaba_en_el_tablero(reunion_con_accion
     distintas pueden llamarse igual."""
     import config
     md = config.MINUTES_DIR / '20260917_1616_Comite.md'
-    ts.create_task(project_id='aramco', title='Enviar la propuesta',
+    ts.create_task(project_id='contoso', title='Enviar la propuesta',
                    source='meeting', meeting_path=str(md), meeting_action_index=0)
 
     n = ts.migrate_panel_actions()

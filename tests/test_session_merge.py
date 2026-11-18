@@ -355,12 +355,12 @@ def test_el_contexto_que_escribio_el_usuario_llega_al_modelo(tray, cierre_aislad
     """Es lo que se escribe en 'Anadir contexto a grabacion' desde la bandeja:
     si se perdiera, el usuario habria escrito para nada."""
     a = wav_factory(ta.RECORDINGS_DIR / f'{STEM_A}.wav', seconds=0.1)
-    a.with_suffix('.context').write_text('hablamos del presupuesto de Aramco',
+    a.with_suffix('.context').write_text('hablamos del presupuesto de Contoso',
                                           encoding='utf-8')
 
     tray._finalize_session(_sesion(tray, [a], ['texto']))
 
-    assert cierre_aislado['contexto'] == 'hablamos del presupuesto de Aramco'
+    assert cierre_aislado['contexto'] == 'hablamos del presupuesto de Contoso'
 
 
 def test_el_fichero_de_contexto_se_consume(tray, cierre_aislado, tr_dirs, wav_factory):

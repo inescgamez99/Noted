@@ -57,7 +57,7 @@ def test_dos_reuniones_distintas_puntuan_por_debajo_del_umbral():
 
 def test_el_score_siempre_esta_entre_cero_y_uno():
     pares = [('a', 'b'), ('Comite', 'Comite'), ('x' * 50, 'y' * 50),
-             ('Daily Scrum', 'Retro Sprint'), ('Aramco', 'Aramco Fase 2')]
+             ('Daily Scrum', 'Retro Sprint'), ('Contoso', 'Contoso Fase 2')]
     for a, b in pares:
         assert 0.0 <= os_mod._name_score(a, b) <= 1.0
 

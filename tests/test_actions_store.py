@@ -139,17 +139,17 @@ def test_el_json_se_guarda_legible_y_con_acentos(minuta):
 def test_asignar_un_proyecto_sin_actions_previo_crea_el_fichero(minuta):
     """Pasa de verdad: el usuario asigna el proyecto desde el panel antes de
     que se hayan generado las acciones."""
-    assert ae.set_meeting_project_id(minuta, 'aramco') is True
+    assert ae.set_meeting_project_id(minuta, 'contoso') is True
 
     datos = json.loads(ae.get_actions_path(minuta).read_text(encoding='utf-8'))
-    assert datos['project_id'] == 'aramco'
+    assert datos['project_id'] == 'contoso'
     assert datos['actions'] == []
 
 
 def test_asignar_un_proyecto_conserva_las_acciones_existentes(minuta):
     _escribir_acciones(minuta, [{'index': 0, 'title': 'Enviar propuesta'}])
 
-    ae.set_meeting_project_id(minuta, 'aramco')
+    ae.set_meeting_project_id(minuta, 'contoso')
 
     acciones = ae.load_enriched(minuta)
     assert acciones is not None and len(acciones) == 1
@@ -176,8 +176,8 @@ def test_reasignar_sobrescribe_el_proyecto_anterior(minuta):
 # ── El proyecto que lee el resto del sistema ─────────────────────────────
 
 def test_meeting_project_id_lee_el_actions(minuta):
-    _escribir_acciones(minuta, [], project_id='aramco')
-    assert pc.meeting_project_id(minuta) == 'aramco'
+    _escribir_acciones(minuta, [], project_id='contoso')
+    assert pc.meeting_project_id(minuta) == 'contoso'
 
 
 def test_sin_actions_el_proyecto_es_none(minuta):
@@ -272,6 +272,6 @@ def test_load_projects_con_json_corrupto_devuelve_lista_vacia(tr_dirs):
 
 
 def test_project_docs_dir_cuelga_de_project_docs(tr_dirs):
-    d = pc.project_docs_dir('aramco')
-    assert d.name == 'aramco'
+    d = pc.project_docs_dir('contoso')
+    assert d.name == 'contoso'
     assert d.parent.name == 'project_docs'

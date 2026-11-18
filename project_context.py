@@ -312,7 +312,7 @@ def sync_meeting_summary(minutes_path: Path) -> str | None:
     Antes esta carpeta la elegía detect_project() por coincidencia de palabras
     clave, que corre ANTES de generar las minutas y no tiene por qué coincidir
     con la detección definitiva: una reunión acabó archivada en 'digital-brain'
-    mientras su project_id decía 'aramco-...', y el consumidor que filtra por
+    mientras su project_id decía 'contoso-...', y el consumidor que filtra por
     proyecto no la encontraba.
 
     Es idempotente, así que sirve igual para el archivado normal, para una
