@@ -4,7 +4,6 @@ Un único tk.Tk() root corre en un hilo de fondo dedicado.
 Todos los popups y diálogos usan Toplevel sobre ese root vía after().
 """
 import threading
-import time
 import tkinter as tk
 
 _root: tk.Tk | None = None

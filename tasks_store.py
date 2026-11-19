@@ -28,7 +28,6 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 import atomic_io
 from config import PROJECT_DIR
@@ -235,56 +234,3 @@ def migrate_panel_actions() -> int:
     return count
 
 
-@_locked
-def auto_sync_meeting_tasks(meeting_path: str, actions: list, first_bucket_id: str = 'pendiente') -> int:
-    """Creates tasks for all meeting actions not already in tasks.json. Returns count added."""
-    data = _load()
-    existing = {
-        (t.get('meeting_path'), t.get('meeting_action_index'))
-        for t in data['tasks']
-        if t.get('meeting_path') is not None
-    }
-    project_id = 'none'
-    try:
-        from pathlib import Path as _P
-        import json as _json
-        ap_path = _P(meeting_path)
-        actions_file = ap_path.parent / f"{ap_path.stem}_actions.json"
-        if actions_file.exists():
-            adata = _json.loads(actions_file.read_text(encoding='utf-8'))
-            project_id = adata.get('project_id') or 'none'
-    except Exception:
-        pass
-
-    count = 0
-    for a in actions:
-        idx = a.get('index')
-        key = (meeting_path, idx)
-        if key in existing:
-            continue
-        task = {
-            'id': str(uuid.uuid4()),
-            'project_id': project_id,
-            'title': a.get('title', ''),
-            'description': '',
-            'status': 'done' if a.get('executed') else 'not_started',
-            'assignee': a.get('assignee'),
-            'start_date': None,
-            'end_date': a.get('deadline'),
-            'tags': [],
-            'priority': None,
-            'parent_id': None,
-            'bucket_id': first_bucket_id,
-            'source': 'meeting',
-            'meeting_path': meeting_path,
-            'meeting_action_index': idx,
-            'claude_executable': bool(a.get('claude_executable')),
-            'created_at': datetime.now(timezone.utc).isoformat(),
-        }
-        data['tasks'].append(task)
-        existing.add(key)
-        count += 1
-    if count:
-        _save(data)
-        log.info(f"auto_sync_meeting_tasks: {count} new tasks from {meeting_path}")
-    return count

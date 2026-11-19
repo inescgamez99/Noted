@@ -2612,14 +2612,6 @@ function _syncBucketFromStatus(task, newStatus) {
   pywebview.api.update_task(task.id, { bucket_id: targetBucket });
 }
 
-function _syncStatusFromBucket(task, newBucketId) {
-  const targetStatus = BUCKET_TO_STATUS[newBucketId];
-  if (!targetStatus) return;
-  if (task.status === targetStatus) return;
-  task.status = targetStatus;
-  pywebview.api.update_task(task.id, { status: targetStatus });
-}
-
 function _statusLabel(s) {
   if (!s) return t('status_not_started');
   const key = 'status_' + s;
@@ -2662,11 +2654,6 @@ function setTaskView(view) {
   document.getElementById('btn-view-board')?.classList.toggle('active', _boardView);
   document.getElementById('task-board-body')?.classList.toggle('is-board', _boardView);
   renderTaskBoard();
-}
-
-function _setSortBy(val) {
-  _sortBy = val || null;
-  renderKanbanBoard();
 }
 
 function _setGroupBy(val) {
@@ -3507,21 +3494,6 @@ function _onColDropStatus(event, targetId) {
 function _onKanbanCardClick(event, taskId) {
   if (event.target.closest('[contenteditable]')) return;
   openTaskDetail(taskId);
-}
-
-async function _addBucket() {
-  const name = prompt(t('bucket_name_prompt'), t('bucket_new_name'));
-  if (!name || !name.trim()) return;
-  const colors = ['#6b7280','#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444','#06b6d4'];
-  const bucket = {
-    id: 'bucket-' + Date.now(),
-    name: name.trim(),
-    color: colors[_buckets.length % colors.length],
-    order: _buckets.length,
-  };
-  _buckets.push(bucket);
-  await pywebview.api.save_buckets(_buckets);
-  renderKanbanBoard();
 }
 
 async function _deleteBucket(bucketId) {
@@ -4369,37 +4341,6 @@ async function saveWhisperModel(model) {
   showToast(t('toast_model_saved'));
 }
 
-// ── Per-project field save ────────────────────────────────────────────────────
-
-const _projectSaveTimers = {};
-
-function scheduleProjectSave(pid) {
-  clearTimeout(_projectSaveTimers[pid]);
-  _projectSaveTimers[pid] = setTimeout(() => saveProjectFields(pid), 800);
-}
-
-async function saveProjectFields(pid) {
-  const card = document.querySelector(`.project-settings-item[data-proj-id="${pid}"]`);
-  if (!card) return;
-  const projects = await pywebview.api.get_projects();
-  const proj = projects.find(p => p.id === pid);
-  if (!proj) return;
-  card.querySelectorAll('[data-proj-field]').forEach(input => {
-    const field = input.dataset.projField;
-    if (field === 'stakeholders') {
-      proj.stakeholders = input.value.split(',').map(s => s.trim()).filter(Boolean);
-    } else {
-      proj[field] = input.value.trim();
-    }
-  });
-  await pywebview.api.save_project(proj);
-}
-
-async function openProjectDir(dir) {
-  if (!dir || !dir.trim()) return;
-  await pywebview.api.open_project_dir(dir.trim());
-}
-
 // ── Project settings management ───────────────────────────────────────────────
 
 let _newProjectFolder = '';
@@ -4854,42 +4795,6 @@ const _UNDEFINED_TERMS = [
   'structured approval', 'no hard date',
 ];
 
-function parseDeadlineSortKey(str) {
-  if (!str) return '9999-99-99';
-  const s = str.toLowerCase().trim();
-
-  // Grupo 1: ASAP
-  if (_ASAP_TERMS.some(term => s.includes(term))) return '0000-00-00';
-
-  // ISO directo
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-
-  // Grupo 2: intentar extraer fecha real
-  const yearM = s.match(/\b(20\d{2})\b/);
-  const year  = yearM ? yearM[1] : String(new Date().getFullYear());
-
-  const monthKeys = Object.keys(_MONTHS).sort((a, b) => b.length - a.length);
-  let month = null;
-  for (const key of monthKeys) {
-    if (s.includes(key)) { month = _MONTHS[key]; break; }
-  }
-
-  if (month) {
-    const sNoYear = s.replace(/\b20\d{2}\b/g, '');
-    const dayM    = sNoYear.match(/\b([12]?\d|3[01])\b/);
-    let day = dayM ? parseInt(dayM[1]) : 1;
-    if (day < 1 || day > 31) day = 1;
-    if (/\bend\b/.test(s)) day = 28;
-    return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  }
-
-  // Grupo 3: relativo sin fecha
-  if (_RELATIVE_TERMS.some(term => s.includes(term))) return '8888-88-88';
-
-  // Grupo 4: indefinido (default)
-  return '9999-99-99';
-}
-
 // ── Acciones ──────────────────────────────────────────────────────────────────
 
 let _pendingPanelAction = null;
@@ -5005,39 +4910,6 @@ async function globalLaunchRun(path, index, workingDir, prompt) {
     showToast(t('toast_terminal'));
     await pywebview.api.execute_action(path, index);
   }
-}
-
-async function markDone(path, index) {
-  await pywebview.api.mark_done(path, index);
-  const card = document.getElementById('card-' + index);
-  if (card) {
-    card.classList.add('done');
-    card.querySelector('.action-title')?.classList.add('done-text');
-    const execBtn = card.querySelector('[data-exec]');
-    if (execBtn) { execBtn.textContent = t('btn_reexecute'); execBtn.className = 'btn btn-ghost btn-sm'; }
-    const doneBtn = card.querySelector('[data-done]');
-    if (doneBtn) { doneBtn.textContent = t('btn_done_state'); doneBtn.style.opacity = '0.5'; }
-  }
-  await refreshPendingBadge();
-  showToast(t('toast_done'));
-}
-
-async function globalMarkDone(path, index, gi) {
-  await pywebview.api.mark_done(path, index);
-
-  // Sync in-memory state so filter re-renders (pending↔done) stay consistent
-  const action = allPending.find(a => a.minutes_path === path && a.index === index);
-  if (action) action.executed = true;
-
-  const item = document.getElementById('gitem-' + gi);
-  if (item) {
-    item.classList.add('done');
-    item.querySelector('.global-action-title')?.classList.add('done-text');
-    const btn = item.querySelector('[data-gcheck]');
-    if (btn) { btn.textContent = t('btn_done_state'); btn.style.opacity = '0.5'; }
-  }
-  await refreshPendingBadge();
-  showToast(t('toast_done'));
 }
 
 async function savePrompt(path, index, value) {
@@ -5773,16 +5645,6 @@ function dismissRun(runId) {
   const list = document.getElementById('runs-list');
   if (!list.children.length) closeRunsPanel();
   else updateRunsFab();
-}
-
-async function sendFollowup(runId) {
-  const el = document.getElementById('followup-' + runId);
-  if (!el) return;
-  const msg = el.value.trim();
-  if (!msg) return;
-  el.value = '';
-  const newRunId = await pywebview.api.send_action_followup(runId, msg);
-  if (newRunId) addRunCard(newRunId);
 }
 
 // ── Regenerar minutas ─────────────────────────────────────────────────────────

@@ -1887,18 +1887,6 @@ class TrayApp:
             save_without_actions(minutes_path, PROJECT_DIR.parent, on_done=on_done,
                                  extra_text=transcript_text[:4000] if minutes_mode != 'full' else None)
 
-        def _brain_update():
-            try:
-                from brain_synthesizer import update_brain_wiki
-                if _proj and _proj.get('id'):
-                    update_brain_wiki(_proj['id'], _proj.get('name', _proj['id']),
-                                      minutes_path, detected_language)
-                    log.info(f"Brain actualizado: {_proj['name']}")
-            except Exception as e:
-                log.warning(f"Brain synthesis no crítico: {e}")
-
-        threading.Thread(target=_brain_update, daemon=True, name='BrainDream').start()
-
     def _suggest_glossary_terms(self, transcript: str, minutes_text: str,
                                 participants: list, stem: str) -> None:
         """Deja como sugerencias pendientes las correcciones de nombres y siglas

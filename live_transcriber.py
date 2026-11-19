@@ -322,17 +322,6 @@ def record_model(r: dict) -> str:
     return r.get('model') or LIVE_MODEL
 
 
-def committed(records: list[dict], track: str) -> tuple[int, list[dict]]:
-    """Frames de la pista cubiertos sin huecos desde el principio, y sus registros."""
-    pos, kept = 0, []
-    for r in sorted((r for r in records if r['track'] == track), key=lambda r: r['start_frame']):
-        if r['start_frame'] != pos:
-            break
-        kept.append(r)
-        pos = r['end_frame']
-    return pos, kept
-
-
 def accepted_records(records: list[dict], track: str, accept=None) -> list[dict]:
     """Registros aceptados de una pista, en orden y sin solapes.
 

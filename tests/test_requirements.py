@@ -56,7 +56,6 @@ IMPORT_A_PAQUETE = {
 OPCIONALES_PERMITIDOS = {
     # Modulos locales que se importan con try/except y pueden no existir en el
     # repo (no son paquetes de pip): se ignoran.
-    'brain_synthesizer',
     'email_brain_updater',
 }
 

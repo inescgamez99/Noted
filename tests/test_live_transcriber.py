@@ -195,16 +195,6 @@ def test_registros_invalidos_se_ignoran(wav):
     assert len(lt.read_records(wav)) == 1
 
 
-def test_lo_comprometido_es_lo_contiguo_desde_cero(wav):
-    records = [rec('mic', 0, 15), rec('mic', 15, 30), rec('mic', 45, 60)]
-    pos, kept = lt.committed(records, 'mic')
-    assert pos == 30 * SR and len(kept) == 2
-
-
-def test_sin_registros_de_una_pista_no_hay_nada_comprometido():
-    assert lt.committed([rec('mic', 0, 15)], 'loop') == (0, [])
-
-
 # ── Formato: identico al post-reunion ───────────────────────────────────────
 
 class PerFileModel:
@@ -1325,7 +1315,6 @@ def test_al_cancelar_la_marca_se_queda_solo_si_quedan_temporales(tray, wav, monk
     terco.unlink()
     tray._cancel_recording()
     assert not wav.with_suffix('.discarded').exists()
-
 
 
 # ── Medicion: voz por trozo y aviso de trozo sospechoso ──────────────────────

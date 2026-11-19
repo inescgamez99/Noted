@@ -77,20 +77,6 @@ def get_minutes_path(recording_path: Path, title: str = None) -> Path:
     return MINUTES_DIR / f"{ts}_{slug}.md"
 
 
-def get_latest_minutes() -> Path | None:
-    files = sorted(MINUTES_DIR.glob('*.md'), key=lambda p: p.stat().st_mtime, reverse=True)
-    return files[0] if files else None
-
-
-def list_recordings(limit: int = 10) -> list[Path]:
-    files = sorted(
-        list(RECORDINGS_DIR.glob('*.wav')) + list((RECORDINGS_DIR / 'processed').glob('*.wav')),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return files[:limit]
-
-
 # La cabecera de un WAV sin muestras: un .part asi no tiene audio que recuperar.
 _EMPTY_PART_BYTES = 1024
 
