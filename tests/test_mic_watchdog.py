@@ -19,6 +19,7 @@ from audio_recorder import AudioRecorder
 class FakeStream:
     instances: list = []
     fail_open = 0  # cuantas aperturas fallan antes de funcionar
+    stop_delay = 0.0  # lo que tarda en cerrarse: el cierre real puede bloquearse
 
     def __init__(self, callback=None, device=None, **_kw):
         if FakeStream.fail_open > 0:
@@ -33,7 +34,8 @@ class FakeStream:
         pass
 
     def stop(self):
-        pass
+        if FakeStream.stop_delay:
+            time.sleep(FakeStream.stop_delay)
 
     def close(self):
         self.closed = True
@@ -46,6 +48,7 @@ class FakeStream:
 def fake_sd(monkeypatch):
     FakeStream.instances = []
     FakeStream.fail_open = 0
+    FakeStream.stop_delay = 0.0
     monkeypatch.setattr(ar.sd, 'InputStream', FakeStream)
     monkeypatch.setattr(ar.sd, 'query_devices', lambda *a, **k: {'name': 'fake'})
     monkeypatch.setattr(AudioRecorder, '_mic_candidates', staticmethod(lambda: [None]))
@@ -103,6 +106,7 @@ def test_el_hueco_de_la_caida_se_rellena_con_silencio(rec, fake_sd):
 
 def test_watchdog_reabre_si_dejan_de_llegar_datos(rec, fake_sd, monkeypatch):
     monkeypatch.setattr(ar, '_MIC_STALL_SECONDS', 0.2)
+    FakeStream.stop_delay = 0.4
     rec._open_mic_stream()
     viejo = rec._stream
     rec._mic_last_cb = time.monotonic() - 10     # el callback lleva 10 s mudo
@@ -111,10 +115,16 @@ def test_watchdog_reabre_si_dejan_de_llegar_datos(rec, fake_sd, monkeypatch):
     t = threading.Thread(target=rec._mic_watchdog, args=(stop,), daemon=True)
     t.start()
     t0 = time.time()
-    while rec._stream is viejo and time.time() - t0 < 5:
-        time.sleep(0.1)
+    # Esperar a que el reabrir TERMINE, no solo a que _stream deje de ser el viejo:
+    # _reopen_mic pone _stream = None, cierra el viejo en otro hilo y luego abre el
+    # nuevo. Salir en el None intermedio comprobaba viejo.closed antes de que ese hilo
+    # acabase (fallo intermitente en la integracion continua del 19/11/2026).
+    while time.time() - t0 < 10:
+        if rec._stream is not None and rec._stream is not viejo and viejo.closed:
+            break
+        time.sleep(0.05)
     stop.set()
-    assert rec._stream is not viejo and viejo.closed
+    assert rec._stream is not None and rec._stream is not viejo and viejo.closed
 
 
 def test_watchdog_reabre_si_solo_hay_silencio_digital(rec, fake_sd, monkeypatch):
@@ -127,11 +137,11 @@ def test_watchdog_reabre_si_solo_hay_silencio_digital(rec, fake_sd, monkeypatch)
     t = threading.Thread(target=rec._mic_watchdog, args=(stop,), daemon=True)
     t.start()
     t0 = time.time()
-    while rec._stream is viejo and time.time() - t0 < 5:
+    while (rec._stream is None or rec._stream is viejo) and time.time() - t0 < 10:
         viejo.feed(value=0.0)                     # sigue llegando, pero todo ceros
-        time.sleep(0.1)
+        time.sleep(0.05)
     stop.set()
-    assert rec._stream is not viejo
+    assert rec._stream is not None and rec._stream is not viejo
 
 
 def test_un_micro_muerto_con_ruido_de_1_lsb_cuenta_como_silencio(rec, fake_sd):
