@@ -12,7 +12,7 @@ AHORA = 1_800_000_000.0
 
 
 def _expira_en(horas):
-    return dt.datetime.fromtimestamp(AHORA + horas * 3600, dt.timezone.utc)
+    return dt.datetime.fromtimestamp(AHORA + horas * 3600, dt.UTC)
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def test_como_mucho_un_aviso_al_dia(avisos, monkeypatch):
 
 @pytest.mark.parametrize('salida, esperado', [
     ('{"loggedIn": true, "loginExpiresAt": "2026-12-17T00:12:17.999Z"}',
-     dt.datetime(2026, 12, 17, 0, 12, 17, 999000, dt.timezone.utc)),
+     dt.datetime(2026, 12, 17, 0, 12, 17, 999000, dt.UTC)),
     ('{"loggedIn": true}', None),
     ('{"loggedIn": false, "loginExpiresAt": "2026-12-17T00:12:17.999Z"}', None),
     ('error: unknown command auth', None),
