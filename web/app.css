@@ -986,12 +986,21 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 }
 .pipeline-job-card.recording { border-left-color: #ef4444; }
 .pipeline-job-card.queued    { border-left-color: var(--muted); opacity: .7; }
-.pipeline-job-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+/* Fila 1: punto, titulo (hasta 2 lineas) y la X de cancelar. Fila 2: hora, cronometro y
+   botones. Todo en una fila dejaba al titulo sin sitio en un panel de 310 px (con "Ver
+   transcript" y "Activar en vivo" solo se veia la primera letra). */
+.pipeline-job-header { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 6px; }
+.pipeline-job-header::after { content: ''; flex-basis: 100%; height: 0; order: 3; }
+.pipeline-job-dot { order: 0; }
+.pipeline-job-cancel { order: 2; }
+.pipeline-job-time, .pipeline-job-elapsed, .pipeline-job-pct, .pipeline-job-live { order: 4; }
+.pipeline-job-time { margin-left: 15px; }
 .pipeline-job-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .pipeline-job-dot.recording  { background: #ef4444; animation: pip-pulse 1.1s infinite; }
 .pipeline-job-dot.processing { background: var(--accent); animation: pip-pulse 1.5s infinite; }
 .pipeline-job-dot.queued     { background: var(--muted); }
-.pipeline-job-label   { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pipeline-job-label   { order: 1; flex: 1 1 0; min-width: 0; font-size: 13px; font-weight: 600; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .pipeline-job-time    { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 .pipeline-job-elapsed { font-size: 11px; color: #ef4444; font-weight: 600; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .pipeline-job-pct     { font-size: 11px; color: var(--accent); font-weight: 600; flex-shrink: 0; }

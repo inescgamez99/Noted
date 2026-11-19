@@ -6023,7 +6023,7 @@ async function updatePipelineFooter() {
       <div class="pipeline-job-card ${dotClass}">
         <div class="pipeline-job-header">
           <span class="pipeline-job-dot ${dotClass}"></span>
-          <span class="pipeline-job-label">${escHtml(mainLine)}</span>
+          <span class="pipeline-job-label" title="${escHtml(mainLine)}">${escHtml(mainLine)}</span>
           ${timeText}
           ${elapsedHtml}
           ${cancelHtml}
