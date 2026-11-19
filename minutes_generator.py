@@ -650,6 +650,32 @@ def claude_problem() -> str | None:
     return None
 
 
+def claude_login_expiry():
+    """Cuando caduca la sesion de Claude (datetime con zona), o None si no se
+    sabe (sin CLI, sin sesion, CLI antiguo sin ese dato). Lo da
+    `claude auth status` en `loginExpiresAt`; no gasta tokens. Sirve para avisar
+    ANTES de que caduque, no cuando ya han fallado unas minutas."""
+    claude_bin = _get_claude_bin()
+    if not claude_bin:
+        return None
+    try:
+        import json
+        from datetime import datetime
+        r = subprocess.run(
+            [claude_bin, 'auth', 'status'], capture_output=True, text=True, encoding='utf-8',
+            timeout=30, env=_clean_env(),
+            creationflags=0x08000000 if os.name == 'nt' else 0,
+        )
+        data = json.loads(r.stdout or '{}')
+        raw = data.get('loginExpiresAt') if data.get('loggedIn') is not False else None
+        if not isinstance(raw, str):
+            return None
+        return datetime.fromisoformat(raw.replace('Z', '+00:00'))
+    except Exception as e:
+        log.info(f"claude auth status no dice cuando caduca la sesion: {e}")
+        return None
+
+
 def regenerate_actions_section(transcript: str, current_actions_md: str,
                                instruction: str, language: str = 'auto') -> str | None:
     """Reescribe SOLO la sección de Acciones Pendientes según la instrucción del usuario.

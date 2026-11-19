@@ -104,6 +104,10 @@ _STR = {
         minutes_pending_session=('Claude no tiene la sesión iniciada. La reunión queda guardada con su título y su '
                                  'transcript, y las minutas se generarán solas en cuanto ejecutes «claude auth login» '
                                  'en una terminal.'),
+        login_expiring=('La sesión de Claude caduca en {when}. Abre una terminal y ejecuta «claude auth login» '
+                        'para que las minutas sigan funcionando.'),
+        login_when_days='{n} día(s)',
+        login_when_hours='{n} hora(s)',
         minutes_pending_missing=('No se encuentra Claude Code. La reunión queda guardada con su título y su '
                                  'transcript, y las minutas se generarán solas cuando vuelva a estar instalado.'),
         minutes_pending=('Claude no ha podido generar las minutas. La reunión queda guardada con su título y su '
@@ -168,6 +172,10 @@ _STR = {
         minutes_pending_session=('Claude is not signed in. The meeting is saved with its title and transcript, and '
                                  'the minutes will be generated on their own as soon as you run «claude auth login» '
                                  'in a terminal.'),
+        login_expiring=('Your Claude session expires in {when}. Open a terminal and run «claude auth login» '
+                        'so meeting minutes keep working.'),
+        login_when_days='{n} day(s)',
+        login_when_hours='{n} hour(s)',
         minutes_pending_missing=('Claude Code was not found. The meeting is saved with its title and transcript, and '
                                  'the minutes will be generated on their own once it is installed again.'),
         minutes_pending=('Claude could not generate the minutes. The meeting is saved with its title and '
@@ -228,6 +236,13 @@ DISK_TOAST_EVERY_S = 120.0
 RETRY_PENDING_FIRST_S = 120.0
 RETRY_PENDING_EVERY_S = 900.0
 RETRY_PENDING_MAX = 3
+# Aviso de que la sesion de Claude esta a punto de caducar (ver _check_claude_login):
+# se mira poco despues de arrancar y luego cada pocas horas; se avisa desde que
+# quedan LOGIN_WARN_DAYS dias, como mucho una vez cada LOGIN_WARN_EVERY_S.
+LOGIN_CHECK_FIRST_S = 300.0
+LOGIN_CHECK_EVERY_S = 6 * 3600.0
+LOGIN_WARN_DAYS = 3
+LOGIN_WARN_EVERY_S = 24 * 3600.0
 
 
 def _make_icon(color: str):
@@ -335,6 +350,7 @@ class TrayApp:
         threading.Thread(target=self._mic_poller, daemon=True, name='MicStatusPoller').start()
         threading.Thread(target=self._recover_pending, daemon=True, name='PipelineRecovery').start()
         threading.Thread(target=self._retry_pending_loop, daemon=True, name='PendingMinutesRetry').start()
+        threading.Thread(target=self._login_expiry_loop, daemon=True, name='ClaudeLoginWatch').start()
         threading.Thread(target=self._notification_poller, daemon=True, name='NotificationPoller').start()
         if (PROJECT_DIR / 'email_brain_updater.py').exists():
             self._start_daily_brain_scan()
@@ -1997,6 +2013,37 @@ class TrayApp:
             except Exception as e:
                 log.warning(f"Reintento de minutas pendientes: {e}", exc_info=True)
             time.sleep(RETRY_PENDING_EVERY_S)
+
+    def _login_expiry_loop(self):
+        time.sleep(LOGIN_CHECK_FIRST_S)
+        while True:
+            try:
+                self._check_claude_login()
+            except Exception as e:
+                log.warning(f"Aviso de caducidad de la sesion de Claude: {e}", exc_info=True)
+            time.sleep(LOGIN_CHECK_EVERY_S)
+
+    def _check_claude_login(self, now: float | None = None):
+        """Avisa de que la sesion de Claude caduca pronto (es un aviso, no un error).
+        Sin sesion las minutas quedan pendientes (ver _retry_pending_minutes); esto
+        avisa antes, mientras volver a entrar es solo `claude auth login`."""
+        from minutes_generator import claude_login_expiry
+        expiry = claude_login_expiry()
+        if expiry is None:
+            return
+        now = time.time() if now is None else now
+        left_s = expiry.timestamp() - now
+        if left_s <= 0 or left_s > LOGIN_WARN_DAYS * 86400:
+            return
+        if now - getattr(self, '_login_warned_at', 0.0) < LOGIN_WARN_EVERY_S:
+            return
+        self._login_warned_at = now
+        s = _STR.get(get_ui_language(), _STR['en'])
+        hours = max(1, int(left_s // 3600))
+        when = (s['login_when_days'].format(n=-(-hours // 24)) if hours >= 24
+                else s['login_when_hours'].format(n=hours))
+        log.warning(f"La sesion de Claude caduca el {expiry.astimezone():%d/%m/%Y %H:%M} ({when})")
+        self._notify('Noted ⚠', s['login_expiring'].format(when=when))
 
     def _pipeline_idle(self) -> bool:
         with self._session_lock:
