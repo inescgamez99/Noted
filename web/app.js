@@ -70,6 +70,8 @@ const T = {
     empty_sub: 'Elige una reunión de la lista para ver sus minutas y acciones',
     loading: 'Cargando...', loading_meetings: 'Cargando reuniones...',
     loading_actions: 'Cargando acciones...', no_meetings: 'No hay reuniones todavía',
+    tab_shots: 'Capturas', shots_copy: 'Copiar imagen', shots_open: 'Abrir', shots_goto: 'Ir al transcript',
+    shots_copied: 'Captura copiada: ya puedes pegarla', shots_copy_failed: 'No se pudo copiar la captura',
     tab_notes: 'Notas', tab_transcript: 'Transcript', tab_actions: 'Gestionar acciones', section_actions: 'Acciones',
     copy_note: 'Copiar notas', copy_actions: 'Copiar acciones',
     copy_transcript: 'Copiar transcript', copy_transcript_done: 'Copiado', copy_failed: 'Error al copiar',
@@ -444,6 +446,7 @@ const T = {
     glossary_suggestions: 'Sugerencias',
     glossary_suggestions_hint: 'Detectadas por Claude en tus últimas reuniones. No se aplican hasta que las apruebes.',
     glossary_approve: 'Aprobar',
+    glossary_known: 'ya en el glosario', glossary_approve_alias: 'Añadir error',
     glossary_dismiss: 'Descartar',
     glossary_corrects: 'Corrige',
     glossary_empty: 'Aún no hay entradas en este ámbito.',
@@ -514,6 +517,8 @@ const T = {
     empty_sub: 'Choose a meeting from the list to view its notes and actions',
     loading: 'Loading...', loading_meetings: 'Loading meetings...',
     loading_actions: 'Loading actions...', no_meetings: 'No meetings yet',
+    tab_shots: 'Screenshots', shots_copy: 'Copy image', shots_open: 'Open', shots_goto: 'Go to transcript',
+    shots_copied: 'Screenshot copied: ready to paste', shots_copy_failed: 'Could not copy the screenshot',
     tab_notes: 'Notes', tab_transcript: 'Transcript', tab_actions: 'Manage actions', section_actions: 'Actions',
     copy_note: 'Copy notes', copy_actions: 'Copy actions',
     copy_transcript: 'Copy transcript', copy_transcript_done: 'Copied', copy_failed: 'Copy failed',
@@ -888,6 +893,7 @@ const T = {
     glossary_suggestions: 'Suggestions',
     glossary_suggestions_hint: 'Detected by Claude in your latest meetings. They are not applied until you approve them.',
     glossary_approve: 'Approve',
+    glossary_known: 'already in the glossary', glossary_approve_alias: 'Add misspelling',
     glossary_dismiss: 'Dismiss',
     glossary_corrects: 'Fixes',
     glossary_empty: 'No entries in this scope yet.',
@@ -962,6 +968,8 @@ const T = {
     empty_sub: 'Tria una reunió de la llista per veure les actes i accions',
     loading: 'Carregant...', loading_meetings: 'Carregant reunions...',
     loading_actions: 'Carregant accions...', no_meetings: 'No hi ha reunions encara',
+    tab_shots: 'Captures', shots_copy: 'Copiar imatge', shots_open: 'Obrir', shots_goto: 'Anar al transcript',
+    shots_copied: 'Captura copiada: ja la pots enganxar', shots_copy_failed: 'No s\'ha pogut copiar la captura',
     tab_notes: 'Notes', tab_transcript: 'Transcripció', tab_actions: 'Gestionar accions', section_actions: 'Accions',
     copy_note: 'Copiar notes', copy_actions: 'Copiar accions',
     copy_transcript: 'Copiar transcripció', copy_transcript_done: 'Copiat', copy_failed: 'Error en copiar',
@@ -1330,6 +1338,7 @@ const T = {
     glossary_suggestions: 'Suggeriments',
     glossary_suggestions_hint: 'Detectats per Claude a les teves últimes reunions. No s\'apliquen fins que els aprovis.',
     glossary_approve: 'Aprovar',
+    glossary_known: 'ja és al glossari', glossary_approve_alias: 'Afegir error',
     glossary_dismiss: 'Descartar',
     glossary_corrects: 'Corregeix',
     glossary_empty: 'Encara no hi ha entrades en aquest àmbit.',
@@ -1898,7 +1907,7 @@ function dayLabel(dateStr) {
 
 function _updateActionBar(tab) {
   const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
-  const isSem = tab === 'semantic';
+  const isSem = tab === 'semantic' || tab === 'shots';    // pestañas con sus propios controles
 
   // Standard buttons — all hidden on semantic tab
   show('btn-claude',            !isSem && tab !== 'transcript');
@@ -1922,9 +1931,9 @@ function _updateActionBar(tab) {
   if (mailBtn) mailBtn.title = tab === 'actions' ? t('email_actions') : tab === 'transcript' ? t('email_transcript') : t('send_email');
 
   // Semantic-specific action buttons
-  show('btn-sem-folder',    isSem);
-  show('btn-sem-regen',     isSem);
-  show('btn-sem-ontoforge', isSem);
+  show('btn-sem-folder',    tab === 'semantic');
+  show('btn-sem-regen',     tab === 'semantic');
+  show('btn-sem-ontoforge', tab === 'semantic');
 
   // Stickies layer only visible on notes tab
   const stickyLayer = document.getElementById('sticky-layer');
@@ -1944,12 +1953,14 @@ async function openMeeting(path) {
   const panel = document.getElementById('main-panel');
   panel.innerHTML = `<div class="loading">${t('loading')}</div>`;
 
-  const [minutesHtml, actions, transcriptText, semanticInfo] = await Promise.all([
+  const [minutesHtml, actions, transcriptText, semanticInfo, shots] = await Promise.all([
     pywebview.api.get_minutes_html(path),
     pywebview.api.get_actions(path),
     pywebview.api.get_transcript_text(path).catch(() => null),
     pywebview.api.get_semantic_info(path).catch(() => ({})),
+    pywebview.api.list_screenshots(path).catch(() => []),
   ]);
+  const hasShots = Array.isArray(shots) && shots.length > 0;
   const hasSemantic = !!(semanticInfo && semanticInfo.generated_at);
   _currentSemanticInfo = semanticInfo || {};
 
@@ -2015,6 +2026,7 @@ async function openMeeting(path) {
           ${t('tab_actions')} ${pendingCount > 0 ? `<span class="tab-badge">${pendingCount}</span>` : ''}
         </button>
         <button class="detail-tab" id="tab-transcript" data-tab="transcript">${t('tab_transcript')}</button>
+        ${hasShots ? `<button class="detail-tab" id="tab-shots" data-tab="shots">${t('tab_shots')} <span class="tab-badge">${shots.length}</span></button>` : ''}
         ${hasSemantic ? `<button class="detail-tab" id="tab-semantic" data-tab="semantic">${t('tab_semantic')}</button>` : ''}
       </div>
       <div class="minutes-section" id="section-notes">
@@ -2035,6 +2047,7 @@ async function openMeeting(path) {
         ${transcriptText ? '<div id="meeting-ask"></div>' : ''}
         <div class="transcript-content">${transcriptText ? transcriptHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
       </div>
+      ${hasShots ? `<div class="shots-section hidden" id="section-shots"></div>` : ''}
       ${hasSemantic ? `<div class="semantic-section hidden" id="section-semantic" data-path="${escHtml(path)}"></div>` : ''}
       <div id="sticky-layer" class="sticky-layer"></div>
     </div>`;
@@ -2143,7 +2156,9 @@ async function openMeeting(path) {
       document.getElementById('section-actions').classList.toggle('hidden', which !== 'actions');
       document.getElementById('section-transcript').classList.toggle('hidden', which !== 'transcript');
       document.getElementById('section-semantic')?.classList.toggle('hidden', which !== 'semantic');
+      document.getElementById('section-shots')?.classList.toggle('hidden', which !== 'shots');
       if (which === 'semantic') renderSemanticTab(path);
+      if (which === 'shots') renderShotsTab(path, shots);
       _updateActionBar(which);
       panel.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -5500,6 +5515,47 @@ function transcriptHtml(text) {
   return escHtml(text).replace(_SHOT_RE, '<a href="#" class="tx-shot" data-file="$1">$1</a>');
 }
 
+// Pestaña «Capturas»: miniaturas con su minuto, y por cada una copiar (al portapapeles,
+// lista para pegar), abrir a tamaño completo e ir a su linea del transcript.
+function renderShotsTab(path, shots) {
+  const box = document.getElementById('section-shots');
+  if (!box || box.dataset.ready) return;
+  box.dataset.ready = '1';
+  box.innerHTML = `<div class="shots-grid">${shots.map(s => `
+    <div class="shot-card" data-file="${escHtml(s.file)}">
+      <div class="shot-thumb"><img alt="${escHtml(s.time)}" data-thumb="${escHtml(s.file)}"></div>
+      <div class="shot-bar">
+        <span class="shot-time">${escHtml(s.time)}</span>
+        <button class="btn btn-primary btn-sm" data-shot="copy">${t('shots_copy')}</button>
+        <button class="btn btn-ghost btn-sm" data-shot="open">${t('shots_open')}</button>
+        <button class="btn btn-ghost btn-sm" data-shot="goto">${t('shots_goto')}</button>
+      </div>
+    </div>`).join('')}</div>`;
+  box.querySelectorAll('img[data-thumb]').forEach(async img => {
+    const url = await pywebview.api.get_screenshot_thumb(path, img.dataset.thumb).catch(() => '');
+    if (url) img.src = url;
+  });
+  box.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-shot]');
+    const card = e.target.closest('.shot-card');
+    if (!card) return;
+    const file = card.dataset.file;
+    const what = btn ? btn.dataset.shot : 'open';          // pulsar la miniatura la abre
+    if (what === 'copy') {
+      const ok = await pywebview.api.copy_screenshot(path, file);
+      showToast(t(ok ? 'shots_copied' : 'shots_copy_failed'));
+    } else if (what === 'open') {
+      pywebview.api.open_screenshot(path, file);
+    } else if (what === 'goto') {
+      document.getElementById('tab-transcript')?.click();
+      setTimeout(() => {
+        const link = [...document.querySelectorAll('.tx-shot')].find(a => a.dataset.file === file);
+        if (link) { link.scrollIntoView({ behavior: 'smooth', block: 'center' }); link.classList.add('tx-shot-flash'); }
+      }, 50);
+    }
+  });
+}
+
 function showToast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -6023,7 +6079,7 @@ async function updatePipelineFooter() {
       <div class="pipeline-job-card ${dotClass}">
         <div class="pipeline-job-header">
           <span class="pipeline-job-dot ${dotClass}"></span>
-          <span class="pipeline-job-label">${escHtml(mainLine)}</span>
+          <span class="pipeline-job-label" title="${escHtml(mainLine)}">${escHtml(mainLine)}</span>
           ${timeText}
           ${elapsedHtml}
           ${cancelHtml}
@@ -6733,14 +6789,22 @@ function _glSourceLabel(src) {
   return String(src || '').replace(/^\d{8}_\d{4}_/, '').replace(/_/g, ' ');
 }
 
-function _glRow(e, i, actions, extraClass = '') {
+// ¿El término de una sugerencia ya está en el glosario (en el ámbito elegido)? Entonces
+// aprobarla NO crea otra entrada: solo añade el error nuevo a la que ya existe.
+function _glKnownTerm(term) {
+  const k = String(term || '').trim().toLowerCase();
+  return (_glossary.entries || []).some(
+    e => (e.project || '') === _glScope && String(e.term).trim().toLowerCase() === k);
+}
+
+function _glRow(e, i, actions, extraClass = '', known = false) {
   const fixes = e.aliases.length
     ? `${escHtml(t('glossary_corrects'))}: <b>${e.aliases.map(escHtml).join(', ')}</b>` : '';
   const meta = [e.meaning ? escHtml(e.meaning) : '', fixes,
                 e.source ? escHtml(_glSourceLabel(e.source)) : ''].filter(Boolean).join(' · ');
   return `<div class="gl-row ${extraClass}">
     <div class="gl-main">
-      <div class="gl-term">${escHtml(e.term)}</div>
+      <div class="gl-term">${escHtml(e.term)}${known ? ` <span class="gl-known">${escHtml(t('glossary_known'))}</span>` : ''}</div>
       ${meta ? `<div class="gl-meta">${meta}</div>` : ''}
     </div>
     <div class="gl-actions">${actions}</div>
@@ -6770,11 +6834,14 @@ function _renderGlossaryDrawer() {
   // Sugerencias pendientes (no tienen ámbito: se aprueban en el que esté elegido).
   const sugg = _glossary.suggestions || [];
   document.getElementById('gl-suggestions-block').classList.toggle('hidden', !sugg.length);
-  document.getElementById('gl-suggestions').innerHTML = sugg.map((s, i) => _glRow(s, i,
-    `<button class="btn btn-primary btn-sm" data-gl="approve" data-i="${i}">${escHtml(t('glossary_approve'))}</button>
+  document.getElementById('gl-suggestions').innerHTML = sugg.map((s, i) => {
+    const known = _glKnownTerm(s.term);
+    return _glRow(s, i,
+    `<button class="btn btn-primary btn-sm" data-gl="approve" data-i="${i}">${escHtml(t(known ? 'glossary_approve_alias' : 'glossary_approve'))}</button>
      <button class="btn btn-ghost btn-sm" data-gl="edit-sugg" data-i="${i}">${escHtml(t('btn_edit'))}</button>
      <button class="btn btn-ghost btn-sm" data-gl="dismiss" data-i="${i}">${escHtml(t('glossary_dismiss'))}</button>`,
-    'gl-sugg')).join('');
+    'gl-sugg', known);
+  }).join('');
 
   // Entradas del ámbito, agrupadas por categoría.
   _glVisible = (_glossary.entries || []).filter(e => (e.project || '') === _glScope);
