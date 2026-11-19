@@ -22,7 +22,6 @@ RECORDINGS_DIR = BASE_OUTPUT_DIR / 'recordings'
 MINUTES_DIR    = BASE_OUTPUT_DIR / 'minutes'
 INBOX_DIR      = BASE_OUTPUT_DIR / 'inbox'
 
-ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
 OPENAI_API_KEY    = os.getenv('OPENAI_API_KEY', '')
 
 SAMPLE_RATE = 16000
@@ -32,9 +31,6 @@ WHISPER_MODEL    = _settings.get('whisper_model') or os.getenv('WHISPER_MODEL', 
 WHISPER_LANGUAGE = os.getenv('WHISPER_LANGUAGE', '') or None
 
 ME_NAME = _settings.get('user_name', '').strip()
-
-CLAUDE_MODEL      = _settings.get('claude_model') or os.getenv('CLAUDE_MODEL', 'claude-sonnet-4-6')
-CLAUDE_MAX_TOKENS = 8192
 
 def _find_claude_bin() -> str | None:
     import re as _re
@@ -85,8 +81,6 @@ def get_claude_bin() -> str | None:
     """Resuelve la ruta del CLI de claude en cada llamada — sobrevive auto-actualizaciones y PATH limitado."""
     return _find_claude_bin()
 
-
-CLAUDE_BIN: str | None = _find_claude_bin()
 
 TEAMS_CHAT_MESSAGE = _settings.get('teams_chat_message', '')
 

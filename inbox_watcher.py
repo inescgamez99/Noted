@@ -76,7 +76,7 @@ class InboxWatcher:
                 for f in list(INBOX_DIR.iterdir()):
                     if f.suffix.lower() not in ALL_EXTS:
                         continue
-                    if f in self._seen or f.suffix == '.error':
+                    if f in self._seen:
                         continue
                     self._seen.add(f)
                     threading.Thread(

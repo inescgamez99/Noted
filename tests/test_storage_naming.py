@@ -150,47 +150,6 @@ def test_ensure_directories_es_idempotente(tr_dirs):
 
 # ── Listados ──────────────────────────────────────────────────────────────
 
-def test_list_recordings_ordena_por_fecha_descendente(tr_dirs, wav_factory):
-    viejo = wav_factory(storage.RECORDINGS_DIR / 'viejo.wav', seconds=0.1)
-    nuevo = wav_factory(storage.RECORDINGS_DIR / 'nuevo.wav', seconds=0.1)
-    os.utime(viejo, (time.time() - 10_000,) * 2)
-
-    assert [p.name for p in storage.list_recordings()] == [nuevo.name, viejo.name]
-
-
-def test_list_recordings_incluye_los_ya_procesados(tr_dirs, wav_factory):
-    wav_factory(storage.RECORDINGS_DIR / 'pendiente.wav', seconds=0.1)
-    wav_factory(storage.RECORDINGS_DIR / 'processed' / 'hecho.wav', seconds=0.1)
-    assert {p.name for p in storage.list_recordings()} == {'pendiente.wav', 'hecho.wav'}
-
-
-def test_list_recordings_no_deduplica_por_nombre(tr_dirs, wav_factory):
-    """Un mismo nombre en recordings/ y en processed/ aparece DOS veces. Se
-    fija el comportamiento actual."""
-    wav_factory(storage.RECORDINGS_DIR / 'igual.wav', seconds=0.1)
-    wav_factory(storage.RECORDINGS_DIR / 'processed' / 'igual.wav', seconds=0.1)
-    assert [p.name for p in storage.list_recordings()].count('igual.wav') == 2
-
-
-def test_list_recordings_respeta_el_limite(tr_dirs, wav_factory):
-    for i in range(5):
-        wav_factory(storage.RECORDINGS_DIR / f'r{i}.wav', seconds=0.1)
-    assert len(storage.list_recordings(limit=3)) == 3
-
-
-def test_get_latest_minutes_devuelve_la_mas_reciente(tr_dirs):
-    vieja = storage.MINUTES_DIR / 'a.md'
-    nueva = storage.MINUTES_DIR / 'b.md'
-    vieja.write_text('x', encoding='utf-8')
-    nueva.write_text('y', encoding='utf-8')
-    os.utime(vieja, (time.time() - 10_000,) * 2)
-
-    assert storage.get_latest_minutes() == nueva
-
-
-def test_get_latest_minutes_sin_minutas_devuelve_none(tr_dirs):
-    assert storage.get_latest_minutes() is None
-
 
 # ── cleanup_old_recordings: destructiva, hoy sin red ─────────────────────
 

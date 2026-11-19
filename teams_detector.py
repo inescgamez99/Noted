@@ -260,21 +260,6 @@ class TeamsCallDetector:
     def stop(self):
         self._stop_event.set()
 
-    def reset_call_state(self):
-        """Resetea el estado de llamada. Llamar cuando el usuario rechaza grabar para que
-        el próximo ciclo de detección empiece limpio."""
-        self._in_call = False
-        self._call_streak = 0
-        self._call_streak_has_title = False
-        self._no_call_streak = 0
-        self._no_audio_streak = 0
-        self._title_went_generic = False
-        self._name_change_candidate = None
-        self._name_change_streak = 0
-        self._current_meeting_name = None
-        self._idle_title_counts.clear()
-        self._stale_titles = set()
-        log.info("Estado de llamada reseteado")
 
     def _loop(self):
         _com_initialized = False

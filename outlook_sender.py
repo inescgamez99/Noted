@@ -236,109 +236,6 @@ def _find_meeting_item(recording_time: datetime, meeting_name: str = None, for_t
     return best_item
 
 
-def find_meeting_series(recording_time: datetime, title_hint: str = None,
-                        window_minutes: int = 60) -> dict | None:
-    """
-    Looks up the Outlook calendar entry for a recording time and returns series info:
-    subject, is_recurring, series_id (GlobalAppointmentID), organizer, recurrence_desc.
-    Returns None if Outlook is unavailable or no matching item found.
-    """
-    try:
-        outlook = _get_outlook()
-        ns = outlook.GetNamespace('MAPI')
-        calendar = ns.GetDefaultFolder(9)  # olFolderCalendar
-
-        start = recording_time - timedelta(minutes=window_minutes)
-        end   = recording_time + timedelta(hours=4)
-
-        items = calendar.Items
-        items.Sort('[Start]')
-        items.IncludeRecurrences = True
-
-        filter_str = (
-            f"[Start] >= '{start.strftime('%m/%d/%Y %I:%M %p')}' AND "
-            f"[Start] <= '{end.strftime('%m/%d/%Y %I:%M %p')}'"
-        )
-        filtered = items.Restrict(filter_str)
-
-        candidates = []
-        for item in filtered:
-            try:
-                item_start = item.Start
-                if hasattr(item_start, 'year'):
-                    diff = abs(item_start - recording_time.replace(tzinfo=None))
-                    candidates.append((item, diff))
-            except Exception:
-                continue
-
-        if not candidates:
-            return None
-
-        best_item = None
-        if title_hint:
-            scored = []
-            for item, diff, *_ in candidates:
-                try:
-                    subj = item.Subject or ''
-                except Exception:
-                    subj = ''
-                score = _name_score(title_hint, subj)
-                if score >= 0.4:
-                    scored.append((score, diff, item))
-            if scored:
-                scored.sort(key=lambda x: (-x[0], x[1]))
-                best_item = scored[0][2]
-
-        if best_item is None:
-            best_item = min(candidates, key=lambda x: x[1])[0]
-
-        try:
-            is_recurring = bool(getattr(best_item, 'IsRecurring', False))
-        except Exception:
-            is_recurring = False
-
-        try:
-            subject = getattr(best_item, 'Subject', '') or ''
-        except Exception:
-            subject = ''
-
-        series_id = None
-        try:
-            series_id = getattr(best_item, 'GlobalAppointmentID', None)
-        except Exception:
-            pass
-
-        try:
-            organizer = getattr(best_item, 'Organizer', '') or ''
-        except Exception:
-            organizer = ''
-
-        recurrence_desc = ''
-        if is_recurring:
-            try:
-                rp = best_item.GetRecurrencePattern()
-                rt = rp.RecurrenceType
-                # 0=daily 1=weekly 2=monthly 3=monthly-Nth 4=yearly 5=yearly-Nth 6=biweekly
-                desc_map = {0: 'Daily', 1: 'Weekly', 2: 'Monthly', 3: 'Monthly',
-                            4: 'Yearly', 5: 'Yearly', 6: 'Biweekly'}
-                recurrence_desc = desc_map.get(rt, 'Recurring')
-            except Exception:
-                recurrence_desc = 'Recurring'
-
-        log.info(f"find_meeting_series: '{subject}' recurring={is_recurring}")
-        return {
-            'subject': subject,
-            'is_recurring': is_recurring,
-            'series_id': series_id,
-            'organizer': organizer,
-            'recurrence_desc': recurrence_desc,
-        }
-
-    except Exception as e:
-        log.debug(f"find_meeting_series: {e}")
-        return None
-
-
 def send_minutes_email(
     minutes_path: Path,
     html_path: Path,
@@ -506,18 +403,6 @@ def _inline(text: str) -> str:
     text = re.sub(r'\*(.+?)\*',     r'<em>\1</em>',         text)
     text = re.sub(r'`(.+?)`',       r'<code style="background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:12px">\1</code>', text)
     return text
-
-
-def get_my_email() -> str | None:
-    try:
-        outlook = _get_outlook()
-        ns = outlook.GetNamespace('MAPI')
-        accounts = ns.Accounts
-        if accounts.Count > 0:
-            return accounts.Item(1).SmtpAddress
-    except Exception:
-        pass
-    return None
 
 
 def _esc(text) -> str:
