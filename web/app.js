@@ -70,6 +70,8 @@ const T = {
     empty_sub: 'Elige una reunión de la lista para ver sus minutas y acciones',
     loading: 'Cargando...', loading_meetings: 'Cargando reuniones...',
     loading_actions: 'Cargando acciones...', no_meetings: 'No hay reuniones todavía',
+    tab_shots: 'Capturas', shots_copy: 'Copiar imagen', shots_open: 'Abrir', shots_goto: 'Ir al transcript',
+    shots_copied: 'Captura copiada: ya puedes pegarla', shots_copy_failed: 'No se pudo copiar la captura',
     tab_notes: 'Notas', tab_transcript: 'Transcript', tab_actions: 'Gestionar acciones', section_actions: 'Acciones',
     copy_note: 'Copiar notas', copy_actions: 'Copiar acciones',
     copy_transcript: 'Copiar transcript', copy_transcript_done: 'Copiado', copy_failed: 'Error al copiar',
@@ -514,6 +516,8 @@ const T = {
     empty_sub: 'Choose a meeting from the list to view its notes and actions',
     loading: 'Loading...', loading_meetings: 'Loading meetings...',
     loading_actions: 'Loading actions...', no_meetings: 'No meetings yet',
+    tab_shots: 'Screenshots', shots_copy: 'Copy image', shots_open: 'Open', shots_goto: 'Go to transcript',
+    shots_copied: 'Screenshot copied: ready to paste', shots_copy_failed: 'Could not copy the screenshot',
     tab_notes: 'Notes', tab_transcript: 'Transcript', tab_actions: 'Manage actions', section_actions: 'Actions',
     copy_note: 'Copy notes', copy_actions: 'Copy actions',
     copy_transcript: 'Copy transcript', copy_transcript_done: 'Copied', copy_failed: 'Copy failed',
@@ -962,6 +966,8 @@ const T = {
     empty_sub: 'Tria una reunió de la llista per veure les actes i accions',
     loading: 'Carregant...', loading_meetings: 'Carregant reunions...',
     loading_actions: 'Carregant accions...', no_meetings: 'No hi ha reunions encara',
+    tab_shots: 'Captures', shots_copy: 'Copiar imatge', shots_open: 'Obrir', shots_goto: 'Anar al transcript',
+    shots_copied: 'Captura copiada: ja la pots enganxar', shots_copy_failed: 'No s\'ha pogut copiar la captura',
     tab_notes: 'Notes', tab_transcript: 'Transcripció', tab_actions: 'Gestionar accions', section_actions: 'Accions',
     copy_note: 'Copiar notes', copy_actions: 'Copiar accions',
     copy_transcript: 'Copiar transcripció', copy_transcript_done: 'Copiat', copy_failed: 'Error en copiar',
@@ -1898,7 +1904,7 @@ function dayLabel(dateStr) {
 
 function _updateActionBar(tab) {
   const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
-  const isSem = tab === 'semantic';
+  const isSem = tab === 'semantic' || tab === 'shots';    // pestañas con sus propios controles
 
   // Standard buttons — all hidden on semantic tab
   show('btn-claude',            !isSem && tab !== 'transcript');
@@ -1922,9 +1928,9 @@ function _updateActionBar(tab) {
   if (mailBtn) mailBtn.title = tab === 'actions' ? t('email_actions') : tab === 'transcript' ? t('email_transcript') : t('send_email');
 
   // Semantic-specific action buttons
-  show('btn-sem-folder',    isSem);
-  show('btn-sem-regen',     isSem);
-  show('btn-sem-ontoforge', isSem);
+  show('btn-sem-folder',    tab === 'semantic');
+  show('btn-sem-regen',     tab === 'semantic');
+  show('btn-sem-ontoforge', tab === 'semantic');
 
   // Stickies layer only visible on notes tab
   const stickyLayer = document.getElementById('sticky-layer');
@@ -1944,12 +1950,14 @@ async function openMeeting(path) {
   const panel = document.getElementById('main-panel');
   panel.innerHTML = `<div class="loading">${t('loading')}</div>`;
 
-  const [minutesHtml, actions, transcriptText, semanticInfo] = await Promise.all([
+  const [minutesHtml, actions, transcriptText, semanticInfo, shots] = await Promise.all([
     pywebview.api.get_minutes_html(path),
     pywebview.api.get_actions(path),
     pywebview.api.get_transcript_text(path).catch(() => null),
     pywebview.api.get_semantic_info(path).catch(() => ({})),
+    pywebview.api.list_screenshots(path).catch(() => []),
   ]);
+  const hasShots = Array.isArray(shots) && shots.length > 0;
   const hasSemantic = !!(semanticInfo && semanticInfo.generated_at);
   _currentSemanticInfo = semanticInfo || {};
 
@@ -2015,6 +2023,7 @@ async function openMeeting(path) {
           ${t('tab_actions')} ${pendingCount > 0 ? `<span class="tab-badge">${pendingCount}</span>` : ''}
         </button>
         <button class="detail-tab" id="tab-transcript" data-tab="transcript">${t('tab_transcript')}</button>
+        ${hasShots ? `<button class="detail-tab" id="tab-shots" data-tab="shots">${t('tab_shots')} <span class="tab-badge">${shots.length}</span></button>` : ''}
         ${hasSemantic ? `<button class="detail-tab" id="tab-semantic" data-tab="semantic">${t('tab_semantic')}</button>` : ''}
       </div>
       <div class="minutes-section" id="section-notes">
@@ -2035,6 +2044,7 @@ async function openMeeting(path) {
         ${transcriptText ? '<div id="meeting-ask"></div>' : ''}
         <div class="transcript-content">${transcriptText ? transcriptHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
       </div>
+      ${hasShots ? `<div class="shots-section hidden" id="section-shots"></div>` : ''}
       ${hasSemantic ? `<div class="semantic-section hidden" id="section-semantic" data-path="${escHtml(path)}"></div>` : ''}
       <div id="sticky-layer" class="sticky-layer"></div>
     </div>`;
@@ -2143,7 +2153,9 @@ async function openMeeting(path) {
       document.getElementById('section-actions').classList.toggle('hidden', which !== 'actions');
       document.getElementById('section-transcript').classList.toggle('hidden', which !== 'transcript');
       document.getElementById('section-semantic')?.classList.toggle('hidden', which !== 'semantic');
+      document.getElementById('section-shots')?.classList.toggle('hidden', which !== 'shots');
       if (which === 'semantic') renderSemanticTab(path);
+      if (which === 'shots') renderShotsTab(path, shots);
       _updateActionBar(which);
       panel.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -5498,6 +5510,47 @@ function escHtml(str) {
 const _SHOT_RE = /([^\s<>"'\\/:]+_screenshot_(?:p\d+_)?\d{2,}-\d{2}(?:_\d+)?\.png)/g;
 function transcriptHtml(text) {
   return escHtml(text).replace(_SHOT_RE, '<a href="#" class="tx-shot" data-file="$1">$1</a>');
+}
+
+// Pestaña «Capturas»: miniaturas con su minuto, y por cada una copiar (al portapapeles,
+// lista para pegar), abrir a tamaño completo e ir a su linea del transcript.
+function renderShotsTab(path, shots) {
+  const box = document.getElementById('section-shots');
+  if (!box || box.dataset.ready) return;
+  box.dataset.ready = '1';
+  box.innerHTML = `<div class="shots-grid">${shots.map(s => `
+    <div class="shot-card" data-file="${escHtml(s.file)}">
+      <div class="shot-thumb"><img alt="${escHtml(s.time)}" data-thumb="${escHtml(s.file)}"></div>
+      <div class="shot-bar">
+        <span class="shot-time">${escHtml(s.time)}</span>
+        <button class="btn btn-primary btn-sm" data-shot="copy">${t('shots_copy')}</button>
+        <button class="btn btn-ghost btn-sm" data-shot="open">${t('shots_open')}</button>
+        <button class="btn btn-ghost btn-sm" data-shot="goto">${t('shots_goto')}</button>
+      </div>
+    </div>`).join('')}</div>`;
+  box.querySelectorAll('img[data-thumb]').forEach(async img => {
+    const url = await pywebview.api.get_screenshot_thumb(path, img.dataset.thumb).catch(() => '');
+    if (url) img.src = url;
+  });
+  box.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-shot]');
+    const card = e.target.closest('.shot-card');
+    if (!card) return;
+    const file = card.dataset.file;
+    const what = btn ? btn.dataset.shot : 'open';          // pulsar la miniatura la abre
+    if (what === 'copy') {
+      const ok = await pywebview.api.copy_screenshot(path, file);
+      showToast(t(ok ? 'shots_copied' : 'shots_copy_failed'));
+    } else if (what === 'open') {
+      pywebview.api.open_screenshot(path, file);
+    } else if (what === 'goto') {
+      document.getElementById('tab-transcript')?.click();
+      setTimeout(() => {
+        const link = [...document.querySelectorAll('.tx-shot')].find(a => a.dataset.file === file);
+        if (link) { link.scrollIntoView({ behavior: 'smooth', block: 'center' }); link.classList.add('tx-shot-flash'); }
+      }, 50);
+    }
+  });
 }
 
 function showToast(msg) {

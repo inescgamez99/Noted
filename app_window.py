@@ -3771,6 +3771,84 @@ class AppAPI:
             return False
         return semantic.open_file(str(path))
 
+    # ── Capturas de la reunion (pestaña «Capturas») ──────────────────────────────
+
+    @staticmethod
+    def _shot_path(md_path: str, file_name: str) -> Path | None:
+        """La captura `file_name` de las minutas `md_path`, o None. Solo el nombre de
+        una captura DE ESTA reunion, sin carpetas: sale del DOM y no puede servir para
+        leer otra cosa."""
+        name = (file_name or '').strip()
+        stem = Path(md_path).stem
+        if not name.startswith(stem + '_screenshot_') or not re.fullmatch(
+                r'[^/\\:]+_screenshot_(p\d+_)?\d{2,}-\d{2}(_\d+)?\.png', name):
+            return None
+        path = Path(md_path).parent / name
+        return path if path.is_file() else None
+
+    def list_screenshots(self, md_path: str) -> list:
+        """Las capturas de una reunion, en orden: [{file, time}] ('MM:SS' del minuto en
+        que se tomaron). Sin leer las imagenes: abrir la reunion no debe esperar."""
+        try:
+            md = Path(md_path)
+            pat = re.compile(re.escape(md.stem) + r'_screenshot_(?:p(\d+)_)?(\d{2,})-(\d{2})(?:_\d+)?\.png')
+            found = []
+            for f in md.parent.glob(f'{glob.escape(md.stem)}_screenshot_*.png'):
+                m = pat.fullmatch(f.name)
+                if m:
+                    part, mm, ss = int(m.group(1) or 1), int(m.group(2)), int(m.group(3))
+                    found.append(((part, mm * 60 + ss, f.name), {'file': f.name, 'time': f'{mm:02d}:{ss:02d}'}))
+            return [item for _, item in sorted(found)]
+        except Exception as e:
+            log.warning(f"list_screenshots: {e}")
+            return []
+
+    def get_screenshot_thumb(self, md_path: str, file_name: str) -> str:
+        """Miniatura de una captura como data URL (JPEG de 480 px de ancho), o ''."""
+        path = self._shot_path(md_path, file_name)
+        if path is None:
+            return ''
+        try:
+            import base64
+            import io
+            from PIL import Image
+            with Image.open(path) as im:
+                im = im.convert('RGB')
+                im.thumbnail((480, 480))
+                buf = io.BytesIO()
+                im.save(buf, 'JPEG', quality=80)
+            return 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+        except Exception as e:
+            log.warning(f"get_screenshot_thumb {file_name}: {e}")
+            return ''
+
+    def copy_screenshot(self, md_path: str, file_name: str) -> bool:
+        """Deja la captura (a tamaño completo) en el portapapeles, lista para pegar en
+        un correo, Word, PowerPoint o Teams. Desde Python: el portapapeles de imagenes
+        de la ventana web no es fiable en todas las instalaciones."""
+        path = self._shot_path(md_path, file_name)
+        if path is None:
+            log.warning(f"copy_screenshot: no valida: {(file_name or '')[:80]}")
+            return False
+        try:
+            import io
+            import win32clipboard
+            from PIL import Image
+            with Image.open(path) as im:
+                buf = io.BytesIO()
+                im.convert('RGB').save(buf, 'BMP')
+            dib = buf.getvalue()[14:]                  # un DIB es el BMP sin su cabecera de fichero
+            win32clipboard.OpenClipboard()
+            try:
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32clipboard.CF_DIB, dib)
+            finally:
+                win32clipboard.CloseClipboard()
+            return True
+        except Exception as e:
+            log.error(f"copy_screenshot {file_name}: {e}")
+            return False
+
     def open_url(self, url: str) -> bool:
         """Abre una URL http/https en el navegador por defecto."""
         import webbrowser

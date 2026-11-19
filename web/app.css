@@ -341,6 +341,18 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .semantic-section { padding: 24px 32px 32px; }
 .transcript-content { font-size: 13px; line-height: 1.8; color: var(--subtext); white-space: pre-wrap; font-family: 'Graphik', 'Segoe UI', monospace; }
 .transcript-content .tx-shot { color: var(--accent); text-decoration: underline; cursor: pointer; }
+.tx-shot-flash { animation: tx-shot-flash 1.6s ease-out; }
+@keyframes tx-shot-flash { 0%, 40% { background: var(--accent); color: #fff; } 100% { background: transparent; } }
+
+/* Pestaña Capturas: cuadricula de miniaturas con sus botones */
+.shots-section { padding: 24px 32px 32px; }
+.shots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.shot-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface, transparent); }
+.shot-thumb { aspect-ratio: 16 / 10; background: rgba(128, 128, 128, 0.12); display: flex; align-items: center; justify-content: center; cursor: zoom-in; }
+.shot-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.shot-thumb img:not([src]) { visibility: hidden; }
+.shot-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; }
+.shot-time { font-weight: 600; font-size: 13px; margin-right: auto; font-variant-numeric: tabular-nums; }
 .actions-count { font-size: 13px; color: var(--subtext); }
 
 .action-card {
