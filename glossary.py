@@ -141,9 +141,20 @@ def _pair(term: str, alias: str) -> str:
     return f"{_fold(term)}>{_fold(alias)}"
 
 
+def _join_meanings(old: str, new: str) -> str:
+    """Al fusionar dos entradas del mismo termino se conservan los dos significados
+    (el que ya estaba y el nuevo), sin repetir uno que ya contiene al otro."""
+    old, new = (old or '').strip(), (new or '').strip()
+    if not old or _fold(new) in _fold(old):
+        return old or new
+    if not new or _fold(old) in _fold(new):
+        return new or old
+    return f"{old}; {new}"
+
+
 def _upsert(data: dict, new: dict, original_key: tuple | None = None) -> None:
     """Pone `new` en data['entries']. Si ya había otra con el mismo término y
-    ámbito se fusionan (errores y significado), en vez de quedar duplicadas."""
+    ámbito se fusionan (errores y significados), en vez de quedar duplicadas."""
     nkey = _key(new['term'], new['project'])
     out, placed = [], False
     for e in data['entries']:
@@ -155,7 +166,7 @@ def _upsert(data: dict, new: dict, original_key: tuple | None = None) -> None:
             continue
         if k == nkey:
             new['aliases'] = list(dict.fromkeys(new['aliases'] + e['aliases']))
-            new['meaning'] = new['meaning'] or e['meaning']
+            new['meaning'] = _join_meanings(e['meaning'], new['meaning'])
             if not placed:
                 out.append(new)
                 placed = True

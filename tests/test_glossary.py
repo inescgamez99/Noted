@@ -761,3 +761,27 @@ def test_transcribe_corrige_con_las_entradas_de_ahora(monkeypatch, tr_dirs):
     gl.upsert_entry({'term': 'Kinaxis', 'aliases': ['Kinexis']})
 
     assert tr.transcribe(tr_dirs / 'recordings' / 'a.wav')[0] == '[00:01] hablamos de Kinaxis'
+
+
+# ── Fusionar dos entradas del mismo termino conserva los dos significados ──
+
+def test_aprobar_una_sugerencia_de_un_termino_conocido_une_los_significados(tmp_path):
+    gl.save({'entries': [E('Nil', 'person', ['Nils'], 'Colleague from the Barcelona office')],
+             'suggestions': [{'term': 'Nil', 'category': 'person', 'aliases': ['Neil'],
+                              'meaning': 'Nil Coll Corominas, invitee', 'source': 'm1'}]})
+    gl.approve_suggestion('Nil')
+    got = [e for e in gl.load()['entries'] if e['term'] == 'Nil']
+    assert len(got) == 1
+    assert got[0]['meaning'] == 'Colleague from the Barcelona office; Nil Coll Corominas, invitee'
+    assert set(got[0]['aliases']) == {'Nils', 'Neil'}
+
+
+@pytest.mark.parametrize('antes, nuevo, esperado', [
+    ('', 'Nuevo', 'Nuevo'),
+    ('Viejo', '', 'Viejo'),
+    ('Viejo', 'viejo', 'Viejo'),                               # el mismo, sin repetir
+    ('Head of IDP', 'Head of IDP and sponsor', 'Head of IDP and sponsor'),   # el nuevo ya lo contiene
+    ('Planificación', 'Herramienta', 'Planificación; Herramienta'),
+])
+def test_union_de_significados(antes, nuevo, esperado):
+    assert gl._join_meanings(antes, nuevo) == esperado
