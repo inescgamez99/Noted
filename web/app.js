@@ -446,6 +446,7 @@ const T = {
     glossary_suggestions: 'Sugerencias',
     glossary_suggestions_hint: 'Detectadas por Claude en tus últimas reuniones. No se aplican hasta que las apruebes.',
     glossary_approve: 'Aprobar',
+    glossary_known: 'ya en el glosario', glossary_approve_alias: 'Añadir error',
     glossary_dismiss: 'Descartar',
     glossary_corrects: 'Corrige',
     glossary_empty: 'Aún no hay entradas en este ámbito.',
@@ -892,6 +893,7 @@ const T = {
     glossary_suggestions: 'Suggestions',
     glossary_suggestions_hint: 'Detected by Claude in your latest meetings. They are not applied until you approve them.',
     glossary_approve: 'Approve',
+    glossary_known: 'already in the glossary', glossary_approve_alias: 'Add misspelling',
     glossary_dismiss: 'Dismiss',
     glossary_corrects: 'Fixes',
     glossary_empty: 'No entries in this scope yet.',
@@ -1336,6 +1338,7 @@ const T = {
     glossary_suggestions: 'Suggeriments',
     glossary_suggestions_hint: 'Detectats per Claude a les teves últimes reunions. No s\'apliquen fins que els aprovis.',
     glossary_approve: 'Aprovar',
+    glossary_known: 'ja és al glossari', glossary_approve_alias: 'Afegir error',
     glossary_dismiss: 'Descartar',
     glossary_corrects: 'Corregeix',
     glossary_empty: 'Encara no hi ha entrades en aquest àmbit.',
@@ -6786,14 +6789,22 @@ function _glSourceLabel(src) {
   return String(src || '').replace(/^\d{8}_\d{4}_/, '').replace(/_/g, ' ');
 }
 
-function _glRow(e, i, actions, extraClass = '') {
+// ¿El término de una sugerencia ya está en el glosario (en el ámbito elegido)? Entonces
+// aprobarla NO crea otra entrada: solo añade el error nuevo a la que ya existe.
+function _glKnownTerm(term) {
+  const k = String(term || '').trim().toLowerCase();
+  return (_glossary.entries || []).some(
+    e => (e.project || '') === _glScope && String(e.term).trim().toLowerCase() === k);
+}
+
+function _glRow(e, i, actions, extraClass = '', known = false) {
   const fixes = e.aliases.length
     ? `${escHtml(t('glossary_corrects'))}: <b>${e.aliases.map(escHtml).join(', ')}</b>` : '';
   const meta = [e.meaning ? escHtml(e.meaning) : '', fixes,
                 e.source ? escHtml(_glSourceLabel(e.source)) : ''].filter(Boolean).join(' · ');
   return `<div class="gl-row ${extraClass}">
     <div class="gl-main">
-      <div class="gl-term">${escHtml(e.term)}</div>
+      <div class="gl-term">${escHtml(e.term)}${known ? ` <span class="gl-known">${escHtml(t('glossary_known'))}</span>` : ''}</div>
       ${meta ? `<div class="gl-meta">${meta}</div>` : ''}
     </div>
     <div class="gl-actions">${actions}</div>
@@ -6823,11 +6834,14 @@ function _renderGlossaryDrawer() {
   // Sugerencias pendientes (no tienen ámbito: se aprueban en el que esté elegido).
   const sugg = _glossary.suggestions || [];
   document.getElementById('gl-suggestions-block').classList.toggle('hidden', !sugg.length);
-  document.getElementById('gl-suggestions').innerHTML = sugg.map((s, i) => _glRow(s, i,
-    `<button class="btn btn-primary btn-sm" data-gl="approve" data-i="${i}">${escHtml(t('glossary_approve'))}</button>
+  document.getElementById('gl-suggestions').innerHTML = sugg.map((s, i) => {
+    const known = _glKnownTerm(s.term);
+    return _glRow(s, i,
+    `<button class="btn btn-primary btn-sm" data-gl="approve" data-i="${i}">${escHtml(t(known ? 'glossary_approve_alias' : 'glossary_approve'))}</button>
      <button class="btn btn-ghost btn-sm" data-gl="edit-sugg" data-i="${i}">${escHtml(t('btn_edit'))}</button>
      <button class="btn btn-ghost btn-sm" data-gl="dismiss" data-i="${i}">${escHtml(t('glossary_dismiss'))}</button>`,
-    'gl-sugg')).join('');
+    'gl-sugg', known);
+  }).join('');
 
   // Entradas del ámbito, agrupadas por categoría.
   _glVisible = (_glossary.entries || []).filter(e => (e.project || '') === _glScope);
