@@ -6,6 +6,7 @@ import threading
 import time
 from pathlib import Path
 
+import config
 from config import WHISPER_MODEL, WHISPER_LANGUAGE, OPENAI_API_KEY, ME_NAME
 
 # CTranslate2 trae Intel oneMKL dentro, y su gestor de memoria guarda los buferes
@@ -262,6 +263,39 @@ def _remap(detected: str | None) -> str:
     return detected
 
 
+def _probs(all_probs) -> dict:
+    """all_language_probs de faster-whisper ([(idioma, prob), ...] o dict) como dict."""
+    try:
+        return {str(k): float(v) for k, v in (all_probs.items() if isinstance(all_probs, dict) else all_probs)}
+    except (TypeError, ValueError):
+        return {}
+
+
+def allowed_choice(detected: str | None, prob: float, all_probs=None) -> tuple[str, float]:
+    """(idioma, confianza) restringido a config.meeting_languages(). Un idioma permitido
+    se queda como lo dijo Whisper. Si no (un 'jw' o un 'uk' falsos) gana el permitido
+    mas probable segun all_probs, con SU confianza: casi siempre baja, asi que no se
+    fija y se vuelve a mirar mas adelante. Sin all_probs, la tabla de siempre."""
+    allowed = config.meeting_languages()
+    if detected in allowed:
+        return detected, prob
+    probs = _probs(all_probs)
+    best = max(((probs[l], l) for l in allowed if l in probs), default=None)
+    if best:
+        log.info(f"Idioma detectado '{detected}' no es de los habituales {list(allowed)}: "
+                 f"se usa '{best[1]}' ({best[0]:.2f})")
+        return best[1], best[0]
+    remapped = _remap(detected)
+    return (remapped if remapped in allowed else allowed[0]), prob
+
+
+def _remap_info(info) -> str:
+    """El idioma de un TranscriptionInfo, restringido a los idiomas de las reuniones."""
+    lang = getattr(info, 'language', None)
+    return allowed_choice(lang or 'es', float(getattr(info, 'language_probability', 0) or 0),
+                          getattr(info, 'all_language_probs', None))[0]
+
+
 _TRANSCRIBE_ARGS = dict(
     language=WHISPER_LANGUAGE or None,
     beam_size=1,
@@ -441,7 +475,7 @@ def _detect(model, audio) -> tuple[str, float] | None:
     except Exception as e:
         log.warning(f"Idioma no detectado en un tramo: {e}")
         return None
-    return _remap(lang), float(prob)
+    return allowed_choice(lang, float(prob), _all)
 
 
 def next_language(current: str | None, found: tuple[str, float] | None) -> str | None:
@@ -526,7 +560,7 @@ def _transcribe_whole(model, audio_path: Path, on_progress=None, on_segment=None
     meeting = _main_language(plan)
     args = _targs(hotwords, language=meeting) if meeting else _targs(hotwords)
     segments, info = model.transcribe(str(audio_path), **args)
-    detected = meeting or _remap(getattr(info, 'language', None))
+    detected = meeting or _remap_info(info)
     log.info(f"Idioma de la reunión: {detected}")
 
     done = []
@@ -580,7 +614,7 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
             current = recheck_language(model, block, current)
             args = _targs(hotwords, language=current) if current else _targs(hotwords)
             segments, cinfo = model.transcribe(block, **args)
-            block_lang = current or _remap(getattr(cinfo, 'language', None))
+            block_lang = current or _remap_info(cinfo)
             voice[block_lang] += len(block)
             if detected is None:
                 detected = block_lang
@@ -671,7 +705,7 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
     started = time.monotonic()
     mic_args = fixed(langs['mic']) if meeting else _targs(hotwords)
     mic_segs_raw, mic_info = model.transcribe(str(mic_path), **mic_args)
-    detected = meeting or _remap(getattr(mic_info, 'language', None))
+    detected = meeting or _remap_info(mic_info)
     mic_voice = getattr(mic_info, 'duration_after_vad', None)
     mic_decides = mic_voice is None or mic_voice >= _LANG_MIN_VOICE_S
     if not meeting:
@@ -704,7 +738,7 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         loop_args = _targs(hotwords)
     loop_segs_raw, loop_info = model.transcribe(str(loop_path), **loop_args)
     if not meeting and not mic_decides and (getattr(loop_info, 'duration_after_vad', 0) or 0) > mic_voice:
-        detected = _remap(getattr(loop_info, 'language', None))
+        detected = _remap_info(loop_info)
         log.info(f"Idioma de la reunión (pista de Teams): {detected}")
     loop_done = []
     for seg in _paced(loop_segs_raw, should_pause, should_cancel):
@@ -712,7 +746,7 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         if t:
             loop_done.append((seg.start, seg.end, t))
         progress(mic_secs + seg.end)
-    loop_lang = loop_args.get('language') or _remap(getattr(loop_info, 'language', None))
+    loop_lang = loop_args.get('language') or _remap_info(loop_info)
     loop_done = _redo_echoes(model, loop_done, _Audio(loop_path), dict(loop_args, language=loop_lang))
     if meeting:
         loop_done = _apply_plan(model, loop_done, _Audio(loop_path), loop_args, plans['loop'], loop_lang)

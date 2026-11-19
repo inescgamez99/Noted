@@ -127,6 +127,22 @@ def minutes_mode() -> str:
     return mode if mode in MINUTES_MODES else 'full'
 
 
+MEETING_LANGUAGES = ('es', 'en', 'ca', 'fr', 'de')
+
+
+def meeting_languages() -> tuple:
+    """Idiomas en los que se tienen reuniones: el transcript solo puede salir en uno de
+    ellos. Whisper conoce 99 y con audio dudoso declara cualquiera (el 18/11/2026 una
+    reunion salio como 'jw', javanes). settings.json ("meeting_languages": ["es", "en"])
+    lo cambia; un valor que no sea una lista de codigos usa el de siempre."""
+    raw = read_settings().get('meeting_languages')
+    if isinstance(raw, list):
+        langs = tuple(dict.fromkeys(x.strip().lower() for x in raw if isinstance(x, str) and x.strip()))
+        if langs:
+            return langs
+    return MEETING_LANGUAGES
+
+
 def actions_enabled() -> bool:
     """Extraer y enriquecer acciones. Solo un False explicito las apaga."""
     return read_settings().get('actions_enabled', True) is not False

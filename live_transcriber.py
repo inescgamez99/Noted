@@ -739,10 +739,12 @@ def _step(track: _Track, model, lang: str | None, args: dict, vad, vad_opts, wav
             if text:
                 done.append((s.start, s.end, text))
         if asked is None:
-            chunk_lang = transcriber._remap(getattr(info, 'language', None))
+            chunk_lang, chunk_prob = transcriber.allowed_choice(
+                getattr(info, 'language', None) or 'es', float(getattr(info, 'language_probability', 0) or 0),
+                getattr(info, 'all_language_probs', None))
             # Solo se fija con confianza alta: fijarlo con los primeros segundos de
             # charla impondria un idioma dudoso a toda la reunion.
-            if getattr(info, 'language_probability', 0) >= LANG_LOCK_PROB:
+            if chunk_prob >= LANG_LOCK_PROB:
                 detected = chunk_lang
         done = transcriber._redo_echoes(model, done, transcriber._Audio(audio, SR),
                                         dict(args, language=chunk_lang))
@@ -810,9 +812,10 @@ def _detect_language(model, wav: Path, vad, vad_opts,
         lang, prob, _ = model.detect_language(np.ascontiguousarray(audio * gain), vad_filter=True,
                                               language_detection_segments=5)
         log.info(f"live: idioma detectado '{lang}' ({prob:.2f}) en {name}")
+        lang, prob = transcriber.allowed_choice(lang, float(prob), _)
         if prob > best_prob:
             best_lang, best_prob = lang, float(prob)
-    return (transcriber._remap(best_lang) if best_lang else None), best_prob
+    return best_lang, best_prob
 
 
 def _settle_language(found: str | None, prob: float, start_s: float) -> tuple[str | None, float]:
@@ -1396,7 +1399,7 @@ def _finish_live(wav: Path, on_progress=None, should_cancel=None,
                         cur = transcriber.recheck_language(model, block, cur)
                         segs, info = model.transcribe(block, language=cur, **args)
                         if cur is None:
-                            cur = transcriber._remap(getattr(info, 'language', None))
+                            cur = transcriber._remap_info(info)
                         lang = lang or cur
                         got = []
                         for s in transcriber._paced(segs, should_pause, should_cancel):
