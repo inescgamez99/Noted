@@ -85,3 +85,38 @@ def test_si_el_portapapeles_falla_cierra_y_dice_false(api, reunion, monkeypatch)
     monkeypatch.setitem(sys.modules, 'win32clipboard', fake)
     assert api.copy_screenshot(str(reunion), f'{STEM}_screenshot_00-30.png') is False
     assert estado.get('cerrado')
+
+
+# ── Claude (terminal) sabe que hay capturas ──────────────────────────────────
+
+@pytest.fixture
+def contexto(api, reunion, tmp_path, monkeypatch):
+    """Lanza «Preguntar a Claude» sin abrir nada y devuelve el contexto que escribe."""
+    (reunion.parent / f'{STEM}_transcript.txt').write_text('[00:30] [Otros]: hola', encoding='utf-8')
+    destino = tmp_path / 'tmp_ctx'
+    destino.mkdir()
+    monkeypatch.setattr(aw.tempfile, 'mkdtemp', lambda *a, **k: str(destino))
+    monkeypatch.setattr(aw.subprocess, 'Popen', lambda *a, **k: None)
+
+    def _abrir(lang='es'):
+        assert api.open_minutes_in_claude(str(reunion), lang) is True
+        return (destino / 'context.txt').read_text(encoding='utf-8')
+    return _abrir
+
+
+def test_el_contexto_de_claude_lista_las_capturas_con_su_minuto(contexto):
+    texto = contexto('es')
+    assert '## CAPTURAS' in texto and 'herramienta de lectura' in texto
+    assert texto.index(f'- [00:30] {STEM}_screenshot_00-30.png') < texto.index(f'- [12:30] {STEM}_screenshot_12-30.png')
+    assert texto.index('hola') < texto.index('## CAPTURAS')            # tras el transcript, que sigue siendo lo primero
+
+
+def test_el_contexto_de_claude_en_ingles(contexto):
+    assert '## SCREENSHOTS' in contexto('en')
+
+
+def test_sin_capturas_el_contexto_no_cambia(contexto, reunion):
+    for png in reunion.parent.glob('*.png'):
+        png.unlink()
+    texto = contexto('es')
+    assert 'CAPTURAS' not in texto and 'SCREENSHOTS' not in texto

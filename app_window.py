@@ -2487,6 +2487,26 @@ class AppAPI:
 
 
 
+    def _screenshots_context(self, md_path, lang: str = 'es') -> list:
+        """Lineas para el contexto de Claude (terminal): que capturas tiene la reunion y en
+        que minuto, para que pueda abrirlas cuando la pregunta trate de lo que se veia en
+        pantalla. Claude arranca en la carpeta de las minutas, donde estan los PNG. Vacio
+        si no hay capturas: el contexto queda exactamente como antes."""
+        shots = self.list_screenshots(str(md_path))
+        if not shots:
+            return []
+        if lang == 'en':
+            head = ("## SCREENSHOTS",
+                    "Screenshots taken during the meeting are in the current directory. Open one with "
+                    "your file-reading tool only when a question is about what was shown on screen; "
+                    "the transcript marks each one with [Screenshot] at its minute.")
+        else:
+            head = ("## CAPTURAS",
+                    "Las capturas de pantalla hechas durante la reunión están en el directorio actual. "
+                    "Abre una con tu herramienta de lectura de ficheros solo cuando una pregunta trate de "
+                    "lo que se veía en pantalla; la transcripción marca cada una con [Screenshot] en su minuto.")
+        return ["", head[0], head[1], *[f"- [{s['time']}] {s['file']}" for s in shots]]
+
     def open_minutes_in_claude(self, path: str, lang: str = 'es') -> bool:
 
         """Abre Claude en modo interactivo con las minutas como contexto.
@@ -2620,7 +2640,7 @@ class AppAPI:
             f"## {context_label} — {title} ({date})",
 
             transcript_content,
-
+            *self._screenshots_context(md_path, lang),
         ])
 
         tmp_dir     = Path(tempfile.mkdtemp())
