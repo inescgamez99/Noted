@@ -2139,6 +2139,10 @@ class AppAPI:
         try:
 
             from actions_enricher import set_meeting_project_id
+            from project_exporter import get_meeting_project, remove_from_project_folder
+
+            # El proyecto de antes, para quitar sus copias si cambia.
+            previous = get_meeting_project(Path(path))
 
             ok = set_meeting_project_id(Path(path), project_id)
 
@@ -2161,6 +2165,18 @@ class AppAPI:
                 except Exception as e:
 
                     log.warning(f"set_meeting_project sync: {e}")
+
+                # Las copias en la carpeta del proyecto viejo se quitan: si no,
+                # la reunion quedaba en las dos carpetas. Las del nuevo las crea
+                # el panel justo despues (export_to_project).
+                if previous and previous.get('id') != project_id:
+                    try:
+                        n = remove_from_project_folder(Path(path), previous)
+                        if n:
+                            log.info(f"set_meeting_project: {n} copia(s) quitadas de "
+                                     f"'{previous.get('name') or previous.get('id')}'")
+                    except Exception as e:
+                        log.warning(f"set_meeting_project copias: {e}")
 
             return ok
 
