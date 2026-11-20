@@ -501,6 +501,25 @@ def _build_prompt(transcript: str, recording_path: Path, extra_context: str | No
     if diarization_override:
         parts.append(diarization_override)
 
+    # Analisis de capturas dentro del transcript (screenshot_analysis.py): se
+    # explica que son, para que no se lean como un hablante.
+    if re.search(r'^\[\d+:\d{2}\] \[(Análisis de captura|Screenshot analysis)\]:', transcript, re.MULTILINE):
+        parts.append(
+            "\n## Screenshots in the transcript\n"
+            "Lines labelled [Screenshot analysis] (or [Análisis de captura]) are not speech: they "
+            "describe what was on screen at that minute (a screenshot taken by the recorder, analysed "
+            "with the surrounding transcript). Use them as context: the slide, document or figures "
+            "being discussed. Bring the relevant figures, names and points into the minutes where they "
+            "belong, but do not describe screenshots one by one or mention that screenshots exist."
+            if lang == 'en' else
+            "\n## Capturas en el transcript\n"
+            "Las líneas [Análisis de captura] (o [Screenshot analysis]) no son intervenciones: describen "
+            "lo que se veía en pantalla en ese minuto (una captura que hizo quien grababa, analizada con "
+            "el transcript de alrededor). Úsalas como contexto: la slide, el documento o las cifras de "
+            "las que se hablaba. Lleva a la minuta las cifras, nombres y puntos relevantes donde "
+            "correspondan, pero no describas las capturas una a una ni menciones que existen."
+        )
+
     if extra_context:
         parts.insert(3, f"{ctx_label}\n{extra_context}\n")
 

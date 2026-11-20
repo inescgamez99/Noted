@@ -259,6 +259,10 @@ def sin_claude_de_verdad(monkeypatch):
     corre la suite. Los tests de claude_problem usan la funcion real."""
     import minutes_generator
     monkeypatch.setattr(minutes_generator, 'claude_problem', lambda: None)
+    # Ni analiza capturas con el claude de la maquina (screenshot_analysis):
+    # los tests que lo prueban ponen su propia respuesta.
+    import screenshot_analysis
+    monkeypatch.setattr(screenshot_analysis, '_ask_claude', lambda *_a: None)
 
 
 @pytest.fixture(autouse=True)
