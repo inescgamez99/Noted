@@ -4537,6 +4537,7 @@ async function saveEditProject(pid) {
   }
 
   await pywebview.api.save_project(proj);
+  allProjects = await pywebview.api.get_projects();  // el desplegable de la reunion usa esta lista
   await loadProjectsSettings();
 }
 
@@ -4583,6 +4584,7 @@ async function saveNewProject() {
     color: _newProjectColor || PROJECT_COLORS[0],
     context_dirs: [..._newProjectContextDirs],
   });
+  allProjects = await pywebview.api.get_projects();  // el desplegable de la reunion usa esta lista
   hideAddProjectForm();
   await loadProjectsSettings();
 }

@@ -329,3 +329,18 @@ def test_open_screenshot_abre_solo_capturas_junto_a_sus_minutas(api, tmp_path, m
                    '20261117_1236_Daily_screenshot_09-09.png', '', None]:
         assert api.open_screenshot(str(md), nombre) is False, nombre
     assert abiertas == [str(png)]
+
+
+def test_cambiar_el_proyecto_se_ve_aunque_el_md_no_cambie(api, dos_reuniones):
+    """El proyecto vive en el _actions.json. Si la cache solo mirara la fecha del
+    .md, tras cambiar el proyecto el panel seguiria mostrando el viejo."""
+    import os
+    import time
+    a, _ = dos_reuniones
+    acciones = a.parent / f'{a.stem}_actions.json'
+    acciones.write_text(json.dumps({'project_id': 'gtm', 'actions': []}), encoding='utf-8')
+    assert next(m for m in api.get_meetings() if m['title'] == 'Titulo De Dentro')['project_id'] == 'gtm'
+
+    acciones.write_text(json.dumps({'project_id': 'gsk', 'actions': []}), encoding='utf-8')
+    os.utime(acciones, (time.time() + 5,) * 2)      # mtime distinto aunque el FS sea grueso
+    assert next(m for m in api.get_meetings() if m['title'] == 'Titulo De Dentro')['project_id'] == 'gsk'
