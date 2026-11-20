@@ -29,6 +29,9 @@ CHANNELS    = 1
 
 WHISPER_MODEL    = _settings.get('whisper_model') or os.getenv('WHISPER_MODEL', 'medium')
 WHISPER_LANGUAGE = os.getenv('WHISPER_LANGUAGE', '') or None
+# Modelo minimo opcional: con poca memoria, la transcripcion no baja de aqui
+# (trocea en vez de bajar de modelo). Sin valor, como siempre: baja hasta 'tiny'.
+WHISPER_MIN_MODEL = _settings.get('whisper_min_model') or os.getenv('WHISPER_MIN_MODEL', '') or None
 
 ME_NAME = _settings.get('user_name', '').strip()
 

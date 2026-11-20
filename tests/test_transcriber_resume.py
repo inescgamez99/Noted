@@ -293,3 +293,35 @@ def test_un_partial_vacio_no_fuerza_el_troceado(monkeypatch, tr_dirs, wav_15min,
     tr._transcribe_local(wav_15min, resume_from=partial)
 
     assert llamadas['entero'] == 1
+
+
+# ── Modelo minimo opcional (whisper_min_model) ───────────────────────────
+
+def test_con_minimo_medium_no_se_baja_aunque_falte_memoria(monkeypatch):
+    """Quien prefiere calidad: con poca memoria se trocea medium en vez de bajar."""
+    monkeypatch.setattr(tr, '_available_mb', lambda: 400.0)
+    plan = tr._fallback_plan('medium', floor='medium')
+    assert plan == [('medium', False), ('medium', True)]
+
+
+def test_con_minimo_desde_un_modelo_mayor_se_para_en_el_minimo(monkeypatch):
+    monkeypatch.setattr(tr, '_available_mb', lambda: None)
+    modelos = [m for m, _ in tr._fallback_plan('large-v3', floor='medium')]
+    assert modelos[-1] == 'medium' and 'small' not in modelos and modelos[0] == 'large-v3'
+
+
+def test_sin_minimo_se_baja_como_siempre(monkeypatch):
+    monkeypatch.setattr(tr, '_available_mb', lambda: None)
+    monkeypatch.setattr(tr, 'WHISPER_MIN_MODEL', None)
+    assert [m for m, _ in tr._fallback_plan('medium')][-1] == 'tiny'
+
+
+def test_el_minimo_sale_de_los_ajustes(monkeypatch):
+    monkeypatch.setattr(tr, '_available_mb', lambda: None)
+    monkeypatch.setattr(tr, 'WHISPER_MIN_MODEL', 'small')
+    assert [m for m, _ in tr._fallback_plan('medium')] == ['medium', 'medium', 'small', 'small']
+
+
+def test_un_minimo_desconocido_se_ignora(monkeypatch):
+    monkeypatch.setattr(tr, '_available_mb', lambda: None)
+    assert [m for m, _ in tr._fallback_plan('medium', floor='enorme')][-1] == 'tiny'
