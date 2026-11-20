@@ -69,6 +69,19 @@ def test_install_task_registra_el_watchdog_de_la_raiz():
 
 
 @pytest.mark.unit
+def test_install_task_lanza_el_watchdog_sin_ventana():
+    """Con Windows Terminal por defecto (Windows 11), -WindowStyle Hidden se
+    ignora y el watchdog queda como una ventana negra vacia: cerrarla lo mata.
+    conhost --headless da una consola sin ninguna ventana."""
+    texto = (SCRIPTS / 'install_task.ps1').read_text(encoding='utf-8-sig')
+    accion = texto[texto.index('$action = New-ScheduledTaskAction'):]
+    accion = accion[:accion.index('\n\n')]
+    assert re.search(r'-Execute\s+"conhost\.exe"', accion), accion
+    assert re.search(r'-Argument\s+"--headless powershell\.exe ', accion), accion
+    assert '-File `"$WatchdogPath`"' in accion
+
+
+@pytest.mark.unit
 def test_setup_bat_trabaja_desde_la_raiz():
     """requirements.txt y .env.example estan en la raiz. Con doble clic el cwd
     es scripts/, asi que sin pushd el pip install falla."""

@@ -15,9 +15,14 @@ if (-not $WatchdogPath) {
 }
 $WatchdogPath = (Resolve-Path $WatchdogPath).Path
 
+# conhost --headless: una consola SIN ninguna ventana. En Windows 11, con Windows
+# Terminal como terminal por defecto, -WindowStyle Hidden se ignora y el watchdog
+# aparece como una ventana negra vacia. Es facil cerrarla sin saber que es, y al
+# cerrarla el watchdog muere (exit 0xC000013A) y Noted se queda sin vigilancia
+# hasta el siguiente inicio de sesion o heartbeat.
 $action = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument "-NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogPath`""
+    -Execute "conhost.exe" `
+    -Argument "--headless powershell.exe -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$WatchdogPath`""
 
 # Trigger 1: al iniciar sesión interactiva
 # 60 s en lugar de 10 s: con 10 s, el subsistema de audio y el perfil de usuario
