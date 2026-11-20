@@ -139,8 +139,44 @@ def _popup_guard_s() -> float:
     return POPUP_TIMEOUT + _POPUP_GUARD_EXTRA_S
 
 
+# Pila de los hilos de Python que se crean despues de arrancar (por defecto 1 MB
+# en Windows). Margen ante llamadas nativas profundas (COM, psutil) en hilos
+# auxiliares: el 21/10 y el 22/10/2026 el daemon murio con 0xC00000FD
+# (desbordamiento de pila) dentro de un escaneo de procesos del detector.
+_THREAD_STACK = 16 * 1024 * 1024
+
+
+def _enable_crash_log(log_dir: Path) -> Path | None:
+    """Si el proceso muere por un fallo nativo (desbordamiento de pila, acceso
+    invalido dentro de una DLL), con pythonw no queda NADA en noted.log: el
+    proceso desaparece. faulthandler escribe entonces en crash.log la pila de
+    cada hilo, que es lo que dice que parte de Noted lo provoco. Se llama al
+    principio de main(), antes de crear hilos, para que el tamano de pila
+    tambien les aplique. Devuelve la ruta del crash.log, o None si no se pudo."""
+    import faulthandler
+    path = None
+    try:
+        if faulthandler.is_enabled():
+            # Ya hay uno (python -X faulthandler, o pytest): no se le quita la salida.
+            raise RuntimeError("faulthandler ya activo")
+        path = Path(log_dir) / 'crash.log'
+        f = open(path, 'a', encoding='utf-8')
+        f.write(f"\n=== arranque {datetime.datetime.now():%Y-%m-%d %H:%M:%S} PID={os.getpid()} ===\n")
+        f.flush()
+        faulthandler.enable(file=f, all_threads=True)
+    except Exception as e:
+        _bs(f"crash.log no disponible: {e}")
+        path = None
+    try:
+        threading.stack_size(_THREAD_STACK)
+    except Exception as e:
+        _bs(f"stack_size no aplicado: {e}")
+    return path
+
+
 def main():
     _bs("main() entered")
+    _enable_crash_log(Path(LOG_FILE).parent)
     if not _check_single_instance():
         sys.exit(1)
 
