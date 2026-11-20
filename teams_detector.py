@@ -147,8 +147,9 @@ def _check_audio_session(pids: list[int]) -> bool:
     """Detecta si Teams tiene sesión de audio activa (State=1)."""
     try:
         from pycaw.pycaw import AudioUtilities
+        apids = _teams_audio_pids(pids)
         for s in AudioUtilities.GetAllSessions():
-            if s.Process and s.Process.pid in pids and s.State == 1:
+            if s.ProcessId and s.ProcessId in apids and s.State == 1:
                 return True
         return False
     except Exception:
@@ -159,22 +160,115 @@ def _check_mic_session(pids: list[int]) -> bool:
     """Detecta si Teams está capturando micrófono activamente.
     Más fiable que la sesión de render para Teams 2.0 (WebRTC usa WASAPI para captura aunque no para playback)."""
     try:
-        from pycaw.pycaw import AudioUtilities, IAudioSessionManager2, AudioSession
+        from pycaw.pycaw import (AudioUtilities, IAudioSessionManager2, AudioSession,
+                                 IAudioSessionControl2)
         from comtypes import CLSCTX_ALL
         mic = AudioUtilities.GetMicrophone()
         interface = mic.Activate(IAudioSessionManager2._iid_, CLSCTX_ALL, None)
         manager = interface.QueryInterface(IAudioSessionManager2)
         enumerator = manager.GetSessionEnumerator()
+        apids = _teams_audio_pids(pids)
         for i in range(enumerator.GetCount()):
             try:
-                s = AudioSession(enumerator.GetSession(i))
-                if s.Process and s.Process.pid in pids and s.State == 1:
+                # GetSession devuelve IAudioSessionControl; AudioSession necesita
+                # IAudioSessionControl2 (GetProcessId). Sin el QueryInterface cada
+                # sesion lanzaba AttributeError, el except la saltaba y la
+                # deteccion de micro devolvia siempre False.
+                ctl = enumerator.GetSession(i).QueryInterface(IAudioSessionControl2)
+                s = AudioSession(ctl)
+                if s.ProcessId and s.ProcessId in apids and s.State == 1:
                     return True
             except Exception:
                 continue
         return False
     except Exception:
         return False
+
+
+_k32 = None
+_ntdll = None
+
+
+def _parent_pid(pid: int) -> int | None:
+    """PID del proceso padre, consultando solo ese proceso.
+
+    No psutil: Process.ppid() y children() en Windows recorren la tabla completa
+    de procesos (_ppid_map). Un primer arreglo que listaba los hijos de Teams
+    con psutil dos veces cada 3 s tumbo el daemon dos veces con un
+    desbordamiento de pila dentro de ese escaneo.
+    """
+    import ctypes
+    from ctypes import wintypes
+    global _k32, _ntdll
+    if _k32 is None:
+        _k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        _k32.OpenProcess.restype = wintypes.HANDLE
+        _k32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        _k32.CloseHandle.argtypes = [wintypes.HANDLE]
+        _ntdll = ctypes.WinDLL('ntdll')
+        _ntdll.NtQueryInformationProcess.restype = ctypes.c_long
+        _ntdll.NtQueryInformationProcess.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong,
+            ctypes.POINTER(ctypes.c_ulong)]
+
+    class PBI(ctypes.Structure):          # PROCESS_BASIC_INFORMATION (64 bits)
+        _fields_ = [('ExitStatus', ctypes.c_void_p), ('PebBaseAddress', ctypes.c_void_p),
+                    ('AffinityMask', ctypes.c_void_p), ('BasePriority', ctypes.c_void_p),
+                    ('UniqueProcessId', ctypes.c_void_p),
+                    ('InheritedFromUniqueProcessId', ctypes.c_void_p)]
+
+    h = _k32.OpenProcess(0x1000, False, pid)        # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return None
+    try:
+        pbi = PBI()
+        n = ctypes.c_ulong()
+        if _ntdll.NtQueryInformationProcess(h, 0, ctypes.byref(pbi), ctypes.sizeof(pbi),
+                                            ctypes.byref(n)) != 0:
+            return None
+        return pbi.InheritedFromUniqueProcessId or None
+    finally:
+        _k32.CloseHandle(h)
+
+
+class _TeamsTree:
+    """`pid in arbol` es True si pid es Teams o desciende de Teams.
+
+    Teams 2.0 reproduce y captura el audio desde subprocesos msedgewebview2.exe
+    hijos de ms-teams.exe. En vez de listar todos los descendientes (escaneo de
+    la tabla de procesos), se sube por los padres del pid que interesa (pocas
+    sesiones de audio, pocos niveles).
+    """
+
+    _MAX_DEPTH = 8
+
+    def __init__(self, pids):
+        self._teams = set(pids)
+        self._memo: dict[int, bool] = {}
+
+    def __contains__(self, pid) -> bool:
+        if not pid:
+            return False
+        if pid in self._teams:
+            return True
+        if pid in self._memo:
+            return self._memo[pid]
+        found, cur, seen = False, pid, set()
+        for _ in range(self._MAX_DEPTH):
+            if not cur or cur in seen:
+                break
+            seen.add(cur)
+            cur = _parent_pid(cur)
+            if cur in self._teams:
+                found = True
+                break
+        self._memo[pid] = found
+        return found
+
+
+def _teams_audio_pids(pids: list[int]) -> _TeamsTree:
+    """Conjunto (perezoso) de PIDs que pueden tener la sesión de audio de Teams."""
+    return _TeamsTree(pids)
 
 
 def get_current_meeting_name() -> str | None:
