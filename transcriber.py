@@ -646,6 +646,48 @@ def _transcribe_chunks(model, audio_path: Path, on_progress=None, on_segment=Non
     return '\n'.join(lines), (voice.most_common(1)[0][0] if voice else detected or 'es')
 
 
+def _content_words(text: str) -> list[str]:
+    """Palabras con contenido (>3 letras): las cortas ('de', 'que', 'el') coinciden
+    entre frases distintas y harían pasar por eco lo que no lo es."""
+    return [w for w in re.findall(r"\w+", text.lower()) if len(w) > 3]
+
+
+def _plain_text(text: str) -> str:
+    """El texto en minusculas, solo palabras: para comparar frases cortas."""
+    return ' '.join(re.findall(r"\w+", text.lower()))
+
+
+def _drop_mic_echo(mic_segments, loop_segments, window: float = 2.0):
+    """Quita del micro las frases que en realidad son de los demás.
+
+    En llamadas por altavoz el micro también capta a los demás, y esas frases ya
+    están, limpias, en el track del loopback. Sin esto salían dos veces, una
+    atribuida a quien graba. Una frase del micro es eco si en ±window segundos
+    los demás dijeron lo mismo (≥60 % de sus palabras con contenido). Lo que
+    dice quien graba, aunque sea a la vez, tiene otro texto y se conserva.
+    Segmentos: (inicio, fin, texto), como mic_done / loop_done.
+    """
+    if not loop_segments:
+        return mic_segments, 0
+    kept, dropped = [], 0
+    for seg in mic_segments:
+        start, end, text = seg
+        near = ' '.join(t for (ls, le, t) in loop_segments
+                        if ls <= end + window and le >= start - window)
+        if near:
+            words = _content_words(text)
+            if len(words) >= 2:
+                near_set = set(_content_words(near))
+                if sum(w in near_set for w in words) / len(words) >= 0.6:
+                    dropped += 1
+                    continue
+            elif _plain_text(text) and _plain_text(text) in _plain_text(near):
+                dropped += 1
+                continue
+        kept.append(seg)
+    return kept, dropped
+
+
 def _log_pace(what: str, audio_secs: float, started: float) -> None:
     """Cuanto tardo una pasada, contando sus pausas: es lo que dice si la transcripcion se queda
     atras de las reuniones (hilos, CPU, modo de energia)."""
@@ -752,6 +794,12 @@ def _transcribe_with_speakers(model, audio_path: Path, on_progress=None, should_
         loop_done = _apply_plan(model, loop_done, _Audio(loop_path), loop_args, plans['loop'], loop_lang)
     loop_segments = [(s, others_label, t) for s, _e, t in loop_done]
     _log_pace("Track de Teams", loop_secs, started)
+    # Sin cascos el micro tambien capta a los demas: esas frases ya estan,
+    # limpias, en la pista de Teams: ver _drop_mic_echo.
+    mic_kept, n_echo = _drop_mic_echo(mic_done, loop_done)
+    if n_echo:
+        mic_segments = [(s, me_label, t) for s, _e, t in mic_kept]
+        log.info(f"Diarizando: {n_echo} frases del micro eran eco de los demás (altavoz) y se quitan")
 
     all_segments = sorted(mic_segments + loop_segments, key=lambda x: x[0])
     lines = [f"{_format_time(ts)} {speaker}: {text}" for ts, speaker, text in all_segments]

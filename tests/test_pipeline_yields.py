@@ -85,7 +85,9 @@ def test_el_cierre_aplazado_guarda_lo_hecho_y_al_seguir_no_lo_repite(wav, model)
     model.lengths.clear()
     text, _ = lt.finish_live(wav)
     assert model.lengths == [5 * SR], "solo el bloque que faltaba"
-    assert 'hola' in text and 'buenas' in text and text.count('resto') == 2
+    # El doble devuelve 'resto' en las dos pistas en el mismo instante: el del
+    # micro es eco del de Teams (mismo texto, mismo momento) y se quita.
+    assert 'hola' in text and 'buenas' in text and text.count('resto') == 1
 
 
 def test_aplazar_el_cierre_no_cuenta_como_intento(wav, model):

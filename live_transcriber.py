@@ -365,13 +365,41 @@ def render(by_track: dict, labelled: bool) -> str:
     """
     from transcriber import ME_NAME, _format_time
     me = f'[{ME_NAME}]' if ME_NAME else '[Grabador]'
-    items = [(t, me, text) for t, text in by_track.get('mic', [])]
+    mic = by_track.get('mic', [])
+    if labelled:
+        mic = _without_echo(mic, by_track.get('loop', []))
+    items = [(t, me, text) for t, text in mic]
     if labelled:
         items += [(t, '[Otros]', text) for t, text in by_track.get('loop', [])]
     items.sort(key=lambda x: x[0])
     if labelled:
         return '\n'.join(f"{_format_time(t)} {who}: {text}" for t, who, text in items)
     return '\n'.join(f"{_format_time(t)} {text}" for t, _who, text in items)
+
+
+def _with_ends(segs: list[tuple[float, str]]) -> list[tuple[float, float, str]]:
+    """(inicio, fin, texto): aqui solo hay inicios; el fin es el inicio del
+    siguiente segmento de la misma pista, como mucho 15 s despues."""
+    segs = sorted(segs)
+    out = []
+    for i, (t, text) in enumerate(segs):
+        nxt = segs[i + 1][0] if i + 1 < len(segs) else t + 15.0
+        out.append((t, min(nxt, t + 15.0), text))
+    return out
+
+
+def _without_echo(mic: list[tuple[float, str]], loop: list[tuple[float, str]]) -> list[tuple[float, str]]:
+    """Sin cascos el micro capta a los demas, y esas frases ya estan
+    en la pista de Teams. Mismo criterio que el post-reunion (transcriber._drop_mic_echo)."""
+    if not mic or not loop:
+        return mic
+    try:
+        from transcriber import _drop_mic_echo
+        kept, _n = _drop_mic_echo(_with_ends(mic), _with_ends(loop))
+        return [(t, text) for t, _e, text in kept]
+    except Exception as e:
+        log.warning(f"Filtro de eco no aplicado: {e}")
+        return mic
 
 
 def _segments(kept: list[dict]) -> list[tuple[float, str]]:
