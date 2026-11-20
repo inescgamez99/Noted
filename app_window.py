@@ -1627,7 +1627,7 @@ class AppAPI:
 
         try:
 
-            from project_exporter import export_to_project_folder, get_meeting_project
+            from project_exporter import export_to_project_folder, get_meeting_project, project_folder
 
             md_path = Path(path)
 
@@ -1637,7 +1637,7 @@ class AppAPI:
 
                 return 'no_project'
 
-            proj_dir = (project.get('directory') or '').strip()
+            proj_dir = project_folder(project)
 
             if not proj_dir:
 
