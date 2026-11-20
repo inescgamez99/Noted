@@ -275,6 +275,10 @@ class TeamsCallDetector:
                 try:
                     pids = _teams_pids()
                     detected_name = None
+                    # Sin Teams no hay ventanas. Sin esto, el contador de
+                    # residuales leia la variable sin asignar (error cada poll)
+                    # o la del ultimo poll con Teams (seguia contando titulos).
+                    title_candidates = []
                     audio_active = False
                     title_active = False
                     if pids:

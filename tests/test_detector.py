@@ -299,3 +299,43 @@ def test_una_residual_acaba_arrancando_si_el_audio_persiste(teams, detector_fact
     espera_polls(det._required * 3 + 2)
 
     assert det.started, "un audio sostenido tiene que acabar grabando"
+
+
+# ── Con Teams cerrado ─────────────────────────────────────────────────────
+
+def test_con_teams_cerrado_el_bucle_no_falla(teams, detector_factory, monkeypatch):
+    """Sin procesos de Teams, el bucle leia title_candidates sin asignar y
+    escribia 'TeamsDetector error' en cada poll: unas 1.200 lineas por hora."""
+    avisos = []
+    original = td.log.warning
+
+    def espia(msg, *a, **k):
+        avisos.append(msg)
+        return original(msg, *a, **k)
+
+    monkeypatch.setattr(td.log, 'warning', espia)
+    monkeypatch.setattr(td, '_teams_pids', lambda: [])
+    det = detector_factory()
+    det.start()
+    espera_polls(10)
+
+    assert avisos == []
+    assert det.started == []
+
+
+def test_al_cerrar_teams_los_titulos_vistos_decaen(teams, detector_factory, monkeypatch):
+    """Con Teams cerrado no hay ventanas, asi que lo contado para cada titulo
+    decae. Antes seguia sumando los titulos del ultimo poll con Teams: con
+    Teams cerrado mas de un minuto, una reunion con ese titulo al reabrirlo
+    pasaba por residual y su grabacion se quedaba sin nombre."""
+    teams.update(titles=['Daily'], audio=False, mic=False)
+    det = detector_factory(stale_polls=1000)
+    det.start()
+    espera_polls(5)
+    contados = det._idle_title_counts.get('Daily', 0)
+    assert contados > 0
+
+    monkeypatch.setattr(td, '_teams_pids', lambda: [])
+    espera_polls(contados + 5)
+
+    assert 'Daily' not in det._idle_title_counts, det._idle_title_counts
