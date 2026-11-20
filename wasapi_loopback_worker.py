@@ -24,6 +24,14 @@ las demas se unen a la mezcla cuando estan listas.
 
 El worker termina cuando ya no queda ninguna salida activa (p. ej. se desconecto
 el dispositivo): el padre lo relanza y se vuelve a enumerar.
+
+SALIDAS NUEVAS A MITAD DE LLAMADA. PortAudio solo ve
+las salidas que existian al iniciarse. Si a mitad de llamada se conectan unos
+auriculares y Teams pasa a sonar por ellos, esa salida no estaba en la mezcla y
+la pista de los demas se quedaba en silencio hasta el final. Ahora un vigilante
+mira cada RESCAN_S las salidas activas de Windows (pycaw, barato) y, si aparece
+una nueva, el worker termina limpio: el padre lo relanza (rellenando el hueco
+con silencio, ver audio_recorder._wasapi_reader) y el nuevo la incluye.
 """
 import os
 import struct
@@ -38,6 +46,7 @@ import numpy as np  # noqa: E402
 MIX_SR = 48000          # frecuencia del flujo mezclado
 MIX_TICK = 0.1          # segundos de audio emitidos por iteracion
 MAX_BUFFER_S = 1.0      # tope por dispositivo antes de descartar lo mas antiguo
+RESCAN_S = 3.0          # cada cuanto se miran las salidas activas de Windows
 
 
 _TRACES = [0]
@@ -181,6 +190,43 @@ def _list_candidates(pa, pyaudio):
     return candidates
 
 
+def _active_outputs() -> set | None:
+    """Ids de las salidas de audio activas segun Windows (MMDevice), o None si
+    no se puede saber. Llamar desde una hebra con COM iniciado."""
+    try:
+        from pycaw.pycaw import AudioUtilities
+        coll = AudioUtilities.GetDeviceEnumerator().EnumAudioEndpoints(0, 1)  # eRender, ACTIVE
+        return {coll.Item(i).GetId() for i in range(coll.GetCount())}
+    except Exception:
+        return None
+
+
+def _watch_new_outputs(restart: threading.Event, stopping: threading.Event):
+    """Pide reiniciar el worker si Windows activa una salida que no estaba al
+    enumerar (ver SALIDAS NUEVAS en la cabecera). Las que desaparecen no cuentan:
+    su stream se apaga solo y la mezcla sigue con las demas. En su propia hebra
+    con su COM: la principal es la de PortAudio y no se le toca el apartamento."""
+    try:
+        import comtypes
+        comtypes.CoInitialize()
+    except Exception as e:
+        trace(f"vigilante de salidas no disponible: {e}")
+        return
+    known = _active_outputs()
+    if known is None:
+        trace("vigilante de salidas no disponible: pycaw no responde")
+        return
+    while not stopping.wait(RESCAN_S):
+        now = _active_outputs()
+        if now is None:
+            continue
+        new = now - known
+        if new:
+            trace(f"salida nueva ({len(new)}): reinicio para incluirla")
+            restart.set()
+            return
+
+
 def _emit_header(sr: int, n_ch: int):
     sys.stdout.buffer.write(struct.pack('<I', sr))
     sys.stdout.buffer.write(struct.pack('<I', n_ch))
@@ -212,6 +258,11 @@ def main():
 
     pa = pyaudio.PyAudio()
     trace("PortAudio listo")
+    # Justo despues de enumerar PortAudio: la foto del vigilante es la de ahora.
+    restart = threading.Event()
+    watch_stop = threading.Event()
+    threading.Thread(target=_watch_new_outputs, args=(restart, watch_stop),
+                     daemon=True, name="outputs-watch").start()
     candidates = _list_candidates(pa, pyaudio)
     trace(f"{len(candidates)} salida(s): " + ", ".join(f"'{c['name']}'" for c in candidates))
 
@@ -291,6 +342,11 @@ def main():
                     snapshot = list(started)
                 if not snapshot:
                     trace("ya no queda ninguna salida activa: termino para que me relancen")
+                    break
+                if restart.is_set():
+                    # Entre dos bloques, nunca a mitad de uno: el padre lee
+                    # bloques enteros y relanza al ver que el worker termino.
+                    trace("termino para que me relancen con la salida nueva")
                     break
                 t_next += MIX_TICK
                 wait = t_next - time.monotonic()
