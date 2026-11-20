@@ -14,6 +14,7 @@ import sounddevice as sd
 import soundfile as sf
 
 from config import SAMPLE_RATE, PROJECT_DIR
+from prio import boost_current_thread
 
 _RECORDING_SENTINEL = PROJECT_DIR / '.recording_active'
 
@@ -560,6 +561,7 @@ class AudioRecorder:
         Si se aborta (cancel) suelta lo pendiente y borra su .part: con el
         fichero abierto, cancel() no podria borrarlo y la reunion descartada
         volveria al arrancar como grabacion a medio guardar."""
+        boost_current_thread()   # escribir la grabacion no espera a la transcripcion
         key = f'{label}:{path.name}'
         pending = collections.deque()
         dc = [0.0, 0.0]         # paso-alto propio: con stop() sin esperar, dos writers pueden convivir
@@ -1048,6 +1050,7 @@ class AudioRecorder:
                 self._loop_q.put(np.zeros(pad, dtype=np.float32))
 
     def _wasapi_reader(self, proc, sr, n_ch, still=None):
+        boost_current_thread()   # leer el audio de los demas tampoco
         bytes_per_frame = 4 * n_ch
         chunk_size = int(sr * 0.1) * bytes_per_frame
         try:
