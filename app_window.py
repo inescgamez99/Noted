@@ -5094,9 +5094,30 @@ def _run_window(initial_path: str = None):
 
 
 
+def _setup_window_logging(log_file=None) -> bool:
+    """El panel es otro proceso (pythonw, sin consola) y no configuraba el
+    logging: cualquier error al guardar un proyecto, exportar o cambiar algo
+    desaparecia sin rastro. Escribe en el mismo noted.log que el daemon, con
+    el prefijo 'window.' para distinguirlo. False si no se pudo."""
+    try:
+        if log_file is None:
+            from config import LOG_FILE as log_file
+        handler = logging.FileHandler(log_file, encoding='utf-8')
+        handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s window.%(name)s: %(message)s'))
+        root = logging.getLogger()
+        root.addHandler(handler)
+        if root.level == logging.NOTSET or root.level > logging.INFO:
+            root.setLevel(logging.INFO)
+        return True
+    except Exception:
+        return False
+
+
 if __name__ == '__main__':
 
     import sys
+
+    _setup_window_logging()
 
     _initial = sys.argv[1] if len(sys.argv) > 1 else None
 
