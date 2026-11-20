@@ -111,6 +111,7 @@ def app(monkeypatch, tmp_path):
     monkeypatch.setattr(main, '_BS_LOG', tmp_path / 'startup.log')
     monkeypatch.setattr(main, '_check_single_instance', lambda: True)
     monkeypatch.setattr(main, '_start_cli_listener', lambda *_a: None)
+    monkeypatch.setattr(main, '_warm_up_popups', lambda: None)
     monkeypatch.setattr(storage, 'ensure_directories', lambda: None)
     monkeypatch.setattr(storage, 'cleanup_old_recordings', lambda *_a, **_k: None)
     monkeypatch.setattr(storage, 'cleanup_old_minutes', lambda: None)
@@ -173,6 +174,57 @@ def test_la_guarda_de_un_aviso_no_libera_el_de_uno_posterior(app, monkeypatch):
     time.sleep(0.5)                             # vence la guarda del aviso 1
     detector.on_call_started()
     assert PopupMudo.mostrados == 1, "la guarda del aviso 1 libero el del aviso 2"
+
+
+class PopupQueFalla:
+    """El hilo Tk aun no estaba listo: crear el aviso lanza."""
+    intentos = 0
+
+    def __init__(self, **kwargs):
+        PopupQueFalla.intentos += 1
+        raise RuntimeError("el hilo Tk no arranco")
+
+
+def test_si_el_aviso_falla_se_reintenta_mientras_siga_la_llamada(app, monkeypatch):
+    """El detector solo avisa al empezar la llamada: si el aviso fallaba (el hilo
+    Tk aun no estaba listo con el PC recien encendido), esa reunion no se ofrecia."""
+    _grabador, detector, _ = app
+    detector.in_call = True
+    PopupQueFalla.intentos = 0
+    _con_popup(monkeypatch, PopupQueFalla)
+    monkeypatch.setattr(main, '_POPUP_RETRY_DELAY', 0.01)
+
+    detector.on_call_started()
+    time.sleep(0.5)
+
+    assert PopupQueFalla.intentos == 1 + main._POPUP_MAX_RETRIES
+
+
+def test_si_la_llamada_ya_acabo_no_se_reintenta(app, monkeypatch):
+    _grabador, detector, _ = app
+    detector.in_call = False
+    PopupQueFalla.intentos = 0
+    _con_popup(monkeypatch, PopupQueFalla)
+    monkeypatch.setattr(main, '_POPUP_RETRY_DELAY', 0.01)
+
+    detector.on_call_started()
+    time.sleep(0.2)
+
+    assert PopupQueFalla.intentos == 1
+
+
+def test_el_hilo_de_los_avisos_se_prepara_al_arrancar(monkeypatch):
+    arrancados = []
+    falso = type(sys)('tk_thread')
+    falso.start = lambda: arrancados.append(1)
+    monkeypatch.setitem(sys.modules, 'tk_thread', falso)
+    main._warm_up_popups()
+    assert arrancados == [1]
+
+    def falla():
+        raise RuntimeError('sin Tk')
+    falso.start = falla
+    main._warm_up_popups()      # no lanza: Noted arranca igual
 
 
 # ── A4: la continuacion que no llega a existir ───────────────────────────

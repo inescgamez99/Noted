@@ -52,6 +52,23 @@ except Exception as _e:
 
 log = logging.getLogger(__name__)
 
+# Si el aviso de grabar falla (p.ej. el hilo Tk aun no esta listo), se vuelve a
+# intentar mientras siga la misma llamada: el detector solo avisa al empezar.
+_POPUP_MAX_RETRIES = 3
+_POPUP_RETRY_DELAY = 5.0   # s
+
+
+def _warm_up_popups() -> None:
+    """Arranca el hilo Tk de los avisos al iniciar Noted, sin esperarlo. Antes
+    nacia con el primer aviso y, con el PC recien encendido, no le daba tiempo:
+    el primer aviso del dia fallaba."""
+    try:
+        import tk_thread
+        tk_thread.start()
+    except Exception as e:
+        log.warning(f"No se pudo preparar el hilo de los avisos: {e}")
+
+
 LOCK_FILE = PROJECT_DIR / '.lock'
 # Named mutex for atomic single-instance guarantee (file lock alone has a TOCTOU race)
 _MUTEX_NAME = 'Noted_SingleInstance'
@@ -182,6 +199,7 @@ def main():
         _popup_active      = [False]   # guard para evitar popups múltiples
         _active_generation = [None]    # generación capturada en el último on_call_started
         _popup_lock        = threading.Lock()  # hace atómico el check-and-set de _popup_active
+        _popup_retries     = {}        # generación de llamada → reintentos del aviso ya hechos
         _popup_seq         = [0]       # nº del último aviso mostrado (para la guarda)
 
         def on_call_started():
@@ -313,6 +331,17 @@ def main():
             except Exception as e:
                 _popup_active[0] = False
                 log.error(f"Error mostrando popup: {e}")
+                # Mientras siga la misma llamada, se vuelve a ofrecer: on_call_started
+                # comprueba otra vez si ya se graba o si se rechazo.
+                gen = _active_generation[0]
+                done = _popup_retries.get(gen, 0)
+                if detector.in_call and detector.call_generation == gen                         and done < _POPUP_MAX_RETRIES:
+                    _popup_retries[gen] = done + 1
+                    log.info(f"Reintentando el aviso en {_POPUP_RETRY_DELAY:.0f} s "
+                             f"({done + 1}/{_POPUP_MAX_RETRIES})")
+                    t = threading.Timer(_POPUP_RETRY_DELAY, on_call_started)
+                    t.daemon = True
+                    t.start()
 
         def on_call_ended():
             if detector.call_generation != _active_generation[0]:
@@ -328,6 +357,8 @@ def main():
         detector.is_active_recording = lambda: recorder.is_recording
 
         recorder.on_recording_stopped = tray._on_recording_done
+
+        _warm_up_popups()
 
         _bs("starting detector…")
         detector.start()

@@ -78,6 +78,7 @@ def app(monkeypatch, tmp_path):
     monkeypatch.setattr(main, '_BS_LOG', tmp_path / 'startup.log')
     monkeypatch.setattr(main, '_check_single_instance', lambda: True)
     monkeypatch.setattr(main, '_start_cli_listener', lambda *_a: None)
+    monkeypatch.setattr(main, '_warm_up_popups', lambda: None)
     monkeypatch.setattr(storage, 'ensure_directories', lambda: None)
     monkeypatch.setattr(storage, 'cleanup_old_recordings', lambda *_a, **_k: None)
     monkeypatch.setattr(storage, 'cleanup_old_minutes', lambda: None)
