@@ -1,9 +1,14 @@
 """
 Exporta los artefactos de una reunión a la carpeta del proyecto configurada.
-Estructura creada en la carpeta del proyecto:
-  Transcripts/  → {slug}_transcript.txt
-  Notas/        → {slug}.html  (copia del HTML completo)
-  Email/        → {slug}_email.html  (versión limpia apta para email)
+Todo va a una única subcarpeta 'Noted' dentro de la carpeta del proyecto, en
+plano (los nombres ya se distinguen por el sufijo):
+  Noted/{slug}.html            → notas (copia del HTML completo)
+  Noted/{slug}_transcript.txt  → transcript
+  Noted/{slug}_email.html      → versión limpia apta para email
+  Noted/{slug}.pdf             → PDF (si se activa)
+Antes eran cuatro subcarpetas (Transcripts, Notas, Email, PDF): en una carpeta
+de proyecto compartida con documentos de trabajo, cuatro carpetas por app se
+mezclaban con las del equipo, y las piezas de una reunión quedaban separadas.
 """
 
 import json
@@ -79,15 +84,19 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
     save_email      = project.get('export_save_email', True)
     save_pdf        = project.get('export_save_pdf', False)
 
+    # Sin ninguna copia pedida, ni siquiera se crea la carpeta 'Noted'.
+    if not (save_transcript or save_html or save_email or save_pdf):
+        return False
+
     from config import ME_NAME
     _prefix = re.sub(r'[^\w]', '', ME_NAME) + '_' if ME_NAME else ''
     slug = _prefix + minutes_path.stem
 
+    noted_dir = proj_dir / 'Noted'
+    noted_dir.mkdir(parents=True, exist_ok=True)
+
     # 1 – Transcript
     if save_transcript:
-        transcripts_dir = proj_dir / 'Transcripts'
-        transcripts_dir.mkdir(parents=True, exist_ok=True)
-
         if transcript_txt is None:
             tc = minutes_path.with_name(minutes_path.stem + '_transcript.txt')
             if tc.exists():
@@ -98,18 +107,16 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
 
         if transcript_txt:
             try:
-                (transcripts_dir / f"{slug}_transcript.txt").write_text(transcript_txt, encoding='utf-8')
+                (noted_dir / f"{slug}_transcript.txt").write_text(transcript_txt, encoding='utf-8')
             except Exception as e:
                 log.warning(f"project_exporter: transcript: {e}")
 
     # 2 – Notas HTML (copia del .html generado por html_exporter)
     if save_html:
-        notes_dir = proj_dir / 'Notas'
-        notes_dir.mkdir(parents=True, exist_ok=True)
         html_src = minutes_path.with_suffix('.html')
         if html_src.exists():
             try:
-                shutil.copy2(str(html_src), str(notes_dir / f"{slug}.html"))
+                shutil.copy2(str(html_src), str(noted_dir / f"{slug}.html"))
             except Exception as e:
                 log.warning(f"project_exporter: HTML notas: {e}")
         else:
@@ -117,21 +124,17 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
 
     # 3 – Email HTML (versión limpia, inline-styles, apta para clientes de email)
     if save_email:
-        email_dir = proj_dir / 'Email'
-        email_dir.mkdir(parents=True, exist_ok=True)
         try:
             email_html = _build_project_email_html(minutes_path)
             if email_html:
-                (email_dir / f"{slug}_email.html").write_text(email_html, encoding='utf-8')
+                (noted_dir / f"{slug}_email.html").write_text(email_html, encoding='utf-8')
         except Exception as e:
             log.warning(f"project_exporter: email HTML: {e}")
 
     # 4 – PDF (generado desde el HTML via Edge headless)
     if save_pdf:
-        pdf_dir = proj_dir / 'PDF'
-        pdf_dir.mkdir(parents=True, exist_ok=True)
         html_src = minutes_path.with_suffix('.html')
-        pdf_dst = pdf_dir / f"{slug}.pdf"
+        pdf_dst = noted_dir / f"{slug}.pdf"
         edge = next((p for p in [
             r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
             r'C:\Program Files\Microsoft\Edge\Application\msedge.exe',
