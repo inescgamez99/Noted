@@ -26,6 +26,7 @@ CON_MONITOR = (frozenset({'altavoz', 'monitor'}), 'monitor', 'monitor')
 @pytest.fixture
 def rapido(monkeypatch):
     monkeypatch.setattr(w, 'RESCAN_S', 0.01)
+    monkeypatch.setattr(w, '_playing_peak', lambda: 0.0)
 
 
 def vigilar(monkeypatch, vistas, para_al_acabar=True):
@@ -139,6 +140,102 @@ def test_active_outputs_si_falla_devuelve_none(monkeypatch):
         raise OSError('sin audio')
     monkeypatch.setattr(pycaw.AudioUtilities, 'GetDeviceEnumerator', staticmethod(falla))
     assert w._active_outputs() is None
+
+
+# ── Red de seguridad: suena audio pero la captura esta muda ──────────────
+
+@pytest.fixture
+def mute(monkeypatch):
+    monkeypatch.setattr(w, 'MUTE_GRACE_S', 0.0)
+    monkeypatch.setattr(w, '_LAST_SOUND', [0.0])
+    return w._MuteCheck(started=0.0)
+
+
+def test_sonando_y_sin_captura_es_una_captura_muda(mute):
+    assert mute.mute(0.3, now=100.0) is False, "un solo sondeo no basta"
+    assert mute.mute(0.3, now=103.0) is True
+
+
+def test_si_la_captura_recoge_algo_no_esta_muda(mute):
+    mute.mute(0.3, now=100.0)
+    w._LAST_SOUND[0] = 101.0                 # llego sonido despues del primer sondeo
+    assert mute.mute(0.3, now=103.0) is False
+
+
+def test_en_silencio_no_hay_nada_que_capturar(mute):
+    for t in (100.0, 103.0, 106.0):
+        assert mute.mute(0.0, now=t) is False
+    assert mute.mute(None, now=109.0) is False, "sin medidor no se decide nada"
+
+
+def test_sondeos_con_sonido_muy_separados_no_cuentan(mute):
+    mute.mute(0.3, now=100.0)
+    assert mute.mute(0.3, now=100.0 + w.MUTE_WINDOW_S + 1) is False
+
+
+def test_al_arrancar_hay_margen(monkeypatch):
+    monkeypatch.setattr(w, '_LAST_SOUND', [0.0])
+    check = w._MuteCheck(started=100.0)
+    check.mute(0.3, now=101.0)
+    assert check.mute(0.3, now=104.0) is False, "dentro de MUTE_GRACE_S"
+
+
+def test_la_captura_marca_cuando_recoge_sonido(monkeypatch):
+    import numpy as np
+    monkeypatch.setattr(w, '_LAST_SOUND', [0.0])
+    buf = w.DeviceBuffer('altavoz', 48000, 1)
+    buf.push(np.zeros(480, dtype=np.float32).tobytes())
+    assert w._LAST_SOUND[0] == 0.0, "el silencio no cuenta"
+    buf.push(np.full(480, 0.2, dtype=np.float32).tobytes())
+    assert w._LAST_SOUND[0] > 0.0
+
+
+def test_el_vigilante_reinicia_si_la_captura_esta_muda(rapido, monkeypatch):
+    monkeypatch.setattr(w, 'MUTE_GRACE_S', 0.0)
+    monkeypatch.setattr(w, '_LAST_SOUND', [0.0])
+    monkeypatch.setattr(w, '_active_outputs', lambda: ALTAVOZ)
+    monkeypatch.setattr(w, '_playing_peak', lambda: 0.4)
+    restart = threading.Event()
+    w._watch_new_outputs(restart, threading.Event())
+    assert restart.is_set()
+
+
+def test_el_medidor_lee_el_maximo_de_las_salidas(monkeypatch):
+    from pycaw import pycaw
+
+    class Medidor:
+        def __init__(self, pico):
+            self.pico = pico
+
+        def QueryInterface(self, iface):
+            return self
+
+        def GetPeakValue(self):
+            return self.pico
+
+    class Salidas:
+        picos = [0.1, 0.5]
+
+        def GetCount(self):
+            return 2
+
+        def Item(self, i):
+            return types.SimpleNamespace(Activate=lambda *a: Medidor(self.picos[i]))
+
+    class Enum:
+        def EnumAudioEndpoints(self, flujo, estado):
+            return Salidas()
+    monkeypatch.setattr(pycaw.AudioUtilities, 'GetDeviceEnumerator', staticmethod(lambda: Enum()))
+    assert w._playing_peak() == 0.5
+
+
+def test_si_el_medidor_falla_no_se_decide_nada(monkeypatch):
+    from pycaw import pycaw
+
+    def falla():
+        raise OSError('sin audio')
+    monkeypatch.setattr(pycaw.AudioUtilities, 'GetDeviceEnumerator', staticmethod(falla))
+    assert w._playing_peak() is None
 
 
 # ── El worker entero, con un PortAudio de mentira ────────────────────────

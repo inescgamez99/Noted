@@ -38,6 +38,9 @@ un vigilante mira cada RESCAN_S las salidas de Windows (pycaw, barato): las
 activas y las que estan por defecto (consola y comunicaciones). Si cambia algo,
 el worker termina limpio y el padre lo relanza (rellenando el hueco con
 silencio, ver audio_recorder._wasapi_reader); el nuevo vuelve a abrir todas.
+Y una red de seguridad que no depende de adivinar la causa: si los medidores de
+Windows dicen que esta sonando audio y la captura lleva unos segundos sin
+recoger nada, tambien se reinicia (_MuteCheck).
 """
 import os
 import struct
@@ -53,6 +56,16 @@ MIX_SR = 48000          # frecuencia del flujo mezclado
 MIX_TICK = 0.1          # segundos de audio emitidos por iteracion
 MAX_BUFFER_S = 1.0      # tope por dispositivo antes de descartar lo mas antiguo
 RESCAN_S = 3.0          # cada cuanto se miran las salidas activas de Windows
+# Red de seguridad: si Windows esta reproduciendo sonido (medidor de pico de las
+# salidas) y la captura no recoge nada, el stream esta mudo aunque ninguna
+# salida haya cambiado. Se reinicia tras MUTE_POLLS sondeos con sonido seguidos
+# de ventana (MUTE_WINDOW_S) sin nada capturado desde el primero.
+PLAY_PEAK = 0.01        # pico de una salida por encima del cual "esta sonando"
+CAPTURE_PEAK = 0.002    # pico capturado por encima del cual la captura recoge algo
+MUTE_POLLS = 2
+MUTE_WINDOW_S = 10.0
+MUTE_GRACE_S = 8.0      # al arrancar, margen para que las salidas entreguen audio
+_LAST_SOUND = [time.monotonic()]   # ultima vez que la captura recogio sonido
 
 
 _TRACES = [0]
@@ -145,6 +158,8 @@ class DeviceBuffer:
         block = self.resampler.process(np.frombuffer(raw, dtype=np.float32))
         if not len(block):
             return
+        if float(np.abs(block).max()) > CAPTURE_PEAK:
+            _LAST_SOUND[0] = time.monotonic()
         with self._lock:
             self._data = np.concatenate((self._data, block))
             cap = int(MAX_BUFFER_S * MIX_SR)
@@ -216,6 +231,43 @@ def _active_outputs():
     return active, defaults[0], defaults[1]
 
 
+def _playing_peak() -> float | None:
+    """El pico de lo que suena ahora en las salidas activas (el maximo de sus
+    medidores, 0..1), o None si no se puede leer. Hebra con COM iniciado."""
+    try:
+        from comtypes import CLSCTX_ALL
+        from pycaw.pycaw import AudioUtilities, IAudioMeterInformation
+        coll = AudioUtilities.GetDeviceEnumerator().EnumAudioEndpoints(0, 1)  # eRender, ACTIVE
+        peaks = []
+        for i in range(coll.GetCount()):
+            meter = coll.Item(i).Activate(IAudioMeterInformation._iid_, CLSCTX_ALL, None)
+            peaks.append(float(meter.QueryInterface(IAudioMeterInformation).GetPeakValue()))
+        return max(peaks, default=0.0)
+    except Exception:
+        return None
+
+
+class _MuteCheck:
+    """Suena audio en Windows pero la captura no recoge nada: el stream de
+    loopback esta mudo (Windows reconfiguro el audio sin que cambie ninguna
+    salida, un driver, Teams cambiando de modo...). Hacen falta MUTE_POLLS
+    sondeos con sonido en MUTE_WINDOW_S y nada capturado desde el primero: un
+    aviso suelto que empieza justo antes del sondeo no basta."""
+
+    def __init__(self, started: float):
+        self.started = started
+        self.polls: list[float] = []
+
+    def mute(self, peak: float | None, now: float | None = None) -> bool:
+        now = time.monotonic() if now is None else now
+        self.polls = [t for t in self.polls if now - t <= MUTE_WINDOW_S]
+        if peak is not None and peak > PLAY_PEAK:
+            self.polls.append(now)
+        if now - self.started < MUTE_GRACE_S or len(self.polls) < MUTE_POLLS:
+            return False
+        return _LAST_SOUND[0] < self.polls[0]
+
+
 def _describe_change(before, now) -> str:
     added, removed = now[0] - before[0], before[0] - now[0]
     parts = []
@@ -244,12 +296,15 @@ def _watch_new_outputs(restart: threading.Event, stopping: threading.Event):
     if known is None:
         trace("vigilante de salidas no disponible: pycaw no responde")
         return
+    check = _MuteCheck(time.monotonic())
     while not stopping.wait(RESCAN_S):
         now = _active_outputs()
-        if now is None:
-            continue
-        if now != known:
+        if now is not None and now != known:
             trace(f"{_describe_change(known, now)}: reinicio para volver a abrirlas")
+            restart.set()
+            return
+        if check.mute(_playing_peak()):
+            trace("suena audio en Windows pero la captura esta muda: reinicio")
             restart.set()
             return
 
