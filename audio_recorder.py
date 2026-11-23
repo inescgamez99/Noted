@@ -86,6 +86,8 @@ _MIC_STALL_SECONDS = 2.0      # sin callbacks: el stream está muerto
 _MIC_SILENT_SECONDS = 15.0    # solo ceros digitales: el dispositivo ya no entrega señal
 _MIC_SILENT_RETRY = 30.0      # entre reaperturas por silencio (puede ser mute de hardware)
 _MIC_RETRY_WAIT = 2.0         # entre intentos mientras no hay micrófono
+# Cada cuanto se mira si Teams ha cambiado de micro (ver _follow_teams_mic).
+_MIC_FOLLOW_S = 5.0
 _MIC_WARN_AFTER = 6.0         # sin micrófono tanto tiempo: avisar al usuario
 # Un dispositivo muerto no entrega ceros exactos sino ±1-2 LSB de 16 bits
 # (~3e-5 a 6e-5): en la prueba del 28/10 el micro estuvo así 25 s y con el
@@ -143,6 +145,7 @@ class AudioRecorder:
         # más abajo.
         self._save_event = threading.Event()
         self._save_event.set()
+        self._mic_name: str | None = None   # micro de Teams que se está siguiendo
         self._loopback_proc: subprocess.Popen | None = None
         # Worker de loopback ya arrancado y esperando la orden (arm_loopback).
         self._standby: subprocess.Popen | None = None
@@ -276,6 +279,7 @@ class AudioRecorder:
         )
         self._mic_writer.start()
 
+        self._pick_teams_mic()
         # Si el micrófono no abre no se aborta la grabación: el loopback puede
         # funcionar, y el vigilante sigue reintentando el micro mientras dure.
         self._mic_samples = 0
@@ -293,6 +297,7 @@ class AudioRecorder:
             daemon=True, name='MicWatchdog',
         )
         self._mic_watch.start()
+        threading.Thread(target=self._follow_teams_mic, daemon=True, name='MicFollow').start()
 
         # _recording ya se puso en start(), bajo el lock.
 
@@ -387,6 +392,48 @@ class AudioRecorder:
 
     # ── captura ──────────────────────────────────────────────────────────────
 
+    def _pick_teams_mic(self) -> None:
+        """El micro que usa Teams (p.ej. unos auriculares Bluetooth) va primero,
+        no el predeterminado de Windows: ver mic_select.py y _open_mic_stream."""
+        try:
+            from mic_select import teams_capture_device
+            self._mic_name = teams_capture_device()
+        except Exception as e:
+            log.debug(f"No se pudo saber que micro usa Teams: {e}")
+            self._mic_name = None
+        if self._mic_name and self._teams_mic_index() is None:
+            self._refresh_portaudio()    # p.ej. auriculares conectados despues de arrancar Noted
+        log.info(f"Micro de Teams: {self._mic_name or 'no detectado, se usa el predeterminado'}")
+
+    def _teams_mic_index(self):
+        """Indice PortAudio del micro que usa Teams (p.ej. los AirPods), o None."""
+        if not self._mic_name:
+            return None
+        try:
+            from mic_select import input_device_index
+            return input_device_index(self._mic_name)
+        except Exception as e:
+            log.debug(f"No se pudo buscar el micro de Teams: {e}")
+            return None
+
+    def _follow_teams_mic(self):
+        """Si Teams cambia de micro a mitad de llamada (p.ej. se conectan los
+        AirPods), la grabacion se cambia con el. Ver mic_select.py."""
+        from mic_select import teams_capture_device
+        while self._recording:
+            time.sleep(_MIC_FOLLOW_S)
+            if not self._recording:
+                break
+            try:
+                name = teams_capture_device()
+            except Exception:
+                continue
+            if name and name != self._mic_name:
+                old, self._mic_name = self._mic_name, name
+                log.info(f"Teams cambio de micro: '{old or 'predeterminado'}' -> '{name}'")
+                # _reopen_mic rellena el hueco con silencio y abre primero el de Teams.
+                self._reopen_mic()
+
     def _mic_cb(self, indata, frames, time_info, status):
         # Solo encolar: PortAudio invoca este callback en un hilo de tiempo real
         # y escribir a disco aquí produciría cortes en el audio.
@@ -425,7 +472,11 @@ class AudioRecorder:
 
     def _open_mic_stream(self) -> bool:
         last = None
-        for dev in self._mic_candidates():
+        cands = self._mic_candidates()
+        teams_dev = self._teams_mic_index()
+        if teams_dev is not None:
+            cands = [teams_dev] + [c for c in cands if c != teams_dev]
+        for dev in cands:
             stream = None
             try:
                 stream = sd.InputStream(
