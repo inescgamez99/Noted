@@ -1236,7 +1236,8 @@ class TrayApp:
             transcript_path.write_text(transcript_text, encoding='utf-8')
 
         transcript_text = self._merge_notes(wav_path, transcript_path, transcript_text)
-        transcript_text = self._merge_screenshots(wav_path, transcript_path, transcript_text)
+        transcript_text = self._merge_screenshots(wav_path, transcript_path, transcript_text,
+                                                  detected_language)
         self._discard_live_files(wav_path)
         self._register_part(wav_path, transcript_text, detected_language)
 
@@ -1269,18 +1270,31 @@ class TrayApp:
         log.info(f"Notas añadidas al transcript de {wav_path.name}: {len(notes)}")
         return merged
 
-    def _merge_screenshots(self, wav_path: Path, transcript_path: Path, text: str) -> str:
+    def _merge_screenshots(self, wav_path: Path, transcript_path: Path, text: str,
+                           detected_language: str | None = None) -> str:
         """Cada captura de la grabacion entra en su transcript como una nota: una
         linea en su minuto con el nombre del archivo, que la app abre al pulsarlo.
         Al cerrar la reunion, screen_capture.relink le pone el nombre que tiene ya
-        junto a las minutas."""
+        junto a las minutas.
+
+        Detras de cada captura, una linea con su
+        analisis hecho por Claude con el transcript de alrededor (ver
+        screenshot_analysis.py), para que lo usen las minutas, las preguntas y
+        todo lo que lee el transcript."""
         import meeting_notes
         import screen_capture
         shots = screen_capture.transcript_items(wav_path)
         if not shots:
             return text
-        s = _STR.get(get_ui_language(), _STR['en'])
+        ui_lang = get_ui_language()
+        s = _STR.get(ui_lang, _STR['en'])
         merged = meeting_notes.merge(text, shots, s['cap_line_label'])
+        try:
+            import screenshot_analysis
+            analyses = screenshot_analysis.analyze(wav_path, merged, shots, detected_language)
+            merged = screenshot_analysis.merge(merged, analyses, s['cap_line_label'], ui_lang)
+        except Exception as e:
+            log.warning(f"Análisis de capturas no añadido a {wav_path.name}: {e}")
         if merged == text:
             return text
         try:
