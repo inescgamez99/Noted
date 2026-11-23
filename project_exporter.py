@@ -53,6 +53,36 @@ def get_meeting_project(minutes_path: Path) -> dict | None:
 
 # ── Exportación principal ──────────────────────────────────────────────────────
 
+def project_folder(project: dict) -> str:
+    """La carpeta del proyecto en disco, o '' si no tiene.
+
+    El panel la guarda en 'output_dir' (app.js: saveNewProject / la carpeta
+    elegida en Ajustes); 'directory' es el nombre antiguo. Leyendo solo
+    'directory', ningun proyecto creado desde el panel exportaba nunca."""
+    return (project.get('output_dir') or project.get('directory') or '').strip()
+
+
+def _print_pdf(edge: str, html_src: Path, pdf_dst: Path) -> None:
+    """HTML -> PDF con Edge headless.
+
+    - La pagina va como URI de fichero (Path.as_uri): con f'file:///{ruta}'
+      quedaban las barras de Windows sin escapar y una ruta con espacios o
+      acentos ('OneDrive - Accenture', 'Reunión') no cargaba, asi que el PDF
+      no se generaba nunca.
+    - Un perfil temporal (--user-data-dir): con el Edge del usuario abierto,
+      el headless chocaba con su perfil."""
+    import subprocess
+    import tempfile
+    profile = tempfile.mkdtemp(prefix='noted_pdf_')
+    try:
+        subprocess.run([edge, '--headless', '--disable-gpu', '--no-pdf-header-footer',
+                        f'--user-data-dir={profile}',
+                        f'--print-to-pdf={pdf_dst}', html_src.as_uri()],
+                       capture_output=True, timeout=60)
+    finally:
+        shutil.rmtree(profile, ignore_errors=True)
+
+
 def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = None) -> bool:
     """
     Exporta transcript, HTML de notas y HTML de email a la carpeta del proyecto.
@@ -63,7 +93,7 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
     if not project:
         return False
 
-    proj_dir_str = (project.get('directory') or '').strip()
+    proj_dir_str = project_folder(project)
     if not proj_dir_str:
         return False
 
@@ -138,10 +168,7 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
         ] if Path(p).exists()), None)
         if edge and html_src.exists():
             try:
-                import subprocess as _sp
-                _sp.run([edge, '--headless', '--disable-gpu', '--no-pdf-header-footer',
-                         f'--print-to-pdf={pdf_dst}', f'file:///{html_src}'],
-                        capture_output=True, timeout=60)
+                _print_pdf(edge, html_src, pdf_dst)
                 if not pdf_dst.exists():
                     log.warning(f"project_exporter: PDF no generado para {slug}")
             except Exception as e:

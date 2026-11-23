@@ -252,3 +252,68 @@ def test_el_fallback_cierra_una_lista_que_acaba_el_texto(monkeypatch):
     monkeypatch.setattr(pe, '_HAS_MD', False)
     html = pe._md_to_email_html('parrafo\n\n- uno\n- dos')
     assert html.count('<ul') == html.count('</ul>') == 1
+
+
+# ── La carpeta como la guarda el panel (output_dir) ───────────────────────
+
+def test_un_proyecto_creado_desde_el_panel_exporta(reunion):
+    """El panel guarda la carpeta en 'output_dir' (app.js), no en 'directory'.
+    Leyendo solo 'directory', esos proyectos no exportaban nunca."""
+    reunion['configurar'](directory=None, output_dir=str(reunion['destino']))
+    assert pe.export_to_project_folder(reunion['md']) is True
+    assert list(reunion['destino'].rglob(f'{STEM}*'))
+
+
+def test_output_dir_gana_a_directory(tmp_path):
+    assert pe.project_folder({'output_dir': ' C:/nueva ', 'directory': 'C:/vieja'}) == 'C:/nueva'
+    assert pe.project_folder({'directory': 'C:/vieja'}) == 'C:/vieja'
+    assert pe.project_folder({'output_dir': '', 'directory': ''}) == ''
+    assert pe.project_folder({}) == ''
+
+
+def test_el_boton_exportar_del_panel_acepta_output_dir(reunion):
+    import app_window as aw
+    reunion['configurar'](directory=None, output_dir=str(reunion['destino']))
+    api = object.__new__(aw.AppAPI)
+    assert api.export_to_project(str(reunion['md'])) == ''
+
+
+# ── PDF: la orden que recibe Edge (sin lanzarlo) ─────────────────────────
+
+def test_el_pdf_se_pide_con_una_uri_valida_y_un_perfil_aparte(tmp_path, monkeypatch):
+    """Con f'file:///{ruta}' una ruta con espacios o acentos no cargaba y el
+    PDF no salia nunca; con el Edge del usuario abierto, chocaba con su perfil."""
+    import os
+    import subprocess
+    carpeta = tmp_path / 'OneDrive - Accenture' / 'Reunión'
+    carpeta.mkdir(parents=True)
+    html = carpeta / 'notas.html'
+    html.write_text('<html></html>', encoding='utf-8')
+    pdf = carpeta / 'notas.pdf'
+    ordenes = []
+
+    def falso_run(cmd, **kw):
+        ordenes.append(cmd)
+        perfil = next(a.split('=', 1)[1] for a in cmd if a.startswith('--user-data-dir='))
+        assert os.path.isdir(perfil), "el perfil existe mientras Edge imprime"
+        pdf.write_bytes(b'%PDF')
+    monkeypatch.setattr(subprocess, 'run', falso_run)
+
+    pe._print_pdf('msedge.exe', html, pdf)
+
+    cmd = ordenes[0]
+    assert cmd[-1] == html.as_uri() and cmd[-1].startswith('file:///') and ' ' not in cmd[-1]
+    assert f'--print-to-pdf={pdf}' in cmd
+    perfil = next(a.split('=', 1)[1] for a in cmd if a.startswith('--user-data-dir='))
+    assert not os.path.exists(perfil), "el perfil temporal se borra"
+
+
+def test_con_el_pdf_activado_se_genera_en_su_carpeta(reunion, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(pe, '_print_pdf', lambda edge, src, dst: llamadas.append(dst) or dst.write_bytes(b'%PDF'))
+    real_exists = pe.Path.exists
+    monkeypatch.setattr(pe.Path, 'exists',
+                        lambda self: True if 'msedge' in str(self) else real_exists(self))
+    reunion['configurar'](export_save_pdf=True)
+    assert pe.export_to_project_folder(reunion['md']) is True
+    assert llamadas and llamadas[0].exists()
