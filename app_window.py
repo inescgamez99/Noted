@@ -634,7 +634,13 @@ class AppAPI:
 
         for md in sorted(MINUTES_DIR.glob('*.md'), key=lambda p: p.stat().st_mtime, reverse=True):
 
-            cache_key = (str(md), md.stat().st_mtime)
+            # La clave incluye el _actions.json: el proyecto y las acciones
+            # pendientes viven ahi, no en el .md. Con solo la fecha del .md, al
+            # cambiar el proyecto de una reunion la lista seguia dando el viejo
+            # de la cache y parecia que el cambio no se habia guardado.
+            actions_file = md.parent / f"{md.stem}_actions.json"
+            cache_key = (str(md), md.stat().st_mtime,
+                         actions_file.stat().st_mtime if actions_file.exists() else 0)
 
             seen_keys.add(cache_key)
 
