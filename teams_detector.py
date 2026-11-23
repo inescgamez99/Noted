@@ -262,6 +262,8 @@ class TeamsCallDetector:
 
 
     def _loop(self):
+        from prio import boost_current_thread
+        boost_current_thread()   # detectar llamadas aunque el PC vaya cargado
         _com_initialized = False
         try:
             import pythoncom
