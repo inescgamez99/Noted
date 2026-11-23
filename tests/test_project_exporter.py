@@ -108,16 +108,16 @@ def test_exporta_las_tres_carpetas_por_defecto(reunion):
     assert pe.export_to_project_folder(reunion['md']) is True
 
     destino = reunion['destino']
-    assert (destino / 'Transcripts' / f'{STEM}_transcript.txt').exists()
-    assert (destino / 'Notas' / f'{STEM}.html').exists()
-    assert (destino / 'Email' / f'{STEM}_email.html').exists()
+    assert (destino / 'Noted' / f'{STEM}_transcript.txt').exists()
+    assert (destino / 'Noted' / f'{STEM}.html').exists()
+    assert (destino / 'Noted' / f'{STEM}_email.html').exists()
 
 
 def test_el_transcript_se_lee_del_hermano_si_no_se_pasa(reunion):
     reunion['configurar']()
     pe.export_to_project_folder(reunion['md'])
 
-    guardado = (reunion['destino'] / 'Transcripts' / f'{STEM}_transcript.txt')
+    guardado = (reunion['destino'] / 'Noted' / f'{STEM}_transcript.txt')
     assert guardado.read_text(encoding='utf-8') == 'texto transcrito'
 
 
@@ -125,22 +125,40 @@ def test_el_transcript_pasado_por_argumento_gana(reunion):
     reunion['configurar']()
     pe.export_to_project_folder(reunion['md'], transcript_txt='texto de memoria')
 
-    guardado = (reunion['destino'] / 'Transcripts' / f'{STEM}_transcript.txt')
+    guardado = (reunion['destino'] / 'Noted' / f'{STEM}_transcript.txt')
     assert guardado.read_text(encoding='utf-8') == 'texto de memoria'
 
 
-@pytest.mark.parametrize('flag, carpeta', [
-    ('export_save_transcript', 'Transcripts'),
-    ('export_save_html', 'Notas'),
-    ('export_save_email', 'Email'),
+@pytest.mark.parametrize('flag, fichero', [
+    ('export_save_transcript', f'{STEM}_transcript.txt'),
+    ('export_save_html', f'{STEM}.html'),
+    ('export_save_email', f'{STEM}_email.html'),
 ])
-def test_desactivar_una_preferencia_no_crea_su_carpeta(reunion, flag, carpeta):
+def test_desactivar_una_preferencia_no_crea_su_fichero(reunion, flag, fichero):
     """Son preferencias POR PROYECTO: un proyecto puede querer solo el email."""
     reunion['configurar'](**{flag: False})
 
     pe.export_to_project_folder(reunion['md'])
 
-    assert not (reunion['destino'] / carpeta).exists()
+    assert not (reunion['destino'] / 'Noted' / fichero).exists()
+    assert (reunion['destino'] / 'Noted').exists(), "las demas copias si salen"
+
+
+def test_sin_ninguna_copia_no_se_crea_la_carpeta(reunion):
+    reunion['configurar'](export_save_transcript=False, export_save_html=False,
+                          export_save_email=False, export_save_pdf=False)
+
+    assert pe.export_to_project_folder(reunion['md']) is False
+    assert not (reunion['destino'] / 'Noted').exists()
+
+
+def test_todo_va_a_una_sola_carpeta_sin_subcarpetas(reunion):
+    reunion['configurar']()
+    pe.export_to_project_folder(reunion['md'])
+
+    hijos = list(reunion['destino'].iterdir())
+    assert [h.name for h in hijos] == ['Noted']
+    assert not [h for h in (reunion['destino'] / 'Noted').iterdir() if h.is_dir()]
 
 
 def test_el_pdf_esta_desactivado_por_defecto(reunion):
@@ -157,8 +175,8 @@ def test_un_html_de_notas_ausente_no_aborta_la_exportacion(reunion):
     reunion['md'].with_suffix('.html').unlink()
 
     assert pe.export_to_project_folder(reunion['md']) is True
-    assert (reunion['destino'] / 'Transcripts').exists()
-    assert (reunion['destino'] / 'Email').exists()
+    assert (reunion['destino'] / 'Noted' / f'{STEM}_transcript.txt').exists()
+    assert (reunion['destino'] / 'Noted' / f'{STEM}_email.html').exists()
 
 
 # ── El HTML del email ────────────────────────────────────────────────────
@@ -167,7 +185,7 @@ def test_el_email_lleva_el_titulo_de_la_minuta(reunion):
     reunion['configurar']()
     pe.export_to_project_folder(reunion['md'])
 
-    html = (reunion['destino'] / 'Email' / f'{STEM}_email.html').read_text(
+    html = (reunion['destino'] / 'Noted' / f'{STEM}_email.html').read_text(
         encoding='utf-8')
     assert 'Comite Semanal' in html
 
@@ -176,7 +194,7 @@ def test_la_linea_TITULO_no_aparece_en_el_cuerpo_del_email(reunion):
     reunion['configurar']()
     pe.export_to_project_folder(reunion['md'])
 
-    html = (reunion['destino'] / 'Email' / f'{STEM}_email.html').read_text(
+    html = (reunion['destino'] / 'Noted' / f'{STEM}_email.html').read_text(
         encoding='utf-8')
     assert 'TITULO:' not in html
 
@@ -191,7 +209,7 @@ def test_los_bloques_de_acciones_para_claude_se_quitan_del_email(reunion):
 
     pe.export_to_project_folder(reunion['md'])
 
-    html = (reunion['destino'] / 'Email' / f'{STEM}_email.html').read_text(
+    html = (reunion['destino'] / 'Noted' / f'{STEM}_email.html').read_text(
         encoding='utf-8')
     assert 'actualizar el deck interno' not in html
 
@@ -200,7 +218,7 @@ def test_la_fecha_del_email_sale_del_stem(reunion):
     reunion['configurar']()
     pe.export_to_project_folder(reunion['md'])
 
-    html = (reunion['destino'] / 'Email' / f'{STEM}_email.html').read_text(
+    html = (reunion['destino'] / 'Noted' / f'{STEM}_email.html').read_text(
         encoding='utf-8')
     assert '17/09/2026' in html
 
