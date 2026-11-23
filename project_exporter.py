@@ -153,6 +153,39 @@ def export_to_project_folder(minutes_path: Path, transcript_txt: str | None = No
     return True
 
 
+def _slug(minutes_path: Path) -> str:
+    """Nombre de las copias de una reunion: el stem, con el nombre de quien
+    graba delante si esta configurado."""
+    from config import ME_NAME
+    prefix = re.sub(r'[^\w]', '', ME_NAME) + '_' if ME_NAME else ''
+    return prefix + minutes_path.stem
+
+
+def remove_from_project_folder(minutes_path: Path, project: dict | None) -> int:
+    """Quita las copias de una reunion de la carpeta de un proyecto. Se usa al
+    reasignar la reunion a otro proyecto: sin esto, se quedaba tambien en la
+    carpeta del proyecto viejo. Mira las subcarpetas de siempre y una carpeta
+    'Noted' unica. Devuelve cuantos ficheros quito; nunca borra carpetas."""
+    folder = ((project or {}).get('output_dir') or (project or {}).get('directory') or '').strip()
+    if not folder:
+        return 0
+    slug = _slug(minutes_path)
+    base = Path(folder)
+    copies = {'Transcripts': f"{slug}_transcript.txt", 'Notas': f"{slug}.html",
+              'Email': f"{slug}_email.html", 'PDF': f"{slug}.pdf"}
+    candidates = [base / sub / name for sub, name in copies.items()]
+    candidates += [base / 'Noted' / name for name in copies.values()]
+    removed = 0
+    for f in candidates:
+        if f.is_file():
+            try:
+                f.unlink()
+                removed += 1
+            except OSError as e:
+                log.warning(f"project_exporter: no se pudo quitar {f}: {e}")
+    return removed
+
+
 # ── HTML para email ────────────────────────────────────────────────────────────
 
 _EMAIL_TEMPLATE = """\
