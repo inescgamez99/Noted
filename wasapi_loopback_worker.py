@@ -25,13 +25,19 @@ las demas se unen a la mezcla cuando estan listas.
 El worker termina cuando ya no queda ninguna salida activa (p. ej. se desconecto
 el dispositivo): el padre lo relanza y se vuelve a enumerar.
 
-SALIDAS NUEVAS A MITAD DE LLAMADA. PortAudio solo ve
-las salidas que existian al iniciarse. Si a mitad de llamada se conectan unos
-auriculares y Teams pasa a sonar por ellos, esa salida no estaba en la mezcla y
-la pista de los demas se quedaba en silencio hasta el final. Ahora un vigilante
-mira cada RESCAN_S las salidas activas de Windows (pycaw, barato) y, si aparece
-una nueva, el worker termina limpio: el padre lo relanza (rellenando el hueco
-con silencio, ver audio_recorder._wasapi_reader) y el nuevo la incluye.
+CAMBIOS DE SALIDA A MITAD DE LLAMADA. PortAudio solo ve las salidas que
+existian al iniciarse, y un stream de loopback puede quedarse abierto pero mudo
+cuando Windows reconfigura el audio. Dos casos reales:
+- se conectan unos auriculares y Teams pasa a sonar por ellos: esa salida no
+  estaba en la mezcla;
+- desaparece una salida (se desconecta o se apaga un monitor) o cambia la
+  salida por defecto: la captura de las demas siguio "activa" pero solo grabo
+  silencio desde el segundo 6 hasta el final de una reunion de 22 min.
+En los dos, la pista de los demas quedaba en silencio sin ningun error. Ahora
+un vigilante mira cada RESCAN_S las salidas de Windows (pycaw, barato): las
+activas y las que estan por defecto (consola y comunicaciones). Si cambia algo,
+el worker termina limpio y el padre lo relanza (rellenando el hueco con
+silencio, ver audio_recorder._wasapi_reader); el nuevo vuelve a abrir todas.
 """
 import os
 import struct
@@ -190,22 +196,44 @@ def _list_candidates(pa, pyaudio):
     return candidates
 
 
-def _active_outputs() -> set | None:
-    """Ids de las salidas de audio activas segun Windows (MMDevice), o None si
-    no se puede saber. Llamar desde una hebra con COM iniciado."""
+def _active_outputs():
+    """Estado de las salidas de audio segun Windows (MMDevice): (ids de las
+    activas, id por defecto de consola, id por defecto de comunicaciones), o
+    None si no se puede saber. Llamar desde una hebra con COM iniciado."""
     try:
         from pycaw.pycaw import AudioUtilities
-        coll = AudioUtilities.GetDeviceEnumerator().EnumAudioEndpoints(0, 1)  # eRender, ACTIVE
-        return {coll.Item(i).GetId() for i in range(coll.GetCount())}
+        enum = AudioUtilities.GetDeviceEnumerator()
+        coll = enum.EnumAudioEndpoints(0, 1)  # eRender, ACTIVE
+        active = frozenset(coll.Item(i).GetId() for i in range(coll.GetCount()))
     except Exception:
         return None
+    defaults = []
+    for role in (0, 2):                       # eConsole, eCommunications (la de Teams)
+        try:
+            defaults.append(enum.GetDefaultAudioEndpoint(0, role).GetId())
+        except Exception:
+            defaults.append(None)             # sin salida por defecto
+    return active, defaults[0], defaults[1]
+
+
+def _describe_change(before, now) -> str:
+    added, removed = now[0] - before[0], before[0] - now[0]
+    parts = []
+    if added:
+        parts.append(f"{len(added)} salida(s) nueva(s)")
+    if removed:
+        parts.append(f"{len(removed)} salida(s) quitada(s)")
+    if before[1:] != now[1:]:
+        parts.append("cambio la salida por defecto")
+    return ', '.join(parts) or 'cambio'
 
 
 def _watch_new_outputs(restart: threading.Event, stopping: threading.Event):
-    """Pide reiniciar el worker si Windows activa una salida que no estaba al
-    enumerar (ver SALIDAS NUEVAS en la cabecera). Las que desaparecen no cuentan:
-    su stream se apaga solo y la mezcla sigue con las demas. En su propia hebra
-    con su COM: la principal es la de PortAudio y no se le toca el apartamento."""
+    """Pide reiniciar el worker si cambian las salidas de Windows respecto a
+    las de cuando se enumeraron: una nueva, una que desaparece o un cambio de
+    salida por defecto (ver CAMBIOS DE SALIDA en la cabecera). En su propia
+    hebra con su COM: la principal es la de PortAudio y no se le toca el
+    apartamento."""
     try:
         import comtypes
         comtypes.CoInitialize()
@@ -220,9 +248,8 @@ def _watch_new_outputs(restart: threading.Event, stopping: threading.Event):
         now = _active_outputs()
         if now is None:
             continue
-        new = now - known
-        if new:
-            trace(f"salida nueva ({len(new)}): reinicio para incluirla")
+        if now != known:
+            trace(f"{_describe_change(known, now)}: reinicio para volver a abrirlas")
             restart.set()
             return
 
@@ -346,7 +373,7 @@ def main():
                 if restart.is_set():
                     # Entre dos bloques, nunca a mitad de uno: el padre lee
                     # bloques enteros y relanza al ver que el worker termino.
-                    trace("termino para que me relancen con la salida nueva")
+                    trace("termino para que me relancen con las salidas de ahora")
                     break
                 t_next += MIX_TICK
                 wait = t_next - time.monotonic()

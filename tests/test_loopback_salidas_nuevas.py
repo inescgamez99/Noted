@@ -1,9 +1,11 @@
-"""Salidas de audio que aparecen a mitad de llamada (wasapi_loopback_worker).
+"""Cambios de salida de audio a mitad de llamada (wasapi_loopback_worker).
 
-PortAudio solo ve las salidas que existian al iniciarse. Si a mitad de llamada
-se conectan unos auriculares y Teams pasa a sonar por ellos, esa salida no
-estaba en la mezcla. El worker vigila las salidas activas de Windows y, si
-aparece una nueva, termina limpio para que el padre lo relance con ella.
+PortAudio solo ve las salidas que existian al iniciarse, y un stream de
+loopback puede quedarse abierto pero mudo cuando Windows reconfigura el audio.
+Casos reales: unos auriculares que se conectan a mitad de llamada, y un monitor
+que desaparece (la captura de los altavoces siguio "activa" pero solo grabo
+silencio). El worker vigila las salidas de Windows y, si cambia algo, termina
+limpio para que el padre lo relance con las de ahora.
 Sin audio real: PortAudio y pycaw se sustituyen por dobles.
 """
 import io
@@ -17,42 +19,55 @@ import wasapi_loopback_worker as w
 
 pytestmark = pytest.mark.unit
 
+ALTAVOZ = (frozenset({'altavoz'}), 'altavoz', 'altavoz')
+CON_MONITOR = (frozenset({'altavoz', 'monitor'}), 'monitor', 'monitor')
+
 
 @pytest.fixture
 def rapido(monkeypatch):
     monkeypatch.setattr(w, 'RESCAN_S', 0.01)
 
 
-def test_una_salida_nueva_pide_reiniciar(rapido, monkeypatch):
-    vistas = iter([{'altavoz'}, {'altavoz'}, {'altavoz', 'auriculares'}])
-    monkeypatch.setattr(w, '_active_outputs', lambda: next(vistas, {'altavoz', 'auriculares'}))
-    restart, stop = threading.Event(), threading.Event()
-    w._watch_new_outputs(restart, stop)
-    assert restart.is_set()
-
-
-def test_una_salida_que_desaparece_no_reinicia(rapido, monkeypatch):
-    vistas = iter([{'altavoz', 'monitor'}, {'altavoz'}, {'altavoz'}])
-    stop = threading.Event()
+def vigilar(monkeypatch, vistas, para_al_acabar=True):
+    """Corre el vigilante con esa secuencia de estados; True si pidio reiniciar."""
+    vistas = iter(vistas)
+    stop, restart = threading.Event(), threading.Event()
 
     def ver():
         try:
             return next(vistas)
         except StopIteration:
-            stop.set()
-            return {'altavoz'}
+            if para_al_acabar:
+                stop.set()
+            return None
     monkeypatch.setattr(w, '_active_outputs', ver)
-    restart = threading.Event()
     w._watch_new_outputs(restart, stop)
-    assert not restart.is_set()
+    return restart.is_set()
+
+
+def test_una_salida_nueva_pide_reiniciar(rapido, monkeypatch):
+    auriculares = (frozenset({'altavoz', 'auriculares'}), 'auriculares', 'auriculares')
+    assert vigilar(monkeypatch, [ALTAVOZ, ALTAVOZ, auriculares])
+
+
+def test_una_salida_que_desaparece_tambien_reinicia(rapido, monkeypatch):
+    """El caso de la reunion de 22 min: desaparece el monitor y la captura de
+    los altavoces se queda muda."""
+    assert vigilar(monkeypatch, [CON_MONITOR, CON_MONITOR, ALTAVOZ])
+
+
+def test_un_cambio_de_salida_por_defecto_reinicia(rapido, monkeypatch):
+    otra_por_defecto = (CON_MONITOR[0], 'altavoz', 'monitor')
+    assert vigilar(monkeypatch, [CON_MONITOR, otra_por_defecto])
+
+
+def test_sin_cambios_no_reinicia(rapido, monkeypatch):
+    assert not vigilar(monkeypatch, [ALTAVOZ] * 5)
 
 
 def test_si_windows_no_responde_un_momento_sigue_vigilando(rapido, monkeypatch):
-    vistas = iter([{'altavoz'}, None, {'altavoz', 'auriculares'}])
-    monkeypatch.setattr(w, '_active_outputs', lambda: next(vistas))
-    restart = threading.Event()
-    w._watch_new_outputs(restart, threading.Event())
-    assert restart.is_set()
+    nueva = (frozenset({'altavoz', 'auriculares'}), 'altavoz', 'altavoz')
+    assert vigilar(monkeypatch, [ALTAVOZ, None, nueva])
 
 
 def test_sin_pycaw_no_vigila_y_no_reinicia(monkeypatch):
@@ -73,22 +88,48 @@ def test_sin_com_no_vigila(monkeypatch):
     w._watch_new_outputs(threading.Event(), threading.Event())
 
 
-def test_active_outputs_lee_las_salidas_activas(monkeypatch):
+def test_el_log_dice_que_ha_cambiado():
+    assert w._describe_change(CON_MONITOR, ALTAVOZ) == '1 salida(s) quitada(s), cambio la salida por defecto'
+    assert w._describe_change(ALTAVOZ, CON_MONITOR).startswith('1 salida(s) nueva(s)')
+    assert w._describe_change(ALTAVOZ, ALTAVOZ) == 'cambio'
+
+
+class Coll:
+    def GetCount(self):
+        return 2
+
+    def Item(self, i):
+        return types.SimpleNamespace(GetId=lambda: f'id{i}')
+
+
+def test_active_outputs_lee_las_activas_y_las_por_defecto(monkeypatch):
     from pycaw import pycaw
-
-    class Coll:
-        def GetCount(self):
-            return 2
-
-        def Item(self, i):
-            return types.SimpleNamespace(GetId=lambda: f'id{i}')
+    roles = []
 
     class Enum:
         def EnumAudioEndpoints(self, flujo, estado):
             assert (flujo, estado) == (0, 1), "salidas (eRender), solo activas"
             return Coll()
+
+        def GetDefaultAudioEndpoint(self, flujo, rol):
+            roles.append((flujo, rol))
+            return types.SimpleNamespace(GetId=lambda: f'defecto{rol}')
     monkeypatch.setattr(pycaw.AudioUtilities, 'GetDeviceEnumerator', staticmethod(lambda: Enum()))
-    assert w._active_outputs() == {'id0', 'id1'}
+    assert w._active_outputs() == (frozenset({'id0', 'id1'}), 'defecto0', 'defecto2')
+    assert roles == [(0, 0), (0, 2)], "consola y comunicaciones"
+
+
+def test_sin_salida_por_defecto_sigue_funcionando(monkeypatch):
+    from pycaw import pycaw
+
+    class Enum:
+        def EnumAudioEndpoints(self, flujo, estado):
+            return Coll()
+
+        def GetDefaultAudioEndpoint(self, flujo, rol):
+            raise OSError('no hay salida por defecto')
+    monkeypatch.setattr(pycaw.AudioUtilities, 'GetDeviceEnumerator', staticmethod(lambda: Enum()))
+    assert w._active_outputs() == (frozenset({'id0', 'id1'}), None, None)
 
 
 def test_active_outputs_si_falla_devuelve_none(monkeypatch):
@@ -139,8 +180,9 @@ def test_el_worker_termina_limpio_entre_bloques_al_aparecer_una_salida(rapido, m
     salida = Salida()
     monkeypatch.setattr(sys, 'stdout', salida)
     monkeypatch.setattr(w, 'MIX_TICK', 0.01)
-    vistas = iter([{'altavoz'}] * 3)
-    monkeypatch.setattr(w, '_active_outputs', lambda: next(vistas, {'altavoz', 'auriculares'}))
+    nueva = (frozenset({'altavoz', 'auriculares'}), 'altavoz', 'altavoz')
+    vistas = iter([ALTAVOZ] * 3)
+    monkeypatch.setattr(w, '_active_outputs', lambda: next(vistas, nueva))
     salidas = []
 
     # os._exit es lo ultimo de la mezcla: el doble solo lo apunta y la hebra acaba.
