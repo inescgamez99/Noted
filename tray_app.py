@@ -1379,6 +1379,7 @@ class TrayApp:
                 sess['transcripts'][wav_path.stem] = None
                 sess['awaiting'] = False
                 sess['last_at'] = time.time()
+                sess['ended_at'] = time.time()
                 log.info("Reconexión: grabación añadida a la reunión anterior")
             else:
                 if sess and not sess.get('finalized'):
@@ -1388,7 +1389,7 @@ class TrayApp:
                     'base_wav': wav_path, 'parts': [wav_path],
                     'transcripts': {wav_path.stem: None}, 'lang': 'auto',
                     'key': key, 'awaiting': False, 'finalized': False,
-                    'timer': None, 'last_at': time.time(),
+                    'timer': None, 'last_at': time.time(), 'ended_at': time.time(),
                 }
 
     def _register_part(self, wav_path, transcript_text, detected_language):
@@ -1438,6 +1439,16 @@ class TrayApp:
                          'Vista compacta de la reunión', 'Meeting compact view')
     # Nombres que la app da a una grabacion sin reunion detras: no son titulos.
     _GENERIC_NAMES = ('manual', 'recording', 'cli', 'reunion', 'reunión', 'meeting')
+    # Una reconexion es volver a la MISMA llamada poco despues de caerse. Solo
+    # con el nombre, una reunion distinta se pegaba a la anterior: dos llamadas
+    # seguidas cuya ventana se llamaba igual al entrar ('Meeting join') acabaron
+    # en una sola minuta, porque la primera aun se estaba procesando. Ahora hay
+    # que volver en menos de _RECONNECT_MAX_GAP s desde que acabo la grabacion,
+    # y en menos de _RECONNECT_MAX_GAP_GENERIC si el nombre no identifica la
+    # reunion (los genericos y los de la ventana al unirse).
+    _RECONNECT_MAX_GAP = 15 * 60
+    _RECONNECT_MAX_GAP_GENERIC = 3 * 60
+    _GENERIC_CALL_TITLES = _GENERIC_NAMES + ('Meeting join', 'Meetings agent')
 
     def _is_meeting_title(self, name: str) -> bool:
         key = self._norm_key(name)
@@ -1516,6 +1527,16 @@ class TrayApp:
             transient = {self._norm_key(t) for t in self._TRANSIENT_TITLES}
             if key in transient or skey in transient:
                 return False
+            ended = sess.get('ended_at') or sess.get('last_at')
+            if ended:
+                gap = time.time() - ended
+                generic = {self._norm_key(t) for t in self._GENERIC_CALL_TITLES}
+                limit = (self._RECONNECT_MAX_GAP_GENERIC if key in generic or skey in generic
+                         else self._RECONNECT_MAX_GAP)
+                if gap > limit:
+                    log.info(f"No es una reconexión: han pasado {gap / 60:.0f} min "
+                             f"(límite {limit // 60} min)")
+                    return False
             return key == skey or key in skey or skey in key
 
     def request_continuation(self):
