@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 import config
-from config import WHISPER_MODEL, WHISPER_LANGUAGE, OPENAI_API_KEY, ME_NAME
+from config import WHISPER_MODEL, WHISPER_LANGUAGE, WHISPER_MIN_MODEL, OPENAI_API_KEY, ME_NAME
 
 # CTranslate2 trae Intel oneMKL dentro, y su gestor de memoria guarda los buferes
 # liberados en vez de devolverlos. Medido el 14/10/2026: con el modelo soltado tras
@@ -136,12 +136,25 @@ def _available_mb() -> float | None:
         return None
 
 
-def _fallback_plan(start: str) -> list[tuple[str, bool]]:
-    """Intentos (modelo, troceado) del más capaz al más ligero."""
+def _fallback_plan(start: str, floor: str | None = None) -> list[tuple[str, bool]]:
+    """Intentos (modelo, troceado) del más capaz al más ligero.
+
+    floor (por defecto WHISPER_MIN_MODEL, de settings.json 'whisper_min_model'):
+    el plan no baja de ese modelo. Para quien prefiere que tarde más (troceado,
+    que acota el pico de memoria) a que salga con un modelo peor: en castellano,
+    'small' y 'tiny' pierden mucho frente a 'medium'. Sin floor, como siempre."""
     try:
         models = _MODEL_LADDER[_MODEL_LADDER.index(start):]
     except ValueError:
         models = [start, 'small', 'base', 'tiny']
+
+    floor = WHISPER_MIN_MODEL if floor is None else floor
+    if floor in _MODEL_LADDER:
+        kept = [m for m in models
+                if m in _MODEL_LADDER and _MODEL_LADDER.index(m) <= _MODEL_LADDER.index(floor)]
+        if kept and len(kept) < len(models):
+            log.info(f"Modelo mínimo '{floor}': no se baja a {', '.join(m for m in models if m not in kept)}")
+        models = kept or models
 
     # Descartar de entrada los modelos que no caben. Intentarlos no solo pierde
     # minutos: cargar un modelo con la memoria agotada es lo que tira el proceso
