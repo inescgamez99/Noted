@@ -36,6 +36,10 @@ let _customPriorities   = [];
 let _statusColumnOrder  = [];
 let currentSidebarMode   = 'days';
 let searchTimeout        = null;
+// Secciones de la vista por proyectos plegadas o desplegadas a mano en esta
+// sesión (pid -> bool). Sin esto cada redibujado lo desplegaba todo; un
+// proyecto terminado empieza plegado.
+const _projectGroupCollapsed = Object.create(null);
 
 // Panel de Claude
 let _regenVisible        = false;
@@ -94,7 +98,6 @@ const T = {
     btn_export_project: 'Exportar a proyecto', btn_export_project_title: 'Guarda transcript, notas HTML y email en la carpeta del proyecto',
     toast_export_ok: 'Exportado a la carpeta del proyecto',
     toast_export_no_project: 'Esta reunión no tiene proyecto asignado',
-    toast_export_no_dir: 'El proyecto no tiene carpeta configurada (ve a Ajustes)',
     toast_export_error: 'Error al exportar al proyecto',
     btn_reenrich: 'Re-analizar', btn_reenrich_all: 'Re-analizar todas',
     toast_enriching: 'Analizando acciones...', toast_enriching_all: n => `Analizando ${n} notas...`,
@@ -329,7 +332,14 @@ const T = {
     project_label: 'Proyecto',
     btn_detect_projects: 'Re-detectar proyectos',
     toast_detecting: 'Detectando proyectos en segundo plano…',
-    toast_project_set: 'Proyecto actualizado',
+    toast_meeting_moved: name => `Movida a «${name}»`,
+    toast_project_move_failed: 'No se pudo cambiar el proyecto',
+    toast_undo: 'Deshacer',
+    projects_finished_header: 'Terminados',
+    project_finish: 'Marcar terminado',
+    project_finish_tip: 'Ya no se le asignan reuniones automáticamente y pasa al final de la lista',
+    project_reopen: 'Reabrir',
+    project_finished_on: date => `Terminado el ${date}`,
     export_settings_title: 'Guardar en carpeta de proyecto',
     export_settings_desc: 'Todo se guarda siempre dentro de la app, como siempre. Además, si al crear un proyecto le asignas una carpeta, se guardarán copias de estos archivos también ahí:',
     export_settings_desc_project: 'Todo se guarda siempre en la app. Marca qué copias quieres que se guarden también en la carpeta de ESTE proyecto (requiere carpeta configurada):',
@@ -541,7 +551,6 @@ const T = {
     btn_export_project: 'Export to project', btn_export_project_title: 'Save transcript, HTML notes and email to the project folder',
     toast_export_ok: 'Exported to project folder',
     toast_export_no_project: 'This meeting has no project assigned',
-    toast_export_no_dir: 'Project has no folder configured (go to Settings)',
     toast_export_error: 'Error exporting to project',
     btn_reenrich: 'Re-analyze', btn_reenrich_all: 'Re-analyze all',
     toast_enriching: 'Analyzing actions...', toast_enriching_all: n => `Analyzing ${n} notes...`,
@@ -776,7 +785,14 @@ const T = {
     project_label: 'Project',
     btn_detect_projects: 'Re-detect projects',
     toast_detecting: 'Detecting projects in background…',
-    toast_project_set: 'Project updated',
+    toast_meeting_moved: name => `Moved to "${name}"`,
+    toast_project_move_failed: "Couldn't change the project",
+    toast_undo: 'Undo',
+    projects_finished_header: 'Finished',
+    project_finish: 'Mark finished',
+    project_finish_tip: 'No longer gets meetings assigned automatically, and moves to the end of the list',
+    project_reopen: 'Reopen',
+    project_finished_on: date => `Finished on ${date}`,
     export_settings_title: 'Save to project folder',
     export_settings_desc: 'Everything is always saved inside the app, as usual. In addition, if you assign a folder when creating a project, copies of these files will also be saved there:',
     export_settings_desc_project: 'Everything is always saved in the app. Tick which copies you also want saved to THIS project\'s folder (requires a folder to be set):',
@@ -992,7 +1008,6 @@ const T = {
     btn_export_project: 'Exportar al projecte', btn_export_project_title: 'Desa transcripció, notes HTML i correu a la carpeta del projecte',
     toast_export_ok: 'Exportat a la carpeta del projecte',
     toast_export_no_project: 'Aquesta reunió no té cap projecte assignat',
-    toast_export_no_dir: 'El projecte no té cap carpeta configurada (ves a Configuració)',
     toast_export_error: 'Error en exportar al projecte',
     btn_reenrich: 'Re-analitzar', btn_reenrich_all: 'Re-analitzar totes',
     toast_enriching: 'Analitzant accions...', toast_enriching_all: n => `Analitzant ${n} notes...`,
@@ -1226,7 +1241,14 @@ const T = {
     project_label: 'Projecte',
     btn_detect_projects: 'Re-detectar projectes',
     toast_detecting: 'Detectant projectes en segon pla…',
-    toast_project_set: 'Projecte actualitzat',
+    toast_meeting_moved: name => `Moguda a «${name}»`,
+    toast_project_move_failed: "No s'ha pogut canviar el projecte",
+    toast_undo: 'Desfés',
+    projects_finished_header: 'Acabats',
+    project_finish: 'Marcar acabat',
+    project_finish_tip: 'Ja no se li assignen reunions automàticament i passa al final de la llista',
+    project_reopen: 'Reobre',
+    project_finished_on: date => `Acabat el ${date}`,
     export_settings_title: 'Desar a carpeta de projecte',
     export_settings_desc: 'Tot es desa sempre dins de l\'app. A més, si al crear un projecte li assignes una carpeta, es desaran còpies d\'aquests arxius també allà:',
     export_settings_desc_project: 'Tot es desa sempre a l\'app. Marca quines còpies vols que es desin també a la carpeta d\'AQUEST projecte (requereix carpeta configurada):',
@@ -1434,8 +1456,9 @@ function showLangPicker(onPick) {
   });
 }
 
-// Mapas de rutas por índice para evitar rutas en atributos HTML
-const meetingPaths  = {};   // idx -> path
+// Mapas de rutas por índice para evitar rutas en atributos HTML. Las reuniones
+// de la lista llevan la suya en data-path: un índice se desajustaba al redibujar
+// sin la búsqueda, y el clic o "Eliminar" caían en otra reunión.
 const actionPaths   = {};   // i -> {path, index}
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
@@ -1510,8 +1533,6 @@ window.addEventListener('pywebviewready', async () => {
 async function loadMeetings() {
   const meetings = await pywebview.api.get_meetings();
   allMeetings = meetings;
-  meetingPaths.length = 0;
-  meetings.forEach((m, i) => { meetingPaths[i] = m.path; });
   renderSidebar(meetings);
   if (meetings.length > 0) openMeeting(meetings[0].path);
 }
@@ -1519,8 +1540,6 @@ async function loadMeetings() {
 async function refreshMeetingList() {
   const meetings = await pywebview.api.get_meetings();
   allMeetings = meetings;
-  meetingPaths.length = 0;
-  meetings.forEach((m, i) => { meetingPaths[i] = m.path; });
   renderSidebar(meetings);
   // If the currently open meeting no longer exists, clear the right panel
   if (currentPath && !meetings.some(m => _samePath(m.path, currentPath))) {
@@ -1580,7 +1599,7 @@ function renderSidebar(meetings) {
 
 function _meetingItemHtml(m) {
   return `
-    <div class="meeting-item${m.pinned ? ' pinned' : ''}" data-midx="${m.idx}">
+    <div class="meeting-item${m.pinned ? ' pinned' : ''}" data-path="${escHtml(m.path)}">
       <div class="meeting-time">${m.time || ''}</div>
       <div class="meeting-info">
         <div class="meeting-title">${escHtml(m.title)}</div>
@@ -1591,13 +1610,12 @@ function _meetingItemHtml(m) {
 function _wireSidebarItems(list) {
   list.querySelectorAll('.meeting-item').forEach(el => {
     el.addEventListener('click', e => {
-      const path = meetingPaths[parseInt(el.dataset.midx)];
+      const path = el.dataset.path;
       if (path) openMeeting(path);
     });
     el.addEventListener('contextmenu', e => {
-      const idx = parseInt(el.dataset.midx);
-      const path = meetingPaths[idx];
-      const title = allMeetings[idx]?.title || '';
+      const path = el.dataset.path;
+      const title = el.querySelector('.meeting-title')?.textContent || '';
       if (path) _showMeetingContextMenu(e, path, title, el);
     });
   });
@@ -1610,9 +1628,8 @@ function renderSidebarByDays(meetings) {
     return;
   }
 
-  const withIdx = meetings.map((m, i) => ({ ...m, idx: allMeetings.indexOf(m) !== -1 ? allMeetings.indexOf(m) : i }));
-  const pinned  = withIdx.filter(m => m.pinned);
-  const rest    = withIdx.filter(m => !m.pinned);
+  const pinned  = meetings.filter(m => m.pinned);
+  const rest    = meetings.filter(m => !m.pinned);
 
   const groups = {};
   rest.forEach(m => {
@@ -1646,37 +1663,49 @@ function renderSidebarByProject(meetings) {
     return;
   }
 
-  const projNames = {};
-  const projMap = {};
-  allProjects.forEach(p => { projNames[p.id] = p.name; projMap[p.id] = p; });
+  // Sin prototipo: un proyecto llamado "Constructor" tiene el id 'constructor'.
+  const projMap = Object.create(null);
+  allProjects.forEach(p => { projMap[p.id] = p; });
+  const isFinished = pid => !!projMap[pid]?.finished_at;
+  const groupName = pid => pid === 'none' ? t('no_project_label') : (projMap[pid]?.name || pid);
+  // Buscando, nada plegado de oficio: los resultados de un proyecto terminado
+  // parecerían una búsqueda vacía.
+  const searching = meetings !== allMeetings;
 
-  const groups = {};
-  meetings.forEach((m, idx) => {
+  const groups = Object.create(null);
+  meetings.forEach(m => {
     const pid = m.project_id || 'none';
-    if (!groups[pid]) groups[pid] = {
-      name: pid === 'none' ? t('no_project_label') : (projNames[pid] || pid),
-      items: [],
-    };
-    groups[pid].items.push({ ...m, idx });
+    if (!groups[pid]) groups[pid] = [];
+    groups[pid].push(m);
   });
 
-  const entries = Object.entries(groups).sort(([a], [b]) => {
-    if (a === 'none') return 1;
-    if (b === 'none') return -1;
-    return (projNames[a] || a).localeCompare(projNames[b] || b);
-  });
+  const byName = ([a], [b]) => groupName(a).localeCompare(groupName(b));
+  const entries = Object.entries(groups);
+  const active   = entries.filter(([pid]) => pid !== 'none' && !isFinished(pid)).sort(byName);
+  const finished = entries.filter(([pid]) => isFinished(pid)).sort(byName);
+  // Donde soltar sin reuniones: los proyectos activos vacíos y "Sin proyecto".
+  // Solo se ven mientras se arrastra (.dragging), y van debajo de los que tienen
+  // reuniones: al aparecer no empujan las secciones de arriba bajo el cursor.
+  const none = [['none', groups.none || []]];
+  const emptyActive = allProjects.filter(p => !p.finished_at && !groups[p.id])
+    .map(p => [p.id, []]).sort(byName);
 
-  list.innerHTML = entries.map(([pid, grp]) => {
+  const section = ([pid, items]) => {
     const color = _projectColor(projMap[pid] || { id: pid });
+    const collapsed = pid in _projectGroupCollapsed
+      ? _projectGroupCollapsed[pid] : (isFinished(pid) && !searching);
+    const cls = (items.length ? '' : ' empty') + (isFinished(pid) ? ' finished' : '');
+    // Un id que ya no está en projects.json (proyecto borrado) no recibe reuniones.
+    const drop = pid === 'none' || projMap[pid] ? ` data-drop-project="${escHtml(pid)}"` : '';
     return `
-    <div class="project-sidebar-group">
+    <div class="project-sidebar-group${cls}"${drop}>
       <div class="project-sidebar-header" style="border-left:2px solid ${color}" onclick="toggleProjectSidebarGroup('${escHtml(pid)}')">
-        <span class="project-sidebar-name" style="color:${color}">${escHtml(grp.name)}</span>
-        <span class="project-sidebar-chevron" id="pchev-${escHtml(pid)}" style="color:${color}">▾</span>
+        <span class="project-sidebar-name" style="color:${color}">${escHtml(groupName(pid))}</span>
+        <span class="project-sidebar-chevron" id="pchev-${escHtml(pid)}" style="color:${color}">${collapsed ? '▸' : '▾'}</span>
       </div>
-      <div class="project-sidebar-items" id="pgroup-${escHtml(pid)}">
-        ${grp.items.map(m => `
-          <div class="meeting-item" data-midx="${m.idx}">
+      <div class="project-sidebar-items${collapsed ? ' collapsed' : ''}" id="pgroup-${escHtml(pid)}">
+        ${items.map(m => `
+          <div class="meeting-item" data-path="${escHtml(m.path)}" draggable="true">
             <div class="meeting-time">${m.time || ''}</div>
             <div class="meeting-info">
               <div class="meeting-title">${escHtml(m.title)}</div>
@@ -1686,20 +1715,129 @@ function renderSidebarByProject(meetings) {
         `).join('')}
       </div>
     </div>`;
-  }).join('');
+  };
 
-  list.querySelectorAll('.meeting-item').forEach(el => {
-    el.addEventListener('click', e => {
-      const path = meetingPaths[parseInt(el.dataset.midx)];
-      if (path) openMeeting(path);
+  // Un redibujado en mitad de un arrastre (la lista se refresca sola) se lleva
+  // la tarjeta, y su dragend no llega: no queda el modo arrastre colgado.
+  list.classList.remove('dragging');
+  list.innerHTML = [...active, ...none, ...emptyActive].map(section).join('')
+    + (finished.length
+      ? `<div class="project-sidebar-divider">${t('projects_finished_header')}</div>` + finished.map(section).join('')
+      : '');
+
+  _wireProjectDrag(list);
+  _wireSidebarItems(list);
+}
+
+// Arrastrar una reunión a la sección de otro proyecto. Mismo patrón nativo que
+// el tablero (_onDragCard). La ruta viaja con un tipo propio: las secciones solo
+// aceptan una reunión de esta lista (no texto ni ficheros de fuera), y soltarla
+// en un campo de texto no escribe nada en él.
+const MEETING_DRAG_TYPE = 'application/x-noted-meeting';
+
+function _wireProjectDrag(list) {
+  const isMeetingDrag = e => [...(e.dataTransfer?.types || [])].includes(MEETING_DRAG_TYPE);
+  const endDrag = () => {
+    list.classList.remove('dragging');
+    list.querySelectorAll('.drag-over').forEach(g => g.classList.remove('drag-over'));
+  };
+  list.querySelectorAll('.meeting-item[draggable="true"]').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData(MEETING_DRAG_TYPE, el.dataset.path);
+      // Fuera del dragstart: Chromium cancela el arrastre si el DOM cambia en él.
+      setTimeout(() => list.classList.add('dragging'), 0);
     });
-    el.addEventListener('contextmenu', e => {
-      const idx = parseInt(el.dataset.midx);
-      const path = meetingPaths[idx];
-      const title = allMeetings[idx]?.title || '';
-      if (path) _showMeetingContextMenu(e, path, title, el);
+    el.addEventListener('dragend', endDrag);
+  });
+  list.querySelectorAll('[data-drop-project]').forEach(g => {
+    g.addEventListener('dragover', e => {
+      if (!isMeetingDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      g.classList.add('drag-over');
+    });
+    g.addEventListener('dragleave', e => {
+      if (!g.contains(e.relatedTarget)) g.classList.remove('drag-over');
+    });
+    g.addEventListener('drop', e => {
+      if (!isMeetingDrag(e)) return;
+      e.preventDefault();
+      const path = e.dataTransfer.getData(MEETING_DRAG_TYPE);
+      endDrag();
+      if (path) moveMeetingToProject(path, g.dataset.dropProject);
     });
   });
+}
+
+// Cambiar el proyecto de una reunión: lo usan el desplegable de la cabecera y
+// el soltar en la lista. Es una elección manual (project_source 'manual': ninguna
+// detección la cambia), y el aviso ofrece deshacerla, porque una reunión se
+// suelta fácil en la sección de al lado.
+const MOVE_UNDO_MS = 6000;
+
+async function moveMeetingToProject(path, projectId) {
+  const pid = projectId || 'none';
+  const m = allMeetings.find(x => _samePath(x.path, path));
+  if ((m?.project_id || 'none') === pid) return;
+  // Como estaba, tal cual: deshacer no lo convierte en una elección manual.
+  const before = m ? { project_id: m.project_id || '', project_source: m.project_source || '' } : null;
+  // Antes del await: un segundo movimiento seguido parte ya de este.
+  if (m) Object.assign(m, { project_id: pid, project_source: 'manual' });
+  const ok = await pywebview.api.set_meeting_project(path, pid === 'none' ? '' : pid);
+  if (!ok) {
+    if (m) Object.assign(m, before);
+    _showMeetingProject(path, before?.project_id);
+    _rerenderSidebar();
+    showToast(t('toast_project_move_failed'));
+    return;
+  }
+  _rerenderSidebar();
+  _showMeetingProject(path, pid);
+  showToast(t('toast_meeting_moved', _projectName(pid)), before ? {
+    action: t('toast_undo'), ms: MOVE_UNDO_MS, onAction: () => _restoreMeetingProject(path, before),
+  } : undefined);
+  // La copia a la carpeta del proyecto espera a que pase el "Deshacer": deshacer
+  // no borraría lo ya copiado en la carpeta de otro cliente.
+  if (pid !== 'none') {
+    setTimeout(async () => {
+      const now = allMeetings.find(x => _samePath(x.path, path));
+      if (now && (now.project_id || 'none') !== pid) return;   // deshecho o movida otra vez
+      try {
+        if ((await pywebview.api.export_to_project(path)) === '') showToast(t('toast_export_ok'));
+      } catch (_) {}
+    }, before ? MOVE_UNDO_MS : 0);
+  }
+}
+
+async function _restoreMeetingProject(path, before) {
+  const ok = await pywebview.api.restore_meeting_project(path, before.project_id, before.project_source);
+  if (!ok) { showToast(t('toast_project_move_failed')); return; }
+  const m = allMeetings.find(x => _samePath(x.path, path));
+  if (m) Object.assign(m, before);
+  _rerenderSidebar();
+  _showMeetingProject(path, before.project_id);
+  showToast(t('toast_meeting_moved', _projectName(before.project_id || 'none')));
+}
+
+function _projectName(pid) {
+  if (!pid || pid === 'none') return t('no_project_label');
+  return allProjects.find(p => p.id === pid)?.name || pid;
+}
+
+// El desplegable de la cabecera, si la reunión movida es la que está abierta.
+function _showMeetingProject(path, projectId) {
+  if (!_samePath(path, currentPath)) return;
+  const sel = document.getElementById('meeting-project-select');
+  if (sel) sel.value = projectId && projectId !== 'none' ? projectId : '';
+}
+
+// Redibuja lo que se ve: con una búsqueda escrita, sus resultados, no la lista
+// entera debajo de una consulta que ya no corresponde.
+function _rerenderSidebar() {
+  const q = document.getElementById('search-input')?.value || '';
+  if (q.trim()) onSearch(q);
+  else renderSidebar(allMeetings);
 }
 
 // ── Papelera (reuniones eliminadas) ──────────────────────────────────────────
@@ -1760,7 +1898,8 @@ function toggleProjectSidebarGroup(pid) {
   const chev  = document.getElementById('pchev-' + pid);
   if (!items) return;
   items.classList.toggle('collapsed');
-  if (chev) chev.textContent = items.classList.contains('collapsed') ? '▸' : '▾';
+  _projectGroupCollapsed[pid] = items.classList.contains('collapsed');
+  if (chev) chev.textContent = _projectGroupCollapsed[pid] ? '▸' : '▾';
 }
 
 // ── Meeting context menu (right-click: rename / delete) ──────────────────────
@@ -1946,8 +2085,7 @@ async function openMeeting(path) {
 
   document.querySelectorAll('.meeting-item').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.meeting-item').forEach(el => {
-    const idx = parseInt(el.dataset.midx);
-    if (meetingPaths[idx] === path) el.classList.add('active');
+    if (_samePath(el.dataset.path, path)) el.classList.add('active');
   });
 
   const panel = document.getElementById('main-panel');
@@ -1967,11 +2105,16 @@ async function openMeeting(path) {
   const meeting = allMeetings.find(m => m.path === path) || {};
   const pendingCount = actions ? actions.filter(a => !a.executed).length : 0;
   const curProjId = meeting.project_id || '';
+  const projOption = p =>
+    `<option value="${escHtml(p.id)}"${curProjId === p.id ? ' selected' : ''}>${escHtml(p.name)}</option>`;
+  // Los terminados, al final: ya no reciben reuniones solos, pero a mano sí.
+  const finishedProjects = allProjects.filter(p => p.finished_at);
   const projOptions = [
     `<option value="">${t('no_project_label')}</option>`,
-    ...allProjects.map(p =>
-      `<option value="${escHtml(p.id)}"${curProjId === p.id ? ' selected' : ''}>${escHtml(p.name)}</option>`
-    ),
+    ...allProjects.filter(p => !p.finished_at).map(projOption),
+    finishedProjects.length
+      ? `<optgroup label="${escHtml(t('projects_finished_header'))}">${finishedProjects.map(projOption).join('')}</optgroup>`
+      : '',
   ].join('');
 
   panel.innerHTML = `
@@ -4381,14 +4524,20 @@ function toggleProjectDetail(pid) {
 async function loadProjectsSettings(editingId = null) {
   _editingProjectId = editingId;
   const projects = await pywebview.api.get_projects();
+  // Todo cambio de proyectos (crear, editar, terminar) pasa por aquí: la lista
+  // de reuniones y el desplegable se quedaban con los de antes hasta reiniciar.
+  allProjects = projects;
+  _rerenderSidebar();
   const list = document.getElementById('projects-list-settings');
   if (!list) return;
   if (!projects.length) {
     list.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:4px 0">${t('no_projects')}</div>`;
     return;
   }
-  list.innerHTML = projects.map(p => {
+  const ordered = [...projects.filter(p => !p.finished_at), ...projects.filter(p => p.finished_at)];
+  list.innerHTML = ordered.map(p => {
     const pid = escHtml(p.id);
+    const finished = !!p.finished_at;
     const hasFolder = !!(p.output_dir && p.output_dir.trim());
     const isEditing = editingId === pid;
     if (isEditing) _expandedProjects.add(p.id);  // mantener abierto al editar
@@ -4416,9 +4565,11 @@ async function loadProjectsSettings(editingId = null) {
       <div class="project-settings-row" onclick="toggleProjectDetail('${pid}')">
         <div style="min-width:0;flex:1">
           <div class="project-settings-name">${escHtml(p.name)}</div>
+          ${finished ? `<div class="project-settings-finished">${escHtml(t('project_finished_on', _formatIsoDate(p.finished_at)))}</div>` : ''}
           ${p.description ? `<div class="project-settings-desc">${escHtml(p.description)}</div>` : ''}
         </div>
         <div class="proj-header-actions">
+          <button class="proj-finish-btn btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleProjectFinished('${pid}')" title="${finished ? '' : escHtml(t('project_finish_tip'))}">${finished ? t('project_reopen') : t('project_finish')}</button>
           <button class="proj-edit-btn btn btn-ghost btn-sm" onclick="event.stopPropagation();loadProjectsSettings('${pid}')">${t('edit_btn')}</button>
           <button class="proj-del-btn btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteProject('${pid}')">${t('delete_project_btn') || 'Delete'}</button>
         </div>
@@ -4433,7 +4584,7 @@ async function loadProjectsSettings(editingId = null) {
     const boxChecked = f => (hasFolder && p['export_save_' + f] !== false) ? 'checked' : '';
 
     return `
-    <div class="project-settings-item${isExpanded ? ' expanded' : ''}" data-proj-id="${pid}" style="border-left-color:${color}">
+    <div class="project-settings-item${isExpanded ? ' expanded' : ''}${finished ? ' finished' : ''}" data-proj-id="${pid}" style="border-left-color:${color}">
       ${headerRow}
       <div class="project-settings-detail"${isExpanded ? '' : ' style="display:none"'}>
         ${isEditing ? `
@@ -4538,6 +4689,29 @@ async function saveEditProject(pid) {
 
   await pywebview.api.save_project(proj);
   await loadProjectsSettings();
+}
+
+// Terminar un proyecto: la detección deja de darle reuniones
+// (project_context.active_projects) y pasa al final, plegado. Sigue en
+// projects.json, porque sus reuniones y su carpeta de project_docs lo nombran.
+async function toggleProjectFinished(pid) {
+  const projects = await pywebview.api.get_projects();
+  const proj = projects.find(p => p.id === pid);
+  if (!proj) return;
+  if (proj.finished_at) {
+    delete proj.finished_at;
+  } else {
+    const d = new Date();
+    proj.finished_at = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  delete _projectGroupCollapsed[pid];  // vuelve a su plegado por defecto
+  await pywebview.api.save_project(proj);
+  await loadProjectsSettings();
+}
+
+function _formatIsoDate(iso) {
+  const d = new Date(`${iso}T00:00:00`);
+  return isNaN(d) ? iso : d.toLocaleDateString(currentLang === 'en' ? 'en-US' : 'es-ES');
 }
 
 function showAddProjectForm() {
@@ -4653,7 +4827,6 @@ async function deleteProject(id) {
     t('confirm_delete_project', name),
     async () => {
       await pywebview.api.delete_project(id);
-      allProjects = await pywebview.api.get_projects();
       await loadProjectsSettings();
     },
     { title: t('confirm_delete_title') },
@@ -4964,17 +5137,7 @@ async function sendTranscriptEmail(path) {
 
 async function onMeetingProjectChange(projectId) {
   if (!currentPath) return;
-  await pywebview.api.set_meeting_project(currentPath, projectId);
-  const m = allMeetings.find(m => m.path === currentPath);
-  if (m) m.project_id = projectId;
-  renderSidebar(allMeetings);
-  showToast(t('toast_project_set'));
-
-  if (projectId && projectId !== 'none') {
-    const result = await pywebview.api.export_to_project(currentPath);
-    if (result === '') showToast(t('toast_export_ok'));
-    else if (result === 'no_directory') showToast(t('toast_export_no_dir'));
-  }
+  await moveMeetingToProject(currentPath, projectId);
 }
 
 async function detectProjectsForAll() {
@@ -4984,7 +5147,6 @@ async function detectProjectsForAll() {
   setTimeout(async () => {
     const meetings = await pywebview.api.get_meetings();
     allMeetings = meetings;
-    meetings.forEach((m, i) => { meetingPaths[i] = m.path; });
     renderSidebar(meetings);
   }, 3000);
 }
@@ -5308,7 +5470,6 @@ function onSearch(query) {
   if (!query.trim()) { renderSidebar(allMeetings); return; }
   searchTimeout = setTimeout(async () => {
     const results = await pywebview.api.search(query);
-    results.forEach((m, i) => { meetingPaths[i] = m.path; });
     renderSidebar(results);
   }, 300);
 }
@@ -5428,11 +5589,26 @@ function renderShotsTab(path, shots) {
   });
 }
 
-function showToast(msg) {
+// action/onAction: un botón en el aviso ("Deshacer"). Cada aviso nuevo reinicia
+// el temporizador, para que el de uno anterior no oculte este antes de tiempo.
+function showToast(msg, { action = '', onAction = null, ms = 2500 } = {}) {
   const el = document.getElementById('toast');
   el.textContent = msg;
+  el.classList.toggle('has-action', !!(action && onAction));
+  if (action && onAction) {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action;
+    btn.onclick = () => {
+      btn.disabled = true;
+      el.classList.remove('show');
+      onAction();
+    };
+    el.appendChild(btn);
+  }
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2500);
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => el.classList.remove('show'), ms);
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
