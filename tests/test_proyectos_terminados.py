@@ -165,6 +165,19 @@ def test_terminar_y_reabrir_guardan_el_proyecto_entero(api, tr_dirs):
 
 # ── 4. La lista ve el proyecto nuevo ─────────────────────────────────────────
 
+def test_la_busqueda_trae_el_origen_del_proyecto(api, tr_dirs):
+    """La etiqueta de la vista por dias marca "por confirmar" tambien en los
+    resultados de una busqueda, no solo en la lista entera."""
+    md = minutas(tr_dirs)
+    data = leer(md)
+    data.update(project_id='sales-training', project_source='title')
+    ae.get_actions_path(md).write_text(json.dumps(data), encoding='utf-8')
+
+    resultados = api.search('atlas')
+
+    assert [(r['project_id'], r['project_source']) for r in resultados] == [('sales-training', 'title')]
+
+
 def test_la_lista_ve_el_proyecto_nuevo_nada_mas_moverla(api, tr_dirs):
     md = minutas(tr_dirs)
     ae.set_meeting_project_id(md, 'sales-training')

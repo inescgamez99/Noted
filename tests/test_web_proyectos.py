@@ -36,7 +36,7 @@ _HARNESS = r"""
 const src = require('fs').readFileSync(process.argv[1], 'utf8');
 const slice = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
 const code = slice('function _wireSidebarItems(list) {', 'function renderSidebarByDays(meetings) {')
-  + slice('function renderSidebarByProject(meetings) {', '// ── Papelera (reuniones eliminadas)');
+  + slice('function renderSidebarByProject(', '// ── Papelera (reuniones eliminadas)');
 const scenario = process.argv[2];
 
 function fakeEl(extra = {}) {

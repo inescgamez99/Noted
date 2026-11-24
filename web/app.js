@@ -335,6 +335,12 @@ const T = {
     toast_meeting_moved: name => `Movida a «${name}»`,
     toast_project_move_failed: 'No se pudo cambiar el proyecto',
     toast_undo: 'Deshacer',
+    tag_filter_tip: 'Ver solo las reuniones de este proyecto',
+    tag_guess_tip: 'Por confirmar: Noted lo adivinó por el título y no la archiva hasta confirmarlo',
+    tag_deleted_tip: 'Este proyecto ya no existe',
+    filter_chip: name => `Proyecto: ${name}`,
+    filter_clear: 'Quitar filtro',
+    filter_empty: 'Ninguna reunión en este proyecto',
     projects_finished_header: 'Terminados',
     project_finish: 'Marcar terminado',
     project_finish_tip: 'Ya no se le asignan reuniones automáticamente y pasa al final de la lista',
@@ -788,6 +794,12 @@ const T = {
     toast_meeting_moved: name => `Moved to "${name}"`,
     toast_project_move_failed: "Couldn't change the project",
     toast_undo: 'Undo',
+    tag_filter_tip: "Show only this project's meetings",
+    tag_guess_tip: 'To confirm: Noted guessed it from the title and does not file it until confirmed',
+    tag_deleted_tip: 'This project no longer exists',
+    filter_chip: name => `Project: ${name}`,
+    filter_clear: 'Clear filter',
+    filter_empty: 'No meetings in this project',
     projects_finished_header: 'Finished',
     project_finish: 'Mark finished',
     project_finish_tip: 'No longer gets meetings assigned automatically, and moves to the end of the list',
@@ -1244,6 +1256,12 @@ const T = {
     toast_meeting_moved: name => `Moguda a «${name}»`,
     toast_project_move_failed: "No s'ha pogut canviar el projecte",
     toast_undo: 'Desfés',
+    tag_filter_tip: "Mostra només les reunions d'aquest projecte",
+    tag_guess_tip: "Per confirmar: Noted ho ha endevinat pel títol i no l'arxiva fins que es confirmi",
+    tag_deleted_tip: 'Aquest projecte ja no existeix',
+    filter_chip: name => `Projecte: ${name}`,
+    filter_clear: 'Treu el filtre',
+    filter_empty: 'Cap reunió en aquest projecte',
     projects_finished_header: 'Acabats',
     project_finish: 'Marcar acabat',
     project_finish_tip: 'Ja no se li assignen reunions automàticament i passa al final de la llista',
@@ -1439,6 +1457,9 @@ function applyLang(lang) {
   }
   _renderGlossarySummary();
   _renderGlossaryDrawer();
+  // La lista lleva textos del idioma ("Sin proyecto", las etiquetas, el filtro).
+  // Al arrancar aún no hay reuniones: se dejaría "No hay reuniones" en vez de "Cargando".
+  if (allMeetings.length) _redrawSidebar();
 }
 
 function showLangPicker(onPick) {
@@ -1586,23 +1607,90 @@ function setSidebarMode(mode) {
   const btnProj = document.getElementById('mode-btn-projects');
   if (btnDays) btnDays.classList.toggle('active', mode === 'days');
   if (btnProj) btnProj.classList.toggle('active', mode === 'projects');
-  renderSidebar(allMeetings);
+  _redrawSidebar();
 }
 
+// Ver solo un proyecto: se pone al pulsar la etiqueta de una reunión y se quita
+// con la ✕ de encima de la lista. Solo en memoria: un filtro olvidado al abrir
+// Noted otro día escondería reuniones. null = sin filtro; 'none' = sin proyecto.
+let _sidebarProjectFilter = null;
+// La última búsqueda y sus resultados (onSearch): filtrar o cambiar de vista con
+// una búsqueda escrita los redibuja al momento, sin volver a leer las minutas.
+let _lastSearch = { query: '', results: [] };
+
 function renderSidebar(meetings) {
+  const searching = meetings !== allMeetings;
+  _renderSidebarFilter();
+  const pid = _sidebarProjectFilter;
+  const shown = pid ? meetings.filter(m => (m.project_id || 'none') === pid) : meetings;
+  if (pid && !shown.length) {
+    // Buscando, lo vacío es la búsqueda, no el proyecto.
+    document.getElementById('meetings-list').innerHTML =
+      `<div class="loading">${t(searching ? 'no_meetings' : 'filter_empty')}</div>`;
+    return;
+  }
   if (currentSidebarMode === 'projects') {
-    renderSidebarByProject(meetings);
+    // Filtrando, como buscando: nada plegado de oficio, o un terminado filtrado
+    // se vería vacío.
+    renderSidebarByProject(shown, { searching: searching || !!pid });
   } else {
-    renderSidebarByDays(meetings);
+    renderSidebarByDays(shown);
   }
 }
 
+function _setSidebarProjectFilter(pid) {
+  _sidebarProjectFilter = pid || null;
+  _redrawSidebar();
+}
+
+// Redibujar sin que hayan cambiado los datos (filtro, vista, idioma): con una
+// búsqueda escrita, sus últimos resultados; si aún no han llegado, la búsqueda.
+// Tras un cambio en disco (mover una reunión) es _rerenderSidebar, que busca de nuevo.
+function _redrawSidebar() {
+  const q = document.getElementById('search-input')?.value || '';
+  if (!q.trim()) renderSidebar(allMeetings);
+  else if (q === _lastSearch.query) renderSidebar(_lastSearch.results);
+  else onSearch(q);
+}
+
+function _renderSidebarFilter() {
+  const box = document.getElementById('sidebar-filter');
+  if (!box) return;
+  const pid = _sidebarProjectFilter;
+  box.classList.toggle('hidden', !pid);
+  box.innerHTML = pid ? `
+    <span class="sidebar-filter-label">${escHtml(t('filter_chip', _projectName(pid)))}</span>
+    <button type="button" class="sidebar-filter-clear" onclick="_setSidebarProjectFilter(null)"
+      title="${escHtml(t('filter_clear'))}" aria-label="${escHtml(t('filter_clear'))}">✕</button>` : '';
+}
+
+// La etiqueta del proyecto bajo el título, en la vista por días: para ver de un
+// vistazo dónde quedó cada reunión. Pulsarla filtra por ese proyecto.
+function _projectTagHtml(m) {
+  const pid = m.project_id && m.project_id !== 'none' ? m.project_id : 'none';
+  const p = pid === 'none' ? null : allProjects.find(x => x.id === pid);
+  // 'title': Noted lo adivinó por el título y no la archiva hasta confirmarlo.
+  const guess = !!p && m.project_source === 'title';
+  const cls = ['meeting-project-tag'];
+  const tips = [t('tag_filter_tip')];
+  if (pid === 'none') cls.push('none');
+  else if (!p) { cls.push('deleted'); tips.unshift(t('tag_deleted_tip')); }
+  else if (p.finished_at) cls.push('finished');
+  if (guess) { cls.push('guess'); tips.unshift(t('tag_guess_tip')); }
+  const name = pid === 'none' ? t('no_project_label') : (p?.name || pid);
+  const color = p ? _projectColor(p) : 'var(--muted)';
+  // tabindex -1: una parada de tabulador por reunión serían cientos.
+  return `<button type="button" tabindex="-1" class="${cls.join(' ')}" data-filter-project="${escHtml(pid)}" style="--tag-color:${escHtml(color)}" title="${escHtml(tips.join(' · '))}"><span class="tag-name">${escHtml(name)}${guess ? ' ?' : ''}</span></button>`;
+}
+
 function _meetingItemHtml(m) {
+  const active = _samePath(m.path, currentPath) ? ' active' : '';
   return `
-    <div class="meeting-item${m.pinned ? ' pinned' : ''}" data-path="${escHtml(m.path)}">
+    <div class="meeting-item${m.pinned ? ' pinned' : ''}${active}" data-path="${escHtml(m.path)}">
       <div class="meeting-time">${m.time || ''}</div>
       <div class="meeting-info">
         <div class="meeting-title">${escHtml(m.title)}</div>
+        ${allProjects.length ? _projectTagHtml(m) : ''}
       </div>
     </div>`;
 }
@@ -1610,6 +1698,9 @@ function _meetingItemHtml(m) {
 function _wireSidebarItems(list) {
   list.querySelectorAll('.meeting-item').forEach(el => {
     el.addEventListener('click', e => {
+      // La etiqueta filtra; el resto de la tarjeta abre la reunión.
+      const tag = e.target?.closest?.('.meeting-project-tag');
+      if (tag) { _setSidebarProjectFilter(tag.dataset.filterProject); return; }
       const path = el.dataset.path;
       if (path) openMeeting(path);
     });
@@ -1656,7 +1747,7 @@ function renderSidebarByDays(meetings) {
   _wireSidebarItems(list);
 }
 
-function renderSidebarByProject(meetings) {
+function renderSidebarByProject(meetings, { searching = meetings !== allMeetings } = {}) {
   const list = document.getElementById('meetings-list');
   if (!meetings.length) {
     list.innerHTML = `<div class="loading">${t('no_meetings')}</div>`;
@@ -1668,9 +1759,8 @@ function renderSidebarByProject(meetings) {
   allProjects.forEach(p => { projMap[p.id] = p; });
   const isFinished = pid => !!projMap[pid]?.finished_at;
   const groupName = pid => pid === 'none' ? t('no_project_label') : (projMap[pid]?.name || pid);
-  // Buscando, nada plegado de oficio: los resultados de un proyecto terminado
-  // parecerían una búsqueda vacía.
-  const searching = meetings !== allMeetings;
+  // Buscando (searching), nada plegado de oficio: los resultados de un proyecto
+  // terminado parecerían una búsqueda vacía.
 
   const groups = Object.create(null);
   meetings.forEach(m => {
@@ -1705,7 +1795,7 @@ function renderSidebarByProject(meetings) {
       </div>
       <div class="project-sidebar-items${collapsed ? ' collapsed' : ''}" id="pgroup-${escHtml(pid)}">
         ${items.map(m => `
-          <div class="meeting-item" data-path="${escHtml(m.path)}" draggable="true">
+          <div class="meeting-item${_samePath(m.path, currentPath) ? ' active' : ''}" data-path="${escHtml(m.path)}" draggable="true">
             <div class="meeting-time">${m.time || ''}</div>
             <div class="meeting-info">
               <div class="meeting-title">${escHtml(m.title)}</div>
@@ -2321,7 +2411,9 @@ async function openMeeting(path) {
       const m = allMeetings.find(x => x.path === path);
       if (m) {
         m.title = next.trim();
-        renderSidebar();
+        // Sin argumento, renderSidebar() reventaba en meetings.length y la lista
+        // se quedaba con el nombre viejo.
+        _rerenderSidebar();
       }
     });
   });
@@ -5470,6 +5562,7 @@ function onSearch(query) {
   if (!query.trim()) { renderSidebar(allMeetings); return; }
   searchTimeout = setTimeout(async () => {
     const results = await pywebview.api.search(query);
+    _lastSearch = { query, results };
     renderSidebar(results);
   }, 300);
 }

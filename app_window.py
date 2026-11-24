@@ -4789,6 +4789,8 @@ class AppAPI:
 
                     project_id = ''
 
+                    project_source = ''
+
                     if actions_path.exists():
 
                         try:
@@ -4802,6 +4804,8 @@ class AppAPI:
                             pending = sum(1 for a in acts if not a.get('executed', False))
 
                             project_id = data.get('project_id', '')
+
+                            project_source = data.get('project_source', '')
 
                         except Exception:
 
@@ -4822,6 +4826,9 @@ class AppAPI:
                         'pending_count': pending,
 
                         'project_id':    project_id,
+
+                        # Como en get_meetings: la etiqueta marca "por confirmar".
+                        'project_source': project_source,
 
                     })
 
