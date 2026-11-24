@@ -227,6 +227,10 @@ def _detect_and_save_project(minutes_path: Path, projects_dir: Path, extra_text:
         projects = pdata.get('projects', [])
     except Exception:
         return
+    # Un proyecto terminado no recibe reuniones solo: ni en el prompt, ni en
+    # valid_ids, ni por el titulo. Asignarle una sigue siendo posible a mano.
+    from project_context import active_projects
+    projects = active_projects(projects)
     if not projects:
         return
 
@@ -313,6 +317,9 @@ def _store_project_id(minutes_path: Path, project_id: str, source: str | None = 
     if adata.get('project_source') == 'manual':
         log.info(f"Proyecto elegido a mano en {minutes_path.name}: se conserva")
         return False
+    if _in_finished_project(adata):
+        log.info(f"Reunion de un proyecto terminado ({adata['project_id']}): se conserva")
+        return False
     adata['project_id'] = project_id
     if source:
         adata['project_source'] = source
@@ -320,6 +327,18 @@ def _store_project_id(minutes_path: Path, project_id: str, source: str | None = 
         adata.pop('project_source', None)
     ap.write_text(json.dumps(adata, ensure_ascii=False, indent=2), encoding='utf-8')
     return True
+
+
+def _in_finished_project(adata: dict) -> bool:
+    """La reunion ya esta en un proyecto terminado, y no por una suposicion del
+    titulo. Ninguna deteccion puede volver a elegirlo, asi que rehacer la reunion
+    (reintento de minutas, regenerar) la sacaria de su proyecto: terminar no debe
+    vaciarlo."""
+    pid = adata.get('project_id')
+    if not pid or adata.get('project_source') == 'title':
+        return False
+    from project_context import load_projects
+    return any(p.get('id') == pid and p.get('finished_at') for p in load_projects())
 
 
 def _save_project_from_title(minutes_path: Path, meeting_title: str, projects: list) -> None:
@@ -407,6 +426,28 @@ def set_meeting_project_id(minutes_path: Path, project_id: str) -> bool:
         return True
     except Exception as e:
         log.warning(f"set_meeting_project_id: {e}")
+        return False
+
+
+def restore_meeting_project(minutes_path: Path, project_id: str, project_source: str) -> bool:
+    """Deshacer un cambio de proyecto: project_id y project_source como estaban,
+    sin marcarlo como eleccion manual. Vacio = la clave no estaba: sin project_id
+    la deteccion lo vuelve a intentar, y sin project_source lo eligio Claude. Asi
+    deshacer no saca la reunion de la deteccion ni convierte una suposicion del
+    titulo en un proyecto que se archiva."""
+    ap = get_actions_path(minutes_path)
+    try:
+        data = json.loads(ap.read_text(encoding='utf-8'))
+        for key, value in (('project_id', project_id), ('project_source', project_source)):
+            if value:
+                data[key] = value
+            else:
+                data.pop(key, None)
+        ap.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+        log.info(f"Proyecto restaurado a '{project_id or '-'}' en {minutes_path.name}")
+        return True
+    except Exception as e:
+        log.warning(f"restore_meeting_project: {e}")
         return False
 
 
@@ -513,5 +554,7 @@ def _save_json(minutes_path: Path, actions, enriched_map):
     if prev.get('project_source') == 'manual':
         data['project_id'] = prev.get('project_id', 'none')
         data['project_source'] = 'manual'
+    elif _in_finished_project(prev):
+        data['project_id'] = prev['project_id']
     ap.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     log.info(f"Actions JSON guardado: {ap.name} ({len(result)} acciones)")
