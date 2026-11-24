@@ -423,10 +423,14 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 /* ── Misc ── */
 .loading { padding: 20px; text-align: center; color: var(--muted); font-size: 13px; }
 
+/* El aviso va invertido respecto al tema (fondo del color del texto, letra del
+   color del fondo), como el "inverse surface" de Material. Con la letra fija en
+   blanco, en modo oscuro salia blanco sobre gris claro y no se leia. */
 .toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
-  background: var(--text); color: white; padding: 10px 20px; border-radius: var(--radius);
-  font-size: 13px; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999;
+  background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg);
+  opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
