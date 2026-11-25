@@ -1137,6 +1137,7 @@ class TrayApp:
         return bool(getattr(rec, 'is_recording', False) or getattr(rec, 'is_saving', False))
 
     def _run_pipeline_sync(self, wav_path: Path):
+        import win_power
         from storage import get_transcript_path
         from transcriber import partial_resume, transcribe
 
@@ -1162,7 +1163,11 @@ class TrayApp:
             if self._defer_reason() is not None:
                 raise _Deferred()
             self._claim_whisper()
-            self._use_live_transcript(wav_path, transcript_path, lang_path)
+            # Lo que el transcript de fondo no llego a hacer (finish_live) se
+            # transcribe aqui, en el daemon: es lo mas habitual tras colgar, y la
+            # misma prioridad que el camino de abajo (win_power.transcribing).
+            with win_power.transcribing():
+                self._use_live_transcript(wav_path, transcript_path, lang_path)
         if transcript_path.exists():
             transcript_text = transcript_path.read_text(encoding='utf-8')
             if lang_path.exists():
@@ -1190,9 +1195,12 @@ class TrayApp:
             def on_progress(pct):
                 self.set_processing(f'Transcribiendo {pct}%...')
 
-            result = transcribe(wav_path, on_progress=on_progress, on_segment=on_seg,
-                                should_cancel=lambda: self._is_cancelled(wav_path.stem),
-                                resume_from=partial_path, should_pause=self._pipeline_should_pause)
+            # Por encima de Normal mientras dura, salvo en una llamada o grabando
+            # (win_power.transcribing): con el equipo cargado, en Normal no avanzaba.
+            with win_power.transcribing():
+                result = transcribe(wav_path, on_progress=on_progress, on_segment=on_seg,
+                                    should_cancel=lambda: self._is_cancelled(wav_path.stem),
+                                    resume_from=partial_path, should_pause=self._pipeline_should_pause)
             if not result:
                 # El .partial se conserva: es lo unico que queda de lo transcrito
                 # (se borraba antes de mirar el resultado y un fallo lo perdia todo).
