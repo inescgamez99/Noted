@@ -25,12 +25,22 @@ def load_projects() -> list:
     return []
 
 
+def active_projects(projects: list) -> list:
+    """Los proyectos que una deteccion puede elegir: los no terminados.
+
+    Un proyecto terminado (`finished_at`, fecha ISO) sigue en projects.json,
+    porque sus reuniones y su carpeta de project_docs lo nombran, pero ya no
+    recibe reuniones solo: asignarle una es cosa del usuario, a mano.
+    """
+    return [p for p in projects if not p.get('finished_at')]
+
+
 def _norm(s: str) -> str:
     return re.sub(r'\s+', ' ', re.sub(r'[^\w\s]', ' ', (s or '').lower())).strip()
 
 
 def detect_project(text: str, meeting_name: str = '', projects: list = None) -> dict | None:
-    projects = projects if projects is not None else load_projects()
+    projects = active_projects(projects if projects is not None else load_projects())
     hay = _norm((meeting_name or '') + ' ' + (text or '')[:6000])
     if not hay:
         return None
@@ -59,7 +69,7 @@ def project_from_title(title: str, projects: list = None) -> dict | None:
     tercios de las palabras de su nombre; si son dos, ninguno: una reunion en
     la carpeta de otro cliente es peor que una sin proyecto.
     """
-    projects = projects if projects is not None else load_projects()
+    projects = active_projects(projects if projects is not None else load_projects())
     # Tambien un nombre de fichero (20261028_1033_GTM_Sales_Training): _norm deja el '_'.
     words = set(_norm((title or '').replace('_', ' ')).split())
     if not words:

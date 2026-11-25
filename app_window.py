@@ -634,7 +634,17 @@ class AppAPI:
 
         for md in sorted(MINUTES_DIR.glob('*.md'), key=lambda p: p.stat().st_mtime, reverse=True):
 
-            cache_key = (str(md), md.stat().st_mtime)
+            # El proyecto y las pendientes viven en el _actions.json: con solo el
+            # .md en la clave, una reunion reasignada volvia a su seccion vieja
+            # al refrescar la lista.
+            actions_path = md.parent / f"{md.stem}_actions.json"
+
+            try:
+                actions_mtime = actions_path.stat().st_mtime
+            except OSError:
+                actions_mtime = 0
+
+            cache_key = (str(md), md.stat().st_mtime, actions_mtime)
 
             seen_keys.add(cache_key)
 
@@ -652,13 +662,13 @@ class AppAPI:
 
             title = self._title_from_content(md) or meta['title']
 
-            actions_path = md.parent / f"{md.stem}_actions.json"
-
             pending = 0
 
             has_actions = False
 
             project_id = ''
+
+            project_source = ''
 
             if actions_path.exists():
 
@@ -673,6 +683,8 @@ class AppAPI:
                     pending = sum(1 for a in acts if not a.get('executed', False))
 
                     project_id = data.get('project_id', '')
+
+                    project_source = data.get('project_source', '')
 
                 except Exception:
 
@@ -693,6 +705,9 @@ class AppAPI:
                 'pending_count': pending,
 
                 'project_id':    project_id,
+
+                # 'manual' / 'title' / '': lo que "Deshacer" tiene que dejar como estaba.
+                'project_source': project_source,
 
                 'pinned':        _pin_key(md.stem) in pins,
 
@@ -2167,6 +2182,34 @@ class AppAPI:
         except Exception as e:
 
             log.error(f"set_meeting_project: {e}")
+
+            return False
+
+
+
+    def restore_meeting_project(self, path: str, project_id: str, project_source: str) -> bool:
+
+        """El "Deshacer" del panel: el proyecto como estaba (ver
+        actions_enricher.restore_meeting_project), y su copia en project_docs/
+        donde corresponda."""
+
+        try:
+
+            from actions_enricher import restore_meeting_project
+
+            ok = restore_meeting_project(Path(path), project_id, project_source)
+
+            if ok:
+
+                from project_context import sync_meeting_summary
+
+                sync_meeting_summary(Path(path))
+
+            return ok
+
+        except Exception as e:
+
+            log.error(f"restore_meeting_project: {e}")
 
             return False
 
@@ -4746,6 +4789,8 @@ class AppAPI:
 
                     project_id = ''
 
+                    project_source = ''
+
                     if actions_path.exists():
 
                         try:
@@ -4759,6 +4804,8 @@ class AppAPI:
                             pending = sum(1 for a in acts if not a.get('executed', False))
 
                             project_id = data.get('project_id', '')
+
+                            project_source = data.get('project_source', '')
 
                         except Exception:
 
@@ -4779,6 +4826,9 @@ class AppAPI:
                         'pending_count': pending,
 
                         'project_id':    project_id,
+
+                        # Como en get_meetings: la etiqueta marca "por confirmar".
+                        'project_source': project_source,
 
                     })
 
