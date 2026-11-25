@@ -19,6 +19,10 @@ _RECORDING_SENTINEL = PROJECT_DIR / '.recording_active'
 
 
 def _write_sentinel():
+    # Grabando, el daemon no va por encima de Normal aunque transcriba la reunion
+    # anterior: Teams tiene que ir fluido (ver win_power.transcribing).
+    import win_power
+    win_power.set_recording(True)
     try:
         _RECORDING_SENTINEL.write_text(str(os.getpid()))
     except OSError:
@@ -26,6 +30,8 @@ def _write_sentinel():
 
 
 def _remove_sentinel():
+    import win_power
+    win_power.set_recording(False)
     try:
         _RECORDING_SENTINEL.unlink(missing_ok=True)
     except OSError:

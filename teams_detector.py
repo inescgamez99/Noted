@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 
+import win_power
 from config import TEAMS_POLL_INTERVAL, TEAMS_REQUIRED_CONFIRMATIONS
 
 log = logging.getLogger(__name__)
@@ -407,6 +408,9 @@ class TeamsCallDetector:
                     if not self._in_call and self._call_streak >= required_now:
                         self._call_generation += 1
                         self._in_call = True
+                        # En llamada, la transcripcion de la reunion anterior no va por
+                        # encima de Teams, se grabe esta o no (win_power).
+                        win_power.set_in_call(True)
                         self._title_went_generic = False
                         self._call_streak_has_title = False
                         self._current_meeting_name = detected_name
@@ -461,6 +465,7 @@ class TeamsCallDetector:
 
                     if self._in_call and (fast_end or slow_end):
                         self._in_call = False
+                        win_power.set_in_call(False)
                         self._call_declined = False
                         self._declined_generation = None
                         self._title_went_generic = False

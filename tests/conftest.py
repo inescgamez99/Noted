@@ -262,6 +262,15 @@ def sin_claude_de_verdad(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def sin_cambiar_la_prioridad(monkeypatch):
+    """Ningun test cambia la prioridad del proceso: win_power la sube al transcribir
+    una reunion, y en un test seria la de pytest, que se lanza en BelowNormal para
+    no quitarle CPU a Noted. test_prioridad_transcripcion lo prueba con un doble."""
+    import win_power
+    monkeypatch.setattr(win_power, '_WINDOWS', False)
+
+
+@pytest.fixture(autouse=True)
 def cierre_sin_errores_ocultos(caplog):
     """Un error dentro de _finalize_session vuelve a ser un fallo del test.
 
