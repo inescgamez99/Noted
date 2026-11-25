@@ -203,6 +203,40 @@ def test_el_filtro_se_aplica_a_los_resultados_de_la_busqueda():
     assert out['emptyText'] == 'no_meetings', "buscando, lo vacio es la busqueda, no el proyecto"
 
 
+_COLOR_HARNESS = r"""
+const src = require('fs').readFileSync(process.argv[1], 'utf8');
+const slice = (a, b) => src.slice(src.indexOf(a), src.indexOf(b));
+const code = slice('const PROJECT_COLORS', 'const STATUS_CYCLE')
+  + slice('function _nextProjectColor()', 'function showAddProjectForm()');
+const allProjects = JSON.parse(process.argv[2]);
+const fn = new Function('allProjects', code + '; return {_nextProjectColor, PROJECT_COLORS};')(allProjects);
+console.log(JSON.stringify({ next: fn._nextProjectColor(), palette: fn.PROJECT_COLORS }));
+"""
+
+
+@pytest.mark.parametrize('colores, esperado', [
+    ([], 0),                                   # el primero de la paleta
+    (['#6366f1'] * 9 + ['#8b5cf6'], 1),        # lo que tenia Felipe: el primero libre
+    ('paleta', 0),                             # todos usados una vez: el primero otra vez
+    ('paleta+0', 1),                           # el primero dos veces: el siguiente menos usado
+])
+def test_un_proyecto_nuevo_recibe_el_color_menos_usado(colores, esperado):
+    """Con PROJECT_COLORS[0] fijo, 9 de 10 proyectos tenian el mismo indigo y sus
+    etiquetas no se distinguian."""
+    paleta = json.loads(subprocess.run(
+        ['node', '-e', _COLOR_HARNESS, str(APP_JS), '[]'],
+        capture_output=True, text=True, encoding='utf-8', timeout=30).stdout)['palette']
+    if colores == 'paleta':
+        colores = paleta
+    elif colores == 'paleta+0':
+        colores = paleta + [paleta[0]]
+    proyectos = [{'id': f'p{i}', 'color': c} for i, c in enumerate(colores)]
+    r = subprocess.run(['node', '-e', _COLOR_HARNESS, str(APP_JS), json.dumps(proyectos)],
+                       capture_output=True, text=True, encoding='utf-8', timeout=30)
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)['next'] == paleta[esperado]
+
+
 def test_con_la_busqueda_ya_hecha_el_filtro_es_inmediato():
     """Sin volver a leer todas las minutas: onSearch espera 300 ms y busca en disco."""
     out = _run('busqueda_guardada')

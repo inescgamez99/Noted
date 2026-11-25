@@ -4806,9 +4806,18 @@ function _formatIsoDate(iso) {
   return isNaN(d) ? iso : d.toLocaleDateString(currentLang === 'en' ? 'en-US' : 'es-ES');
 }
 
+// El color de la paleta que menos proyectos usan (a igualdad, el primero). Con
+// PROJECT_COLORS[0] fijo, 9 de 10 proyectos acababan del mismo índigo y sus
+// etiquetas no se distinguían.
+function _nextProjectColor() {
+  const used = {};
+  allProjects.forEach(p => { const c = _projectColor(p); used[c] = (used[c] || 0) + 1; });
+  return PROJECT_COLORS.reduce((best, c) => ((used[c] || 0) < (used[best] || 0) ? c : best), PROJECT_COLORS[0]);
+}
+
 function showAddProjectForm() {
   _newProjectContextDirs = [];
-  _newProjectColor = PROJECT_COLORS[0];
+  _newProjectColor = _nextProjectColor();
   // Render color swatches
   const picker = document.getElementById('add-proj-color-picker');
   const trigger = document.getElementById('add-proj-color-trigger');

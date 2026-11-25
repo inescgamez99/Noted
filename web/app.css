@@ -157,20 +157,37 @@ html, body { height: 100%; overflow: hidden; font-family: 'Inter', 'Segoe UI', s
 .meeting-info { flex: 1; min-width: 0; }
 .meeting-title { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 .meeting-meta  { font-size: 11px; color: var(--muted); margin-top: 1px; }
-/* El proyecto de cada reunión en la vista por días; pulsarlo filtra. */
+/* El proyecto de cada reunión en la vista por días, en una cápsula de su color,
+   para ver de un vistazo que dos reuniones son de proyectos distintos; pulsarla
+   filtra. El texto mezcla el color del proyecto con el del texto del tema: así
+   se lee en claro y en oscuro (un violeta puro sobre el fondo oscuro no llega). */
 .meeting-project-tag {
-  display: flex; align-items: center; gap: 5px; max-width: 100%; margin-top: 2px; padding: 0;
-  border: none; background: none; font: inherit; font-size: 11px; line-height: 1.4;
-  color: var(--subtext); cursor: pointer; text-align: left;
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; margin-top: 3px;
+  padding: 1px 7px 1px 6px; border: 1px solid transparent; border-radius: 999px;
+  background: color-mix(in srgb, var(--tag-color) 16%, transparent);
+  color: color-mix(in srgb, var(--tag-color) 50%, var(--text));
+  font: inherit; font-size: 11px; font-weight: 500; line-height: 1.4; cursor: pointer; text-align: left;
 }
+/* Medido: con más color, el violeta en oscuro y el ámbar en claro quedaban por
+   debajo de 4,5:1 a 11 px. */
+[data-theme="dark"] .meeting-project-tag { color: color-mix(in srgb, var(--tag-color) 45%, var(--text)); }
 .meeting-project-tag::before {
-  content: ''; flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%;
+  content: ''; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%;
   background: var(--tag-color); box-sizing: border-box;
 }
 .meeting-project-tag .tag-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.meeting-project-tag:hover .tag-name { color: var(--text); text-decoration: underline; }
-.meeting-project-tag.none, .meeting-project-tag.deleted, .meeting-project-tag.finished { opacity: .7; }
+.meeting-project-tag:hover { background: color-mix(in srgb, var(--tag-color) 28%, transparent); }
+/* Sin proyecto o con un proyecto que ya no existe: gris, sin relleno. */
+.meeting-project-tag.none, .meeting-project-tag.deleted,
+[data-theme="dark"] .meeting-project-tag.none, [data-theme="dark"] .meeting-project-tag.deleted {
+  background: transparent; border-color: var(--border); color: var(--subtext);
+}
 .meeting-project-tag.none::before { background: transparent; border: 1px solid var(--muted); }
+.meeting-project-tag.finished, .meeting-project-tag.deleted { opacity: .7; }
+/* Por confirmar (adivinado por el título): el color, pero solo en el borde. */
+.meeting-project-tag.guess {
+  background: transparent; border: 1px dashed color-mix(in srgb, var(--tag-color) 70%, transparent);
+}
 .meeting-project-tag.guess::before { background: transparent; border: 1.5px dashed var(--tag-color); }
 .meeting-project-tag.guess .tag-name { font-style: italic; }
 /* "Proyecto: X ✕" encima de la lista mientras se filtra. */
