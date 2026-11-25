@@ -75,6 +75,8 @@ const T = {
     tab_notes: 'Notas', tab_transcript: 'Transcript', tab_actions: 'Gestionar acciones', section_actions: 'Acciones',
     copy_note: 'Copiar notas', copy_actions: 'Copiar acciones',
     copy_transcript: 'Copiar transcript', copy_transcript_done: 'Copiado', copy_failed: 'Error al copiar',
+    copy_path: 'Copiar ruta', path_copied: 'Ruta copiada',
+    copy_path_tip: 'Copia dónde está el archivo, para pasárselo a Claude sin pegar el contenido',
     email_actions: 'Enviar acciones por email', email_transcript: 'Enviar transcript por email',
     more_actions: 'Más opciones',
     sticky_add: 'Añadir nota adhesiva', sticky_min: 'Minimizar', sticky_del: 'Eliminar', sticky_ph: 'Nota...',
@@ -522,6 +524,8 @@ const T = {
     tab_notes: 'Notes', tab_transcript: 'Transcript', tab_actions: 'Manage actions', section_actions: 'Actions',
     copy_note: 'Copy notes', copy_actions: 'Copy actions',
     copy_transcript: 'Copy transcript', copy_transcript_done: 'Copied', copy_failed: 'Copy failed',
+    copy_path: 'Copy path', path_copied: 'Path copied',
+    copy_path_tip: 'Copies where the file is, to give it to Claude without pasting its content',
     email_actions: 'Send actions email', email_transcript: 'Send transcript email',
     more_actions: 'More options',
     sticky_add: 'Add sticky note', sticky_min: 'Minimize', sticky_del: 'Delete', sticky_ph: 'Note...',
@@ -973,6 +977,8 @@ const T = {
     tab_notes: 'Notes', tab_transcript: 'Transcripció', tab_actions: 'Gestionar accions', section_actions: 'Accions',
     copy_note: 'Copiar notes', copy_actions: 'Copiar accions',
     copy_transcript: 'Copiar transcripció', copy_transcript_done: 'Copiat', copy_failed: 'Error en copiar',
+    copy_path: 'Copiar ruta', path_copied: 'Ruta copiada',
+    copy_path_tip: "Copia on és el fitxer, per passar-lo a Claude sense enganxar-ne el contingut",
     email_actions: 'Enviar accions per correu', email_transcript: 'Enviar transcripció per correu',
     more_actions: 'Més opcions',
     sticky_add: 'Afegir nota adhesiva', sticky_min: 'Minimitzar', sticky_del: 'Eliminar', sticky_ph: 'Nota...',
@@ -2044,6 +2050,7 @@ async function openMeeting(path) {
         <div id="meeting-actions"></div>
       </div>
       <div class="transcript-section hidden" id="section-transcript">
+        ${transcriptText ? `<div class="transcript-tools"><button class="btn btn-ghost btn-sm" id="btn-copy-transcript-path" title="${escHtml(t('copy_path_tip'))}">${t('copy_path')}</button></div>` : ''}
         ${transcriptText ? '<div id="meeting-ask"></div>' : ''}
         <div class="transcript-content">${transcriptText ? transcriptHtml(transcriptText) : `<em style="color:var(--muted)">${t('no_minutes')}</em>`}</div>
       </div>
@@ -2053,6 +2060,8 @@ async function openMeeting(path) {
     </div>`;
 
   document.getElementById('btn-html').addEventListener('click', () => openHtml(path));
+  document.getElementById('btn-copy-transcript-path')?.addEventListener('click', async () =>
+    _copyFilePath(await pywebview.api.get_transcript_path(path).catch(() => '')));
   document.getElementById('btn-pdf').addEventListener('click', async () => {
     document.getElementById('action-menu').classList.add('hidden');
     if (!currentPath) return;
@@ -5399,6 +5408,7 @@ function renderShotsTab(path, shots) {
       <div class="shot-bar">
         <span class="shot-time">${escHtml(s.time)}</span>
         <button class="btn btn-primary btn-sm" data-shot="copy">${t('shots_copy')}</button>
+        <button class="btn btn-ghost btn-sm" data-shot="path" title="${escHtml(t('copy_path_tip'))}">${t('copy_path')}</button>
         <button class="btn btn-ghost btn-sm" data-shot="open">${t('shots_open')}</button>
         <button class="btn btn-ghost btn-sm" data-shot="goto">${t('shots_goto')}</button>
       </div>
@@ -5416,6 +5426,8 @@ function renderShotsTab(path, shots) {
     if (what === 'copy') {
       const ok = await pywebview.api.copy_screenshot(path, file);
       showToast(t(ok ? 'shots_copied' : 'shots_copy_failed'));
+    } else if (what === 'path') {
+      _copyFilePath(await pywebview.api.get_screenshot_path(path, file).catch(() => ''));
     } else if (what === 'open') {
       pywebview.api.open_screenshot(path, file);
     } else if (what === 'goto') {
@@ -6405,6 +6417,13 @@ function _copyRich(html, text) {
     } catch (_) {}
   }
   _copyPlain(text, done, fail);
+}
+
+// "Copiar ruta" de una captura o del transcript: dónde está el archivo, para
+// pasárselo a Claude en vez de pegarle la imagen o el texto entero.
+function _copyFilePath(filePath) {
+  if (!filePath) { showToast(t('copy_failed')); return; }
+  _copyPlain(filePath, () => showToast(t('path_copied')), () => showToast(t('copy_failed')));
 }
 
 function _copyPlain(text, done, fail) {
