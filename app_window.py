@@ -3883,41 +3883,48 @@ class AppAPI:
             log.error(f"open_url: {e}")
             return False
 
+    @staticmethod
+    def _transcript_file(md_path: str) -> Path | None:
+        """El transcript de las minutas `md_path`: junto a ellas o, en las reuniones
+        antiguas, en recordings/processed o recordings. Una sola busqueda para leerlo
+        (get_transcript_text) y para dar su ruta (get_transcript_path): asi la ruta
+        copiada es siempre la del texto que se ve."""
+        md = Path(md_path)
+        stem = md.stem
+        transcript = md.parent / f"{stem}_transcript.txt"
+        if transcript.exists():
+            return transcript
+        from config import RECORDINGS_DIR
+        for folder in (RECORDINGS_DIR / 'processed', RECORDINGS_DIR):
+            for ext in ('_transcript.txt', '.txt'):
+                candidate = folder / f"{stem}{ext}"
+                if candidate.exists():
+                    return candidate
+            for lang_candidate in folder.glob(f"{glob.escape(stem)}*.txt"):
+                return lang_candidate
+        return None
+
     def get_transcript_text(self, path: str) -> str:
-
         try:
-
-            md_path = Path(path)
-
-            stem = md_path.stem
-
-            transcript = md_path.parent / f"{stem}_transcript.txt"
-
-            if transcript.exists():
-
-                return transcript.read_text(encoding='utf-8')
-
-            from config import RECORDINGS_DIR
-
-            for folder in (RECORDINGS_DIR / 'processed', RECORDINGS_DIR):
-
-                for ext in ('_transcript.txt', '.txt'):
-
-                    candidate = folder / f"{stem}{ext}"
-
-                    if candidate.exists():
-
-                        return candidate.read_text(encoding='utf-8')
-
-                for lang_candidate in folder.glob(f"{glob.escape(stem)}*.txt"):
-
-                    return lang_candidate.read_text(encoding='utf-8')
-
-            return ''
-
+            found = self._transcript_file(path)
+            return found.read_text(encoding='utf-8') if found else ''
         except Exception:
-
             return ''
+
+    def get_transcript_path(self, path: str) -> str:
+        """La ruta del transcript, para el boton "Copiar ruta": pasarsela a Claude es
+        mas directo que pegarle el texto entero. '' si no hay transcript."""
+        try:
+            found = self._transcript_file(path)
+            return str(found) if found else ''
+        except Exception:
+            return ''
+
+    def get_screenshot_path(self, md_path: str, file_name: str) -> str:
+        """La ruta de una captura de esta reunion (validada por _shot_path), para
+        "Copiar ruta"; '' si el nombre no es una captura suya."""
+        path = self._shot_path(md_path, file_name)
+        return str(path) if path else ''
 
     def get_live_transcript(self, stem: str) -> dict:
         """Transcript en vivo de la grabacion en curso (live_transcriber.py).
